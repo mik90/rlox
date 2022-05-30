@@ -1,5 +1,11 @@
-use std::path::{PathBuf, Path};
-use std::io::{BufReader, BufRead};
+use std::io::{BufRead, BufReader};
+use std::path::{Path, PathBuf};
+
+mod error;
+mod scanner;
+mod token;
+mod token_type;
+use error::LoxError;
 
 fn main() {
     let args: Vec<_> = std::env::args().collect();
@@ -10,7 +16,11 @@ fn main() {
         let p = Path::new(args[1].as_str());
         println!("Running rlox on script at '{}'", p.to_string_lossy());
         if let Err(e) = run_file(&p) {
-            eprintln!("Could not run file '{}', hit error: {}", p.to_string_lossy(), e);
+            eprintln!(
+                "Could not run file '{}', hit error: {}",
+                p.to_string_lossy(),
+                e
+            );
             std::process::exit(1);
         }
     } else {
@@ -23,12 +33,12 @@ fn main() {
 }
 
 /// Runs some code and executes it
-fn run(code: String) {
+fn run(code: String) -> Result<(), LoxError> {
     print!("(echo) {}", code);
     todo!("Code execution not implemented yet")
 }
 
-fn run_repl() -> Result<(), std::io::Error> {
+fn run_repl() -> Result<(), LoxError> {
     let mut input = BufReader::new(std::io::stdin());
     loop {
         print!("> ");
@@ -39,18 +49,17 @@ fn run_repl() -> Result<(), std::io::Error> {
                 println!("\nExiting repl");
                 return Ok(());
             }
-            Ok(_) => run(buffer),
+            Ok(_) => run(buffer)?,
             Err(e) => {
                 eprintln!("Could not process input, error: {}", e);
-                return Err(e);
+                return Err(e.into());
             }
         }
     }
-
 }
 
-fn run_file(path: &Path) -> Result<(), std::io::Error> {
+fn run_file(path: &Path) -> Result<(), LoxError> {
     let text = std::fs::read_to_string(path)?;
-    run(text);
+    run(text)?;
     Ok(())
 }
