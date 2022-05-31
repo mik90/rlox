@@ -35,10 +35,10 @@ impl Scanner {
         Ok(c)
     }
     fn add_token(&mut self, kind: TokenType) -> Result<(), LoxError> {
-        self.add_token_literal(kind, LiteralToken::None)
+        self.add_token_with_literal(kind, LiteralToken::None)
     }
 
-    fn add_token_literal(
+    fn add_token_with_literal(
         &mut self,
         kind: TokenType,
         literal: LiteralToken,
