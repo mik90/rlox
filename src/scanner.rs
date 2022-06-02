@@ -1,6 +1,6 @@
 use crate::{
     error::LoxError,
-    token::{LiteralToken, Token},
+    token::{self, LiteralToken, Token},
     token_type::TokenType,
 };
 
@@ -72,6 +72,28 @@ impl Scanner {
         return LoxError::ParseError(format!("{} at line {}", msg, self.line));
     }
 
+    // allows us to handle two-character lexemes
+    fn has_extra_char(&mut self, expected: char) -> bool {
+        if !self.is_at_end() {
+            return false;
+        }
+
+        if let Some(c) = self.source.chars().nth(self.cur_idx) {
+            if c != expected {
+                return false;
+            }
+        } else {
+            // TODO if the cur idx is greater than source, this should return some type of error
+            eprintln!(
+                "cur_idx ({}) is greater than source.len ({})",
+                self.cur_idx,
+                self.source.len()
+            );
+        }
+        self.cur_idx += 1;
+        true
+    }
+
     fn scan_token(&mut self) -> Result<(), LoxError> {
         let c = self.advance()?;
         match c {
@@ -85,6 +107,40 @@ impl Scanner {
             '+' => self.add_token(TokenType::Plus)?,
             ';' => self.add_token(TokenType::SemiColon)?,
             '*' => self.add_token(TokenType::Star)?,
+            // TODO Simplify this multi-char lexeme handling
+            '!' => {
+                // Handle multi-char lexemes that share a common first char
+                let token_type = if self.has_extra_char('=') {
+                    TokenType::BangEqual
+                } else {
+                    TokenType::Bang
+                };
+                self.add_token(token_type)?
+            }
+            '=' => {
+                let token_type = if self.has_extra_char('=') {
+                    TokenType::EqualEqual
+                } else {
+                    TokenType::Equal
+                };
+                self.add_token(token_type)?
+            }
+            '<' => {
+                let token_type = if self.has_extra_char('=') {
+                    TokenType::LessEqual
+                } else {
+                    TokenType::Less
+                };
+                self.add_token(token_type)?
+            }
+            '>' => {
+                let token_type = if self.has_extra_char('=') {
+                    TokenType::GreaterEqual
+                } else {
+                    TokenType::Greater
+                };
+                self.add_token(token_type)?
+            }
             _ => return Err(self.make_parser_error(format!("Found invalid character '{}'", c))),
         }
         todo!()
@@ -101,9 +157,16 @@ impl Scanner {
     }
 
     pub fn scan_tokens(&mut self) -> Result<(), LoxError> {
+        let mut res: Result<(), LoxError> = Ok(());
         while !self.is_at_end() {
             self.start_idx = self.cur_idx;
-            self.scan_token()?;
+            // As per chapter 4.5.1, keep scanning even if there's an error during parsing
+            if let Err(e) = self.scan_token() {
+                // Store the first error we saw in the scanning
+                if !res.is_err() {
+                    res = Err(e);
+                }
+            }
         }
 
         self.tokens.push(Token {
@@ -112,6 +175,6 @@ impl Scanner {
             literal: LiteralToken::None,
             line: self.line,
         });
-        Ok(())
+        res
     }
 }

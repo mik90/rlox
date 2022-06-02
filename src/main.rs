@@ -64,6 +64,5 @@ fn run_repl() -> Result<(), LoxError> {
 
 fn run_file(path: &Path) -> Result<(), LoxError> {
     let text = std::fs::read_to_string(path)?;
-    run(text)?;
-    Ok(())
+    run(text)
 }

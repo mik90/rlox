@@ -5,7 +5,7 @@ use std::io;
 type ErrorMessage = String;
 #[derive(Debug)]
 pub enum LoxError {
-    ParseError(ErrorMessage),
+    ParseError(ErrorMessage), // Not necessarily a fatal error
     SyntaxError(ErrorMessage),
     IoError(io::Error),
 }
