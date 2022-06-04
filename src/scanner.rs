@@ -3,6 +3,7 @@ use crate::{
     token::{self, LiteralType, Token},
     token_type::TokenType,
 };
+use std::{collections::HashMap, hash::Hash};
 
 pub struct Scanner {
     source: String,
@@ -14,6 +15,7 @@ pub struct Scanner {
     cur_idx: usize,
 
     line: usize,
+    keywords: HashMap<&'static str, TokenType>,
 }
 
 impl Scanner {
@@ -130,6 +132,29 @@ impl Scanner {
             .map_err(|_| LoxError::ParseError(format!("Could not parse '{}' as f64", substr)))?;
         self.add_token_with_literal(TokenType::Number, LiteralType::Number(number))
     }
+    fn scan_identifier(&mut self) -> Result<(), LoxError> {
+        while self.peek().is_alphanumeric() {
+            self.advance()?;
+        }
+        let len = self.cur_idx - self.start_idx;
+        let text = self
+            .source
+            .chars()
+            .skip(self.start_idx)
+            .take(len)
+            .collect::<String>();
+        let token_type = self
+            .keywords
+            .get(text.as_str())
+            .unwrap_or(&TokenType::Identifier)
+            .clone();
+        match token_type {
+            TokenType::Identifier => {
+                self.add_token_with_literal(token_type, LiteralType::Identifier(text))
+            }
+            _ => self.add_token_with_literal(token_type, LiteralType::None),
+        }
+    }
 
     fn scan_string(&mut self) -> Result<(), LoxError> {
         while self.peek() != '"' && !self.is_at_end() {
@@ -202,6 +227,9 @@ impl Scanner {
             '0'..='9' => {
                 return self.scan_number();
             }
+            'a'..='z' | 'A'..='Z' | '_' => {
+                return self.scan_identifier();
+            }
             _ => return Err(self.make_parser_error(format!("Found invalid character '{}'", c))),
         };
         // TODO add some type of logging
@@ -216,6 +244,24 @@ impl Scanner {
             start_idx: 0,
             cur_idx: 0,
             line: 1,
+            keywords: HashMap::from([
+                ("and", TokenType::And),
+                ("class", TokenType::Class),
+                ("else", TokenType::Else),
+                ("false", TokenType::False),
+                ("for", TokenType::For),
+                ("fun", TokenType::Fun),
+                ("if", TokenType::If),
+                ("nil", TokenType::Nil),
+                ("or", TokenType::Or),
+                ("print", TokenType::Print),
+                ("return", TokenType::Return),
+                ("super", TokenType::Super),
+                ("this", TokenType::This),
+                ("true", TokenType::True),
+                ("var", TokenType::Var),
+                ("while", TokenType::While),
+            ]),
         }
     }
 
@@ -262,7 +308,7 @@ mod test {
 
         let tokens = scan.copy_tokens();
         assert_eq!(tokens.len(), 1); // the EOF token is the only one we expect
-        assert_eq!(tokens[0].kind, TokenType::Eof);
+        assert_eq!(tokens[tokens.len() - 1].kind, TokenType::Eof);
     }
 
     #[test]
@@ -278,7 +324,7 @@ mod test {
         assert_eq!(tokens[0].kind, TokenType::Plus);
         assert_eq!(tokens[1].kind, TokenType::Minus);
         assert_eq!(tokens[2].kind, TokenType::Comma);
-        assert_eq!(tokens[3].kind, TokenType::Eof);
+        assert_eq!(tokens[tokens.len() - 1].kind, TokenType::Eof);
     }
 
     #[test]
@@ -297,7 +343,7 @@ mod test {
             LiteralType::String("Hello world".to_string())
         );
 
-        assert_eq!(tokens[1].kind, TokenType::Eof);
+        assert_eq!(tokens[tokens.len() - 1].kind, TokenType::Eof);
     }
 
     #[test]
@@ -323,6 +369,42 @@ mod test {
         assert_eq!(tokens[0].text, "1.2".to_string());
         assert_eq!(tokens[0].literal, LiteralType::Number(1.2));
 
-        assert_eq!(tokens[1].kind, TokenType::Eof);
+        assert_eq!(tokens[tokens.len() - 1].kind, TokenType::Eof);
+    }
+
+    #[test]
+    fn scan_literal() {
+        let input = "and or foobar printfoo".to_string();
+
+        let mut scan = Scanner::new(input);
+        let res = scan.scan_tokens();
+        assert!(res.is_ok(), "{}", res.unwrap_err().to_string());
+
+        let tokens = scan.copy_tokens();
+        assert_eq!(tokens.len(), 5, "\ntokens: {:?}", tokens);
+
+        assert_eq!(tokens[0].kind, TokenType::And);
+        assert_eq!(tokens[0].text, "and".to_string());
+        assert_eq!(tokens[0].literal, LiteralType::None);
+
+        assert_eq!(tokens[1].kind, TokenType::Or);
+        assert_eq!(tokens[1].text, "or".to_string());
+        assert_eq!(tokens[1].literal, LiteralType::None);
+
+        assert_eq!(tokens[2].kind, TokenType::Identifier);
+        assert_eq!(tokens[2].text, "foobar".to_string());
+        assert_eq!(
+            tokens[2].literal,
+            LiteralType::Identifier("foobar".to_string())
+        );
+
+        assert_eq!(tokens[3].kind, TokenType::Identifier);
+        assert_eq!(tokens[3].text, "printfoo".to_string());
+        assert_eq!(
+            tokens[3].literal,
+            LiteralType::Identifier("printfoo".to_string())
+        );
+
+        assert_eq!(tokens[tokens.len() - 1].kind, TokenType::Eof);
     }
 }
