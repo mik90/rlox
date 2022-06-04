@@ -1,6 +1,6 @@
 use crate::token_type::TokenType;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum LiteralToken {
     Identifier(String),
     String(String),
@@ -8,7 +8,7 @@ pub enum LiteralToken {
     None,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Token {
     pub kind: TokenType,
     pub lexeme: String,

@@ -69,12 +69,15 @@ impl Scanner {
     }
 
     fn make_parser_error(&self, msg: String) -> LoxError {
-        return LoxError::ParseError(format!("{} at line {}", msg, self.line));
+        return LoxError::ParseError(format!(
+            "{} at line {}. cur_idx={}",
+            msg, self.line, self.cur_idx
+        ));
     }
 
     // allows us to handle two-character lexemes
     fn has_extra_char(&mut self, expected: char) -> bool {
-        if !self.is_at_end() {
+        if self.is_at_end() {
             return false;
         }
 
@@ -93,10 +96,18 @@ impl Scanner {
         self.cur_idx += 1;
         true
     }
+    fn peek(&self) -> char {
+        self.source.chars().nth(self.cur_idx).unwrap_or('\0')
+    }
 
     fn scan_token(&mut self) -> Result<(), LoxError> {
         let c = self.advance()?;
         let token_type = match c {
+            ' ' | '\r' | '\t' => return Ok(()), // ignore whitespace
+            '\n' => {
+                self.line += 1;
+                return Ok(());
+            }
             '(' => TokenType::LeftParen,
             ')' => TokenType::RightParen,
             '{' => TokenType::LeftBrace,
@@ -107,38 +118,31 @@ impl Scanner {
             '+' => TokenType::Plus,
             ';' => TokenType::SemiColon,
             '*' => TokenType::Star,
-            // TODO Simplify this multi-char lexeme handling
-            '!' => {
-                // Handle multi-char lexemes that share a common first char
-                if self.has_extra_char('=') {
-                    TokenType::BangEqual
+            '!' if self.has_extra_char('=') => TokenType::BangEqual,
+            '!' => TokenType::Bang,
+            '=' if self.has_extra_char('=') => TokenType::EqualEqual,
+            '=' => TokenType::Equal,
+            '<' if self.has_extra_char('=') => TokenType::LessEqual,
+            '<' => TokenType::Less,
+            '>' if self.has_extra_char('=') => TokenType::GreaterEqual,
+            '>' => TokenType::Greater,
+            '/' => {
+                if self.has_extra_char('/') {
+                    // if we hit a comment, consume until we hit the end of the line
+                    while self.peek() != '\n' && !self.is_at_end() {
+                        self.advance()?;
+                    }
+                    // early exit after getting rid of all the comment chars
+                    return Ok(());
                 } else {
-                    TokenType::Bang
-                }
-            }
-            '=' => {
-                if self.has_extra_char('=') {
-                    TokenType::EqualEqual
-                } else {
-                    TokenType::Equal
-                }
-            }
-            '<' => {
-                if self.has_extra_char('=') {
-                    TokenType::LessEqual
-                } else {
-                    TokenType::Less
-                }
-            }
-            '>' => {
-                if self.has_extra_char('=') {
-                    TokenType::GreaterEqual
-                } else {
-                    TokenType::Greater
+                    // not a comment, it's a division operator
+                    TokenType::Slash
                 }
             }
             _ => return Err(self.make_parser_error(format!("Found invalid character '{}'", c))),
         };
+        // TODO add some type of logging
+        // println!("Adding token type {:?}", token_type);
         self.add_token(token_type)
     }
 
@@ -152,6 +156,8 @@ impl Scanner {
         }
     }
 
+    // TODO maybe have the tokens returned as part of here instead of being a member var
+    // Why can this just be a static function that creates a scanner and runs it?
     pub fn scan_tokens(&mut self) -> Result<(), LoxError> {
         let mut res: Result<(), LoxError> = Ok(());
         while !self.is_at_end() {
@@ -172,5 +178,43 @@ impl Scanner {
             line: self.line,
         });
         res
+    }
+
+    pub fn copy_tokens(&self) -> Vec<Token> {
+        self.tokens.clone()
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn scan_comment() {
+        let input = "// this is a comment\n //\t this is another comment".to_string();
+
+        let mut scan = Scanner::new(input);
+        let res = scan.scan_tokens();
+        assert!(res.is_ok(), "{}", res.unwrap_err().to_string());
+
+        let tokens = scan.copy_tokens();
+        assert_eq!(tokens.len(), 1); // the EOF token is the only one we expect
+        assert_eq!(tokens[0].kind, TokenType::Eof);
+    }
+
+    #[test]
+    fn scan_symbols() {
+        let input = "+-,".to_string();
+
+        let mut scan = Scanner::new(input);
+        let res = scan.scan_tokens();
+        assert!(res.is_ok(), "{}", res.unwrap_err().to_string());
+
+        let tokens = scan.copy_tokens();
+        assert_eq!(tokens.len(), 4); // the EOF token is the only one we expect
+        assert_eq!(tokens[0].kind, TokenType::Plus);
+        assert_eq!(tokens[1].kind, TokenType::Minus);
+        assert_eq!(tokens[2].kind, TokenType::Comma);
+        assert_eq!(tokens[3].kind, TokenType::Eof);
     }
 }
