@@ -19,13 +19,9 @@ fn main() {
         }
         2 => {
             let p = Path::new(args[1].as_str());
-            println!("Running rlox on script at '{}'", p.to_string_lossy());
+            println!("Executing script '{}'", p.to_string_lossy());
             if let Err(e) = run_file(&p) {
-                eprintln!(
-                    "Could not run file '{}', hit error: {}",
-                    p.to_string_lossy(),
-                    e
-                );
+                eprintln!("Could not run file '{}'. {}", p.to_string_lossy(), e);
                 std::process::exit(1);
             }
         }

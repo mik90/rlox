@@ -96,54 +96,50 @@ impl Scanner {
 
     fn scan_token(&mut self) -> Result<(), LoxError> {
         let c = self.advance()?;
-        match c {
-            '(' => self.add_token(TokenType::LeftParen)?,
-            ')' => self.add_token(TokenType::RightParen)?,
-            '{' => self.add_token(TokenType::LeftBrace)?,
-            '}' => self.add_token(TokenType::RightBrace)?,
-            ',' => self.add_token(TokenType::Comma)?,
-            '.' => self.add_token(TokenType::Dot)?,
-            '-' => self.add_token(TokenType::Minus)?,
-            '+' => self.add_token(TokenType::Plus)?,
-            ';' => self.add_token(TokenType::SemiColon)?,
-            '*' => self.add_token(TokenType::Star)?,
+        let token_type = match c {
+            '(' => TokenType::LeftParen,
+            ')' => TokenType::RightParen,
+            '{' => TokenType::LeftBrace,
+            '}' => TokenType::RightBrace,
+            ',' => TokenType::Comma,
+            '.' => TokenType::Dot,
+            '-' => TokenType::Minus,
+            '+' => TokenType::Plus,
+            ';' => TokenType::SemiColon,
+            '*' => TokenType::Star,
             // TODO Simplify this multi-char lexeme handling
             '!' => {
                 // Handle multi-char lexemes that share a common first char
-                let token_type = if self.has_extra_char('=') {
+                if self.has_extra_char('=') {
                     TokenType::BangEqual
                 } else {
                     TokenType::Bang
-                };
-                self.add_token(token_type)?
+                }
             }
             '=' => {
-                let token_type = if self.has_extra_char('=') {
+                if self.has_extra_char('=') {
                     TokenType::EqualEqual
                 } else {
                     TokenType::Equal
-                };
-                self.add_token(token_type)?
+                }
             }
             '<' => {
-                let token_type = if self.has_extra_char('=') {
+                if self.has_extra_char('=') {
                     TokenType::LessEqual
                 } else {
                     TokenType::Less
-                };
-                self.add_token(token_type)?
+                }
             }
             '>' => {
-                let token_type = if self.has_extra_char('=') {
+                if self.has_extra_char('=') {
                     TokenType::GreaterEqual
                 } else {
                     TokenType::Greater
-                };
-                self.add_token(token_type)?
+                }
             }
             _ => return Err(self.make_parser_error(format!("Found invalid character '{}'", c))),
-        }
-        todo!()
+        };
+        self.add_token(token_type)
     }
 
     pub fn new(source: String) -> Self {
