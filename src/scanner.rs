@@ -100,6 +100,34 @@ impl Scanner {
         self.source.chars().nth(self.cur_idx).unwrap_or('\0')
     }
 
+    fn scan_string(&mut self) -> Result<(), LoxError> {
+        while self.peek() != '"' && !self.is_at_end() {
+            // keep consuming until the string ends
+            if self.peek() == '\n' {
+                self.line += 1;
+            }
+            self.advance()?;
+        }
+        if !self.is_at_end() && self.peek() != '"' {
+            return Err(self.make_parser_error(format!(
+                "Unterminated string. Current char '{}'",
+                self.peek()
+            )));
+        }
+        // consume the closing ""
+        self.advance()?;
+
+        // Dont include the closing quotes, and don't include the starting quotes
+        let substr_len = (self.cur_idx - 1) - (self.start_idx + 1);
+        let value = self
+            .source
+            .chars()
+            .skip(self.start_idx + 1)
+            .take(substr_len)
+            .collect::<String>();
+        self.add_token_with_literal(TokenType::String, LiteralToken::String(value))
+    }
+
     fn scan_token(&mut self) -> Result<(), LoxError> {
         let c = self.advance()?;
         let token_type = match c {
@@ -113,6 +141,7 @@ impl Scanner {
             '{' => TokenType::LeftBrace,
             '}' => TokenType::RightBrace,
             ',' => TokenType::Comma,
+            '"' => return self.scan_string(),
             '.' => TokenType::Dot,
             '-' => TokenType::Minus,
             '+' => TokenType::Plus,
@@ -216,5 +245,33 @@ mod test {
         assert_eq!(tokens[1].kind, TokenType::Minus);
         assert_eq!(tokens[2].kind, TokenType::Comma);
         assert_eq!(tokens[3].kind, TokenType::Eof);
+    }
+
+    #[test]
+    fn scan_string() {
+        let input = r#""Hello world""#.to_string();
+
+        let mut scan = Scanner::new(input);
+        let res = scan.scan_tokens();
+        assert!(res.is_ok(), "{}", res.unwrap_err().to_string());
+
+        let tokens = scan.copy_tokens();
+        assert_eq!(tokens.len(), 2); // the EOF token is the only one we expect
+        assert_eq!(tokens[0].kind, TokenType::String);
+        assert_eq!(
+            tokens[0].literal,
+            LiteralToken::String("Hello world".to_string())
+        );
+
+        assert_eq!(tokens[1].kind, TokenType::Eof);
+    }
+
+    #[test]
+    fn scan_unterminated_string() {
+        let input = r#""Hello unterminated world"#.to_string();
+
+        let mut scan = Scanner::new(input);
+        let res = scan.scan_tokens();
+        assert!(res.is_err());
     }
 }
