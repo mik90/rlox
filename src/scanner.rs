@@ -99,6 +99,37 @@ impl Scanner {
     fn peek(&self) -> char {
         self.source.chars().nth(self.cur_idx).unwrap_or('\0')
     }
+    fn peek_next(&self) -> char {
+        self.source.chars().nth(self.cur_idx + 1).unwrap_or('\0')
+    }
+
+    fn scan_number(&mut self) -> Result<(), LoxError> {
+        // consume all the digits before the .
+        while self.peek().is_digit(10) {
+            self.advance()?;
+        }
+
+        if self.peek() == '.' && self.peek_next().is_digit(10) {
+            // consume the "."
+            self.advance()?;
+
+            // consume all the digits _after_ the dot
+            while self.peek().is_digit(10) {
+                self.advance()?;
+            }
+        }
+        let len = self.cur_idx - self.start_idx;
+        let substr = self
+            .source
+            .chars()
+            .skip(self.start_idx)
+            .take(len)
+            .collect::<String>();
+        let number = substr
+            .parse::<f64>()
+            .map_err(|_| LoxError::ParseError(format!("Could not parse '{}' as f64", substr)))?;
+        self.add_token_with_literal(TokenType::Number, LiteralType::Number(number))
+    }
 
     fn scan_string(&mut self) -> Result<(), LoxError> {
         while self.peek() != '"' && !self.is_at_end() {
@@ -167,6 +198,9 @@ impl Scanner {
                     // not a comment, it's a division operator
                     TokenType::Slash
                 }
+            }
+            '0'..='9' => {
+                return self.scan_number();
             }
             _ => return Err(self.make_parser_error(format!("Found invalid character '{}'", c))),
         };
@@ -240,7 +274,7 @@ mod test {
         assert!(res.is_ok(), "{}", res.unwrap_err().to_string());
 
         let tokens = scan.copy_tokens();
-        assert_eq!(tokens.len(), 4); // the EOF token is the only one we expect
+        assert_eq!(tokens.len(), 4);
         assert_eq!(tokens[0].kind, TokenType::Plus);
         assert_eq!(tokens[1].kind, TokenType::Minus);
         assert_eq!(tokens[2].kind, TokenType::Comma);
@@ -256,7 +290,7 @@ mod test {
         assert!(res.is_ok(), "{}", res.unwrap_err().to_string());
 
         let tokens = scan.copy_tokens();
-        assert_eq!(tokens.len(), 2); // the EOF token is the only one we expect
+        assert_eq!(tokens.len(), 2);
         assert_eq!(tokens[0].kind, TokenType::String);
         assert_eq!(
             tokens[0].literal,
@@ -273,5 +307,22 @@ mod test {
         let mut scan = Scanner::new(input);
         let res = scan.scan_tokens();
         assert!(res.is_err());
+    }
+
+    #[test]
+    fn scan_number_literal() {
+        let input = r#"1.2"#.to_string();
+
+        let mut scan = Scanner::new(input);
+        let res = scan.scan_tokens();
+        assert!(res.is_ok(), "{}", res.unwrap_err().to_string());
+
+        let tokens = scan.copy_tokens();
+        assert_eq!(tokens.len(), 2, "\ntokens: {:?}", tokens);
+        assert_eq!(tokens[0].kind, TokenType::Number);
+        assert_eq!(tokens[0].text, "1.2".to_string());
+        assert_eq!(tokens[0].literal, LiteralType::Number(1.2));
+
+        assert_eq!(tokens[1].kind, TokenType::Eof);
     }
 }
