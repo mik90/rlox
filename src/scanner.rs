@@ -1,6 +1,6 @@
 use crate::{
     error::LoxError,
-    token::{self, LiteralToken, Token},
+    token::{self, LiteralType, Token},
     token_type::TokenType,
 };
 
@@ -35,13 +35,13 @@ impl Scanner {
         Ok(c)
     }
     fn add_token(&mut self, kind: TokenType) -> Result<(), LoxError> {
-        self.add_token_with_literal(kind, LiteralToken::None)
+        self.add_token_with_literal(kind, LiteralType::None)
     }
 
     fn add_token_with_literal(
         &mut self,
         kind: TokenType,
-        literal: LiteralToken,
+        literal: LiteralType,
     ) -> Result<(), LoxError> {
         // TODO clean up this error handling/printout
         if self.start_idx > self.source.len() || self.cur_idx > self.source.len() {
@@ -57,10 +57,10 @@ impl Scanner {
                 self.start_idx, self.cur_idx,
             )));
         }
-        let lexeme = self.source[self.start_idx..self.cur_idx].to_string();
+        let text = self.source[self.start_idx..self.cur_idx].to_string();
         self.tokens.push(Token {
             kind,
-            lexeme,
+            text,
             literal,
             line: self.line,
         });
@@ -125,7 +125,7 @@ impl Scanner {
             .skip(self.start_idx + 1)
             .take(substr_len)
             .collect::<String>();
-        self.add_token_with_literal(TokenType::String, LiteralToken::String(value))
+        self.add_token_with_literal(TokenType::String, LiteralType::String(value))
     }
 
     fn scan_token(&mut self) -> Result<(), LoxError> {
@@ -202,8 +202,8 @@ impl Scanner {
 
         self.tokens.push(Token {
             kind: TokenType::Eof,
-            lexeme: "".to_string(),
-            literal: LiteralToken::None,
+            text: "".to_string(),
+            literal: LiteralType::None,
             line: self.line,
         });
         res
@@ -260,7 +260,7 @@ mod test {
         assert_eq!(tokens[0].kind, TokenType::String);
         assert_eq!(
             tokens[0].literal,
-            LiteralToken::String("Hello world".to_string())
+            LiteralType::String("Hello world".to_string())
         );
 
         assert_eq!(tokens[1].kind, TokenType::Eof);
