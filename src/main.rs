@@ -2,6 +2,7 @@ use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 
 mod error;
+mod expr;
 mod scanner;
 mod token;
 mod token_type;
