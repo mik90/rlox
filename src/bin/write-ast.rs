@@ -1,4 +1,3 @@
-use std::fmt::format;
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -40,8 +39,14 @@ impl AutogenStructFields {
                 .filter(|s| *s != "")
                 .map(|s| s.to_string())
                 .collect();
+
+            let mut class = split[0].to_string();
+            // I don't have Java's generic Object, just LiteralType
+            if class == "Object" {
+                class = "LiteralType".to_string();
+            }
             out.push(AutogenStructFields {
-                class: split[0].to_string(),
+                class,
                 name: split[1].to_string(),
             });
         }
@@ -68,8 +73,7 @@ fn write_impl(
     args.pop();
     // remove the extra ,
     args.pop();
-    write!(file, "    pub fn new({}", args)?;
-    writeln!(file, ") -> BinaryExpr {{")?;
+    writeln!(file, "    pub fn new({}) -> {} {{", args, struct_name)?;
 
     writeln!(file, "        {} {{", struct_name)?;
     for field in struct_fields {
@@ -101,6 +105,7 @@ fn write_ast(out_dir: &Path, base_name: &str, types: Vec<&str>) -> Result<(), io
         .iter()
         .collect();
     let mut file = fs::File::create(&output_path)?;
+    writeln!(file, "use crate::token::LiteralType;")?;
     writeln!(file, "use crate::token::Token;")?;
     writeln!(file, "")?;
     write_expr(&mut file)?;
@@ -109,8 +114,9 @@ fn write_ast(out_dir: &Path, base_name: &str, types: Vec<&str>) -> Result<(), io
     for type_def in types {
         let (struct_name, struct_fields) = get_struct_name_and_fields(type_def);
         writeln!(file, "pub struct {} {{", struct_name)?;
-        write_struct_fields(&mut file, base_name, &struct_name, &struct_fields)?;
+        write_struct_fields(&mut file, &struct_fields)?;
         writeln!(file, "}}")?;
+        writeln!(file, "")?;
 
         writeln!(file, "impl Expr for {} {{}}", struct_name)?;
 
@@ -123,8 +129,6 @@ fn write_ast(out_dir: &Path, base_name: &str, types: Vec<&str>) -> Result<(), io
 
 fn write_struct_fields(
     file: &mut fs::File,
-    base_name: &str,
-    struct_name: &str,
     fields: &Vec<AutogenStructFields>,
 ) -> Result<(), io::Error> {
     for field in fields {
@@ -163,7 +167,7 @@ mod test {
         let vars = AutogenStructFields::new(fields);
 
         assert_eq!(vars.len(), 1);
-        assert_eq!(vars[0].class, "Object");
+        assert_eq!(vars[0].class, "LiteralType");
         assert_eq!(vars[0].name, "value");
     }
 
