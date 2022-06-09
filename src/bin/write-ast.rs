@@ -23,10 +23,37 @@ fn main() {
     }
 }
 
+struct AutogenStruct {
+    pub name: String,
+    pub fields: Vec<AutogenStructFields>,
+}
+
+impl AutogenStruct {
+    fn new(types: Vec<&str>) -> Vec<AutogenStruct> {
+        let mut out = Vec::<AutogenStruct>::new();
+        for line in types {
+            let struct_name = line
+                .split(":")
+                .take(1)
+                .map(|v| v.trim())
+                .collect::<String>();
+            let struct_fields = line.split(":").skip(1).collect::<String>();
+
+            out.push(AutogenStruct {
+                name: struct_name,
+                fields: AutogenStructFields::new(&struct_fields),
+            });
+        }
+        out
+    }
+}
+
+// Each field (e.g. Expr myExpr) where Expr is the class and myExpr is the name
 struct AutogenStructFields {
     pub class: String,
     pub name: String,
 }
+
 impl AutogenStructFields {
     /// The input should be the text after the colon
     /// "Binary   : Expr left, Token operator, Expr right",
@@ -53,6 +80,22 @@ impl AutogenStructFields {
         out
     }
 }
+
+fn write_struct_fields(
+    file: &mut fs::File,
+    fields: &Vec<AutogenStructFields>,
+) -> Result<(), io::Error> {
+    for field in fields {
+        if field.class == "Expr" {
+            writeln!(file, "    {}: Box<dyn Expr>,", field.name)?;
+        } else {
+            writeln!(file, "    {}: {},", field.name, field.class)?;
+        }
+    }
+
+    Ok(())
+}
+
 fn write_impl(
     file: &mut fs::File,
     struct_name: &str,
@@ -63,9 +106,9 @@ fn write_impl(
     let mut args = String::new();
     for field in struct_fields {
         let arg = if field.class == "Expr" {
-            format!("{}: Box<dyn Expr>, ", field.name)
+            format!("{}: Box<dyn Expr>, ", field.name.to_lowercase())
         } else {
-            format!("{}: {}, ", field.name, field.class)
+            format!("{}: {}, ", field.name.to_lowercase(), field.class)
         };
         args.push_str(&arg);
     }
@@ -85,19 +128,31 @@ fn write_impl(
     Ok(())
 }
 
-fn write_expr(file: &mut fs::File) -> Result<(), io::Error> {
+fn write_expr_trait(file: &mut fs::File) -> Result<(), io::Error> {
     writeln!(file, "pub trait Expr {{}}")?;
     Ok(())
 }
 
-fn get_struct_name_and_fields(line: &str) -> (String, Vec<AutogenStructFields>) {
-    let struct_name = line
-        .split(":")
-        .take(1)
-        .map(|v| v.trim())
-        .collect::<String>();
-    let struct_fields = line.split(":").skip(1).collect::<String>();
-    (struct_name, AutogenStructFields::new(&struct_fields))
+fn write_visitor_trait(file: &mut fs::File, types: &Vec<AutogenStruct>) -> Result<(), io::Error> {
+    // also the accept trait i guess
+    writeln!(file, "pub trait Accept<T> {{")?;
+    writeln!(file, "    fn accept(visitor: Box<dyn Visitor<T>>) -> T;")?;
+    writeln!(file, "}}")?;
+
+    writeln!(file, "pub trait Visitor<T> {{")?;
+    for autogen_struct in types.iter() {
+        write!(file, "    fn visit_{}(&mut self", autogen_struct.name)?;
+        for field in autogen_struct.fields.iter() {
+            if field.class == "Expr" {
+                write!(file, ", {}: Box<dyn Expr>", field.name)?;
+            } else {
+                write!(file, ", {}: &{}", field.name, field.class)?;
+            }
+        }
+        writeln!(file, ") -> T;")?;
+    }
+    writeln!(file, "}}")?;
+    Ok(())
 }
 
 fn write_ast(out_dir: &Path, base_name: &str, types: Vec<&str>) -> Result<(), io::Error> {
@@ -108,37 +163,26 @@ fn write_ast(out_dir: &Path, base_name: &str, types: Vec<&str>) -> Result<(), io
     writeln!(file, "use crate::token::LiteralType;")?;
     writeln!(file, "use crate::token::Token;")?;
     writeln!(file, "")?;
-    write_expr(&mut file)?;
+    let types = AutogenStruct::new(types);
+
+    write_expr_trait(&mut file)?;
+    write_visitor_trait(&mut file, &types)?;
     writeln!(file, "")?;
 
-    for type_def in types {
-        let (struct_name, struct_fields) = get_struct_name_and_fields(type_def);
-        writeln!(file, "pub struct {} {{", struct_name)?;
-        write_struct_fields(&mut file, &struct_fields)?;
+    for type_def in &types {
+        writeln!(file, "pub struct {} {{", type_def.name)?;
+        write_struct_fields(&mut file, &type_def.fields)?;
         writeln!(file, "}}")?;
         writeln!(file, "")?;
 
-        writeln!(file, "impl Expr for {} {{}}", struct_name)?;
+        writeln!(file, "impl Expr for {} {{}}", type_def.name)?;
+        writeln!(file, "impl Visitor<T> for {}<T> {{}}", type_def.name)?;
+        writeln!(file, "impl Accept<T> for {} {{}}", type_def.name)?;
 
-        write_impl(&mut file, &struct_name, &struct_fields)?;
+        write_impl(&mut file, &type_def.name, &type_def.fields)?;
     }
 
     println!("wrote output to: {}", output_path.to_string_lossy());
-    Ok(())
-}
-
-fn write_struct_fields(
-    file: &mut fs::File,
-    fields: &Vec<AutogenStructFields>,
-) -> Result<(), io::Error> {
-    for field in fields {
-        if field.class == "Expr" {
-            writeln!(file, "    {}: Box<dyn Expr>,", field.name)?;
-        } else {
-            writeln!(file, "    {}: {},", field.name, field.class)?;
-        }
-    }
-
     Ok(())
 }
 
@@ -174,10 +218,13 @@ mod test {
     #[test]
     fn struct_name_and_fields() {
         let line = "Binary   : Expr left, Token operator, Expr right";
-        let (name, fields) = get_struct_name_and_fields(line);
+        let autogen_structs = AutogenStruct::new(vec![line]);
+        assert_eq!(autogen_structs.len(), 1);
+        let autogen_struct = &autogen_structs[0];
 
-        assert_eq!(name, "Binary");
+        assert_eq!(autogen_struct.name, "Binary");
 
+        let fields = &autogen_struct.fields;
         assert_eq!(fields.len(), 3);
         assert_eq!(fields[0].class, "Expr");
         assert_eq!(fields[0].name, "left");
