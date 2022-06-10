@@ -16,3 +16,14 @@ pub struct Token {
     pub literal: LiteralType,
     pub line: usize,
 }
+
+impl Token {
+    pub fn new(kind: TokenType, text: String, literal: LiteralType, line: usize) -> Token {
+        Token {
+            kind,
+            text,
+            literal,
+            line,
+        }
+    }
+}

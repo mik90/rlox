@@ -1,3 +1,7 @@
+use crate::expr::Expr;
+use crate::token::{LiteralType, Token};
+use crate::token_type::TokenType;
+use ast_printer::AstPrinter;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 
@@ -12,7 +16,7 @@ use error::LoxError;
 fn main() {
     let args: Vec<_> = std::env::args().collect();
     match args.len() {
-        0..=1 => {
+        1 => {
             println!("Starting rlox repl. Enter 'Ctrl+D' to exit");
             if let Err(e) = run_repl() {
                 eprintln!("Could not process repl session, {}", e);
