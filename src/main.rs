@@ -1,6 +1,7 @@
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 
+mod ast_printer;
 mod error;
 mod expr;
 mod scanner;

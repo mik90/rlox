@@ -1,6 +1,8 @@
 use crate::token::LiteralType;
 use crate::token::Token;
 
+// Expr is boxed in order to allow this enum to be recursive
+// Otherwise it wouldn't be able to figure out the size of Expr
 #[derive(Debug)]
 pub enum Expr {
     /// Binary   : Expr left, Token operator, Expr right
@@ -14,19 +16,19 @@ pub enum Expr {
 }
 
 pub trait Visitor<T> {
-    fn visit_binary(&mut self, lhs: Box<Expr>, op: Token, rhs: Box<Expr>) -> T;
-    fn visit_grouping(&mut self, expr: Box<Expr>) -> T;
-    fn visit_literal(&mut self, value: LiteralType) -> T;
-    fn visit_unary(&mut self, op: Token, right: Box<Expr>) -> T;
+    fn visit_binary(&mut self, lhs: &Expr, op: &Token, rhs: &Expr) -> T;
+    fn visit_grouping(&mut self, expr: &Expr) -> T;
+    fn visit_literal(&mut self, value: &LiteralType) -> T;
+    fn visit_unary(&mut self, op: &Token, right: &Expr) -> T;
 }
 
 impl Expr {
     pub fn accept<T>(&self, visitor: &mut dyn Visitor<T>) -> T {
-        match &self {
-            Expr::Binary(lhs, op, rhs) => todo!(),
-            Expr::Grouping(expr) => todo!(),
-            Expr::Literal(lit) => todo!(),
-            Expr::Unary(op, expr) => todo!(),
+        match self {
+            Expr::Binary(lhs, op, rhs) => visitor.visit_binary(lhs, op, rhs),
+            Expr::Grouping(expr) => visitor.visit_grouping(expr),
+            Expr::Literal(lit) => visitor.visit_literal(lit),
+            Expr::Unary(op, expr) => visitor.visit_unary(op, expr),
         }
     }
 }
