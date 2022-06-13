@@ -1,7 +1,6 @@
 use crate::{
     error::LoxError,
-    token::{self, LiteralType, Token},
-    token_type::TokenType,
+    token::{self, LiteralType, Token, TokenType},
 };
 use std::{collections::HashMap, hash::Hash};
 

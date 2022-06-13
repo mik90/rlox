@@ -1,16 +1,14 @@
 use crate::expr::Expr;
-use crate::token::{LiteralType, Token};
-use crate::token_type::TokenType;
-use ast_printer::AstPrinter;
+use crate::token::{LiteralType, Token, TokenType};
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 
 mod ast_printer;
 mod error;
 mod expr;
+mod parser;
 mod scanner;
 mod token;
-mod token_type;
 use error::LoxError;
 
 fn main() {
