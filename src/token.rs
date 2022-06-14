@@ -3,7 +3,22 @@ pub enum LiteralType {
     Identifier(String),
     String(String),
     Number(f64), // <-- all numbers are floating point at rutnime
+    Bool(bool),
+    Nil,
     None,
+}
+
+impl LiteralType {
+    pub fn to_string(&self) -> String {
+        match &self {
+            LiteralType::Identifier(identifier) => identifier.clone(),
+            LiteralType::String(string) => string.clone(),
+            LiteralType::Number(num) => num.to_string(),
+            LiteralType::None => "nil".to_string(),
+            LiteralType::Bool(b) => b.to_string(),
+            LiteralType::Nil => "nil".to_string(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -73,6 +88,54 @@ impl Token {
             text,
             literal,
             line,
+        }
+    }
+    /// Eugh, LiteralType of None returns an EOF token
+    pub fn new_literal(literal: LiteralType, line: usize) -> Token {
+        match &literal {
+            LiteralType::Identifier(identifier) => Token {
+                kind: TokenType::Identifier,
+                text: literal.to_string(),
+                literal,
+                line,
+            },
+            LiteralType::String(string) => Token {
+                kind: TokenType::String,
+                text: literal.to_string(),
+                literal,
+                line,
+            },
+            LiteralType::Number(num) => Token {
+                kind: TokenType::Number,
+                text: literal.to_string(),
+                literal,
+                line,
+            },
+            LiteralType::None => Token {
+                kind: TokenType::Eof,
+                text: literal.to_string(),
+                literal,
+                line,
+            },
+            LiteralType::Bool(b) => {
+                let kind = if *b {
+                    TokenType::True
+                } else {
+                    TokenType::False
+                };
+                Token {
+                    kind: TokenType::True,
+                    text: literal.to_string(),
+                    literal: literal,
+                    line: line,
+                }
+            }
+            LiteralType::Nil => Token {
+                kind: TokenType::Nil,
+                text: literal.to_string(),
+                literal,
+                line,
+            },
         }
     }
 }

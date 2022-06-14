@@ -1,5 +1,6 @@
+use crate::error::LoxError;
 use crate::expr::Expr;
-use crate::token::{Token, TokenType};
+use crate::token::{LiteralType, Token, TokenType};
 
 pub struct Parser {
     tokens: Vec<Token>,
@@ -10,20 +11,99 @@ impl Parser {
     pub fn new(tokens: Vec<Token>) -> Parser {
         Parser { tokens, cur_idx: 0 }
     }
-    fn comaprison(&mut self) -> Expr {
+
+    fn consume(&mut self, token_type: &TokenType, msg: &str) -> Result<(), LoxError> {
         todo!()
     }
+    /// Grammar rule: primary -> NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" ;
+    fn primary(&mut self) -> Result<Expr, LoxError> {
+        if self.token_matches(&[&TokenType::False]) {
+            return Ok(Expr::Literal(LiteralType::Bool(false)));
+        }
+        if self.token_matches(&[&TokenType::True]) {
+            return Ok(Expr::Literal(LiteralType::Bool(true)));
+        }
+        if self.token_matches(&[&TokenType::Nil]) {
+            return Ok(Expr::Literal(LiteralType::Nil));
+        }
+        if self.token_matches(&[&TokenType::Number, &TokenType::String]) {
+            return Ok(Expr::Literal(self.previous().literal));
+        }
+        if self.token_matches(&[&TokenType::LeftParen]) {
+            let expr = self.expression();
+            // TODO just throw in msg here
+            self.consume(&TokenType::RightParen, "Expect ')' after expression.")?;
+            return Ok(Expr::Grouping(Box::from(expr)));
+        }
+        Err(LoxError::SyntaxError(
+            "Could not parse grammar: primary".to_string(),
+        ))
+    }
+
+    /// Grammar rule: unary -> ( "!" | "-" ) unary | primary ;
+    fn unary(&mut self) -> Result<Expr, LoxError> {
+        if self.token_matches(&[&TokenType::Bang, &TokenType::Minus]) {
+            let operator = self.previous();
+            let right = self.unary()?;
+            return Ok(Expr::Unary(operator, Box::from(right)));
+        }
+        self.primary()
+    }
+
+    /// Grammar rule: factor -> unary ( ( "/" | "*" ) unary )* ;
+    fn factor(&mut self) -> Result<Expr, LoxError> {
+        let mut expr = self.unary()?;
+
+        while self.token_matches(&[&TokenType::Slash, &TokenType::Star]) {
+            let operator = self.previous();
+            let right = self.unary()?;
+            expr = Expr::Binary(Box::from(expr), operator, Box::from(right));
+        }
+        Ok(expr)
+    }
+
+    /// Grammar rule: term -> factor ( ( "-" | "+" ) factor)* ;
+    fn term(&mut self) -> Result<Expr, LoxError> {
+        let mut expr = self.factor()?;
+
+        while self.token_matches(&[&TokenType::Minus, &TokenType::Plus]) {
+            let operator = self.previous();
+            let right = self.factor()?;
+            expr = Expr::Binary(Box::from(expr), operator, Box::from(right));
+        }
+        Ok(expr)
+    }
+
+    /// Grammar rule: comparison -> term ( ( ">" | ">=" | "<" | "<=") term)* ;
+    fn comaprison(&mut self) -> Result<Expr, LoxError> {
+        let mut expr = self.term()?;
+
+        while self.token_matches(&[
+            &TokenType::Greater,
+            &TokenType::GreaterEqual,
+            &TokenType::Less,
+            &TokenType::LessEqual,
+        ]) {
+            let operator = self.previous();
+            let right = self.term()?;
+            expr = Expr::Binary(Box::from(expr), operator, Box::from(right));
+        }
+        Ok(expr)
+    }
+
     /// Grammar rule: equality -> comparison ( ("!=" | "==") comparison )* ;
-    fn equality(&mut self) -> Expr {
-        let mut expr = self.comaprison();
+    /// Matches an equality or anything of higher precedence (ex: comparison)
+    fn equality(&mut self) -> Result<Expr, LoxError> {
+        let mut expr = self.comaprison()?;
+        // This pattern could be shared somehow
         while self.token_matches(&[&TokenType::BangEqual, &TokenType::EqualEqual]) {
-            let op = self.previous();
-            let right = self.comaprison();
+            let operator = self.previous();
+            let right = self.comaprison()?;
             // TODO Don't allocate in a hot loop. This is a bit too 1:1 with the java impl for my comfort
             // This creates an expression including itself if there are multiple equality comparisons
-            expr = Expr::Binary(Box::from(expr), op, Box::from(right));
+            expr = Expr::Binary(Box::from(expr), operator, Box::from(right));
         }
-        expr
+        Ok(expr)
     }
     fn previous(&mut self) -> Token {
         // TODO not very safe :(
@@ -101,17 +181,21 @@ mod test {
             ),
         ];
         let mut parser = Parser::new(tokens);
+        let res = parser.equality();
         match parser.equality() {
-            Expr::Binary(lhs, op, rhs) => {
-                assert_eq!(*lhs, Expr::Literal(LiteralType::Number(5.0)));
-                assert_eq!(op.kind, TokenType::EqualEqual);
-                assert_eq!(*rhs, Expr::Literal(LiteralType::Number(1.0)));
-            }
-            e => assert!(
-                false,
-                "Expected equality to return Expr::Binary and not {:?}",
-                e
-            ),
+            Ok(e) => match e {
+                Expr::Binary(lhs, op, rhs) => {
+                    assert_eq!(*lhs, Expr::Literal(LiteralType::Number(5.0)));
+                    assert_eq!(op.kind, TokenType::EqualEqual);
+                    assert_eq!(*rhs, Expr::Literal(LiteralType::Number(1.0)));
+                }
+                e => assert!(
+                    false,
+                    "Expected equality to return Expr::Binary and not {:?}",
+                    e
+                ),
+            },
+            Err(e) => assert!(false, "{:?}", e),
         }
     }
 }
