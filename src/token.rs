@@ -93,21 +93,21 @@ impl Token {
     /// Eugh, LiteralType of None returns an EOF token
     pub fn new_literal(literal: LiteralType, line: usize) -> Token {
         match &literal {
-            LiteralType::Identifier(identifier) => Token {
+            LiteralType::Identifier(i) => Token {
                 kind: TokenType::Identifier,
-                text: literal.to_string(),
+                text: i.clone(),
                 literal,
                 line,
             },
-            LiteralType::String(string) => Token {
+            LiteralType::String(s) => Token {
                 kind: TokenType::String,
-                text: literal.to_string(),
+                text: s.clone(),
                 literal,
                 line,
             },
-            LiteralType::Number(num) => Token {
+            LiteralType::Number(n) => Token {
                 kind: TokenType::Number,
-                text: literal.to_string(),
+                text: n.to_string(),
                 literal,
                 line,
             },
@@ -124,8 +124,8 @@ impl Token {
                     TokenType::False
                 };
                 Token {
-                    kind: TokenType::True,
-                    text: literal.to_string(),
+                    kind: kind,
+                    text: b.to_string(),
                     literal: literal,
                     line: line,
                 }

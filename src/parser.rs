@@ -160,28 +160,19 @@ mod test {
     use crate::TokenType;
     #[test]
     fn equality_test() {
+        let line = 1;
         let tokens = vec![
-            Token::new(
-                TokenType::Number,
-                "5".to_string(),
-                LiteralType::Number(5.0),
-                1,
-            ),
+            Token::new_literal(LiteralType::Number(5.0), line),
             Token::new(
                 TokenType::EqualEqual,
                 "==".to_string(),
                 LiteralType::None,
-                1,
+                line,
             ),
-            Token::new(
-                TokenType::Number,
-                "1".to_string(),
-                LiteralType::Number(1.0),
-                1,
-            ),
+            Token::new_literal(LiteralType::Number(1.0), line),
+            Token::new(TokenType::Eof, "EOF".to_string(), LiteralType::None, line),
         ];
         let mut parser = Parser::new(tokens);
-        let res = parser.equality();
         match parser.equality() {
             Ok(e) => match e {
                 Expr::Binary(lhs, op, rhs) => {
