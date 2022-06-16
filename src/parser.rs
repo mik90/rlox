@@ -17,19 +17,19 @@ impl Parser {
     }
     /// Grammar rule: primary -> NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" ;
     fn primary(&mut self) -> Result<Expr, LoxError> {
-        if self.token_matches(&[&TokenType::False]) {
+        if self.token_matches(&[&TokenType::False])? {
             return Ok(Expr::Literal(LiteralType::Bool(false)));
         }
-        if self.token_matches(&[&TokenType::True]) {
+        if self.token_matches(&[&TokenType::True])? {
             return Ok(Expr::Literal(LiteralType::Bool(true)));
         }
-        if self.token_matches(&[&TokenType::Nil]) {
+        if self.token_matches(&[&TokenType::Nil])? {
             return Ok(Expr::Literal(LiteralType::Nil));
         }
-        if self.token_matches(&[&TokenType::Number, &TokenType::String]) {
-            return Ok(Expr::Literal(self.previous().literal));
+        if self.token_matches(&[&TokenType::Number, &TokenType::String])? {
+            return Ok(Expr::Literal(self.previous()?.literal));
         }
-        if self.token_matches(&[&TokenType::LeftParen]) {
+        if self.token_matches(&[&TokenType::LeftParen])? {
             let expr = self.expression();
             // TODO just throw in msg here
             self.consume(&TokenType::RightParen, "Expect ')' after expression.")?;
@@ -42,8 +42,8 @@ impl Parser {
 
     /// Grammar rule: unary -> ( "!" | "-" ) unary | primary ;
     fn unary(&mut self) -> Result<Expr, LoxError> {
-        if self.token_matches(&[&TokenType::Bang, &TokenType::Minus]) {
-            let operator = self.previous();
+        if self.token_matches(&[&TokenType::Bang, &TokenType::Minus])? {
+            let operator = self.previous()?;
             let right = self.unary()?;
             return Ok(Expr::Unary(operator, Box::from(right)));
         }
@@ -54,8 +54,8 @@ impl Parser {
     fn factor(&mut self) -> Result<Expr, LoxError> {
         let mut expr = self.unary()?;
 
-        while self.token_matches(&[&TokenType::Slash, &TokenType::Star]) {
-            let operator = self.previous();
+        while self.token_matches(&[&TokenType::Slash, &TokenType::Star])? {
+            let operator = self.previous()?;
             let right = self.unary()?;
             expr = Expr::Binary(Box::from(expr), operator, Box::from(right));
         }
@@ -66,8 +66,8 @@ impl Parser {
     fn term(&mut self) -> Result<Expr, LoxError> {
         let mut expr = self.factor()?;
 
-        while self.token_matches(&[&TokenType::Minus, &TokenType::Plus]) {
-            let operator = self.previous();
+        while self.token_matches(&[&TokenType::Minus, &TokenType::Plus])? {
+            let operator = self.previous()?;
             let right = self.factor()?;
             expr = Expr::Binary(Box::from(expr), operator, Box::from(right));
         }
@@ -83,8 +83,8 @@ impl Parser {
             &TokenType::GreaterEqual,
             &TokenType::Less,
             &TokenType::LessEqual,
-        ]) {
-            let operator = self.previous();
+        ])? {
+            let operator = self.previous()?;
             let right = self.term()?;
             expr = Expr::Binary(Box::from(expr), operator, Box::from(right));
         }
@@ -96,8 +96,8 @@ impl Parser {
     fn equality(&mut self) -> Result<Expr, LoxError> {
         let mut expr = self.comaprison()?;
         // This pattern could be shared somehow
-        while self.token_matches(&[&TokenType::BangEqual, &TokenType::EqualEqual]) {
-            let operator = self.previous();
+        while self.token_matches(&[&TokenType::BangEqual, &TokenType::EqualEqual])? {
+            let operator = self.previous()?;
             let right = self.comaprison()?;
             // TODO Don't allocate in a hot loop. This is a bit too 1:1 with the java impl for my comfort
             // This creates an expression including itself if there are multiple equality comparisons
@@ -105,45 +105,60 @@ impl Parser {
         }
         Ok(expr)
     }
-    fn previous(&mut self) -> Token {
-        // TODO not very safe :(
-        self.tokens[self.cur_idx - 1].clone()
+    fn previous(&mut self) -> Result<Token, LoxError> {
+        self.tokens
+            .iter()
+            .nth(self.cur_idx - 1)
+            .ok_or(LoxError::ParseError(format!(
+                "cur_idx={} it out of range of tokens.len()={}, you may be missing an EOF token",
+                self.cur_idx,
+                self.tokens.len()
+            )))
+            .cloned()
     }
 
-    fn peek(&self) -> Token {
+    fn peek(&self) -> Result<Token, LoxError> {
         // TODO not very safe :(
-        self.tokens[self.cur_idx].clone()
+        self.tokens
+            .iter()
+            .nth(self.cur_idx)
+            .ok_or(LoxError::ParseError(format!(
+                "cur_idx={} is out of range of tokens.len={}, you may be missing an EOF token",
+                self.cur_idx,
+                self.tokens.len()
+            )))
+            .cloned()
     }
 
     /// Checks that the current token being parsed is of a given type
-    fn check(&self, token_type: &TokenType) -> bool {
-        if self.is_at_end() {
-            return false;
+    fn check(&self, token_type: &TokenType) -> Result<bool, LoxError> {
+        if self.is_at_end()? {
+            return Ok(false);
         }
-        &self.peek().kind == token_type
+        Ok(&self.peek()?.kind == token_type)
     }
 
-    fn is_at_end(&self) -> bool {
-        self.peek().kind == TokenType::Eof
+    fn is_at_end(&self) -> Result<bool, LoxError> {
+        Ok(self.peek()?.kind == TokenType::Eof)
     }
 
     /// Consumes a token, returns the previous even if we're at the end
-    fn advance(&mut self) -> Token {
-        if !self.is_at_end() {
+    fn advance(&mut self) -> Result<Token, LoxError> {
+        if !self.is_at_end()? {
             self.cur_idx += 1;
         }
         self.previous()
     }
 
     /// Return true if the token matches any of the given types
-    fn token_matches(&mut self, token_types: &[&TokenType]) -> bool {
+    fn token_matches(&mut self, token_types: &[&TokenType]) -> Result<bool, LoxError> {
         for token_type in token_types {
-            if self.check(token_type) {
-                self.advance();
-                return true;
+            if self.check(token_type)? {
+                self.advance()?;
+                return Ok(true);
             }
         }
-        return false;
+        return Ok(false);
     }
 
     fn expression(&mut self) -> Expr {
