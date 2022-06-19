@@ -12,8 +12,11 @@ impl Parser {
         Parser { tokens, cur_idx: 0 }
     }
 
-    fn consume(&mut self, token_type: &TokenType, msg: &str) -> Result<(), LoxError> {
-        todo!()
+    fn consume(&mut self, token_type: &TokenType, msg: &str) -> Result<Token, LoxError> {
+        if self.check(token_type)? {
+            return self.advance();
+        }
+        Err(LoxError::new_syntax_err(self.peek()?, msg))
     }
     /// Grammar rule: primary -> NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" ;
     fn primary(&mut self) -> Result<Expr, LoxError> {
