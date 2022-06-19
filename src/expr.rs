@@ -1,4 +1,4 @@
-use crate::token::LiteralType;
+use crate::token::LiteralKind;
 use crate::token::Token;
 
 // Expr is boxed in order to allow this enum to be recursive
@@ -10,7 +10,7 @@ pub enum Expr {
     /// Grouping : Expr expression
     Grouping(Box<Expr>),
     /// Literal  : Object value
-    Literal(LiteralType),
+    Literal(LiteralKind),
     /// Unary    : Token operator, Expr right
     Unary(Token, Box<Expr>),
 }
@@ -18,7 +18,7 @@ pub enum Expr {
 pub trait Visitor<T> {
     fn visit_binary(&mut self, lhs: &Expr, op: &Token, rhs: &Expr) -> T;
     fn visit_grouping(&mut self, expr: &Expr) -> T;
-    fn visit_literal(&mut self, value: &LiteralType) -> T;
+    fn visit_literal(&mut self, value: &LiteralKind) -> T;
     fn visit_unary(&mut self, op: &Token, right: &Expr) -> T;
 }
 

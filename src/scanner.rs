@@ -1,6 +1,6 @@
 use crate::{
     error::LoxError,
-    token::{self, LiteralType, Token, TokenType},
+    token::{self, LiteralKind, Token, TokenKind},
 };
 use std::{collections::HashMap, hash::Hash};
 
@@ -14,7 +14,7 @@ pub struct Scanner {
     cur_idx: usize,
 
     line: usize,
-    keywords: HashMap<&'static str, TokenType>,
+    keywords: HashMap<&'static str, TokenKind>,
 }
 
 impl Scanner {
@@ -35,14 +35,14 @@ impl Scanner {
         self.cur_idx += 1;
         Ok(c)
     }
-    fn add_token(&mut self, kind: TokenType) -> Result<(), LoxError> {
-        self.add_token_with_literal(kind, LiteralType::None)
+    fn add_token(&mut self, kind: TokenKind) -> Result<(), LoxError> {
+        self.add_token_with_literal(kind, LiteralKind::None)
     }
 
     fn add_token_with_literal(
         &mut self,
-        kind: TokenType,
-        literal: LiteralType,
+        kind: TokenKind,
+        literal: LiteralKind,
     ) -> Result<(), LoxError> {
         // TODO clean up this error handling/printout
         if self.start_idx > self.source.len() || self.cur_idx > self.source.len() {
@@ -70,7 +70,7 @@ impl Scanner {
     }
 
     fn make_parser_error(&self, msg: String) -> LoxError {
-        return LoxError::ParseError(format!(
+        return LoxError::ScanError(format!(
             "{} at line {}. cur_idx={}",
             msg, self.line, self.cur_idx
         ));
@@ -128,8 +128,8 @@ impl Scanner {
             .collect::<String>();
         let number = substr
             .parse::<f64>()
-            .map_err(|_| LoxError::ParseError(format!("Could not parse '{}' as f64", substr)))?;
-        self.add_token_with_literal(TokenType::Number, LiteralType::Number(number))
+            .map_err(|_| LoxError::ScanError(format!("Could not parse '{}' as f64", substr)))?;
+        self.add_token_with_literal(TokenKind::Number, LiteralKind::Number(number))
     }
     fn scan_identifier(&mut self) -> Result<(), LoxError> {
         while self.peek().is_alphanumeric() {
@@ -145,13 +145,13 @@ impl Scanner {
         let token_type = self
             .keywords
             .get(text.as_str())
-            .unwrap_or(&TokenType::Identifier)
+            .unwrap_or(&TokenKind::Identifier)
             .clone();
         match token_type {
-            TokenType::Identifier => {
-                self.add_token_with_literal(token_type, LiteralType::Identifier(text))
+            TokenKind::Identifier => {
+                self.add_token_with_literal(token_type, LiteralKind::Identifier(text))
             }
-            _ => self.add_token_with_literal(token_type, LiteralType::None),
+            _ => self.add_token_with_literal(token_type, LiteralKind::None),
         }
     }
 
@@ -180,7 +180,7 @@ impl Scanner {
             .skip(self.start_idx + 1)
             .take(substr_len)
             .collect::<String>();
-        self.add_token_with_literal(TokenType::String, LiteralType::String(value))
+        self.add_token_with_literal(TokenKind::String, LiteralKind::String(value))
     }
 
     fn scan_token(&mut self) -> Result<(), LoxError> {
@@ -191,25 +191,25 @@ impl Scanner {
                 self.line += 1;
                 return Ok(());
             }
-            '(' => TokenType::LeftParen,
-            ')' => TokenType::RightParen,
-            '{' => TokenType::LeftBrace,
-            '}' => TokenType::RightBrace,
-            ',' => TokenType::Comma,
+            '(' => TokenKind::LeftParen,
+            ')' => TokenKind::RightParen,
+            '{' => TokenKind::LeftBrace,
+            '}' => TokenKind::RightBrace,
+            ',' => TokenKind::Comma,
             '"' => return self.scan_string(),
-            '.' => TokenType::Dot,
-            '-' => TokenType::Minus,
-            '+' => TokenType::Plus,
-            ';' => TokenType::SemiColon,
-            '*' => TokenType::Star,
-            '!' if self.has_extra_char('=') => TokenType::BangEqual,
-            '!' => TokenType::Bang,
-            '=' if self.has_extra_char('=') => TokenType::EqualEqual,
-            '=' => TokenType::Equal,
-            '<' if self.has_extra_char('=') => TokenType::LessEqual,
-            '<' => TokenType::Less,
-            '>' if self.has_extra_char('=') => TokenType::GreaterEqual,
-            '>' => TokenType::Greater,
+            '.' => TokenKind::Dot,
+            '-' => TokenKind::Minus,
+            '+' => TokenKind::Plus,
+            ';' => TokenKind::SemiColon,
+            '*' => TokenKind::Star,
+            '!' if self.has_extra_char('=') => TokenKind::BangEqual,
+            '!' => TokenKind::Bang,
+            '=' if self.has_extra_char('=') => TokenKind::EqualEqual,
+            '=' => TokenKind::Equal,
+            '<' if self.has_extra_char('=') => TokenKind::LessEqual,
+            '<' => TokenKind::Less,
+            '>' if self.has_extra_char('=') => TokenKind::GreaterEqual,
+            '>' => TokenKind::Greater,
             '/' => {
                 if self.has_extra_char('/') {
                     // if we hit a comment, consume until we hit the end of the line
@@ -220,7 +220,7 @@ impl Scanner {
                     return Ok(());
                 } else {
                     // not a comment, it's a division operator
-                    TokenType::Slash
+                    TokenKind::Slash
                 }
             }
             '0'..='9' => {
@@ -244,22 +244,22 @@ impl Scanner {
             cur_idx: 0,
             line: 1,
             keywords: HashMap::from([
-                ("and", TokenType::And),
-                ("class", TokenType::Class),
-                ("else", TokenType::Else),
-                ("false", TokenType::False),
-                ("for", TokenType::For),
-                ("fun", TokenType::Fun),
-                ("if", TokenType::If),
-                ("nil", TokenType::Nil),
-                ("or", TokenType::Or),
-                ("print", TokenType::Print),
-                ("return", TokenType::Return),
-                ("super", TokenType::Super),
-                ("this", TokenType::This),
-                ("true", TokenType::True),
-                ("var", TokenType::Var),
-                ("while", TokenType::While),
+                ("and", TokenKind::And),
+                ("class", TokenKind::Class),
+                ("else", TokenKind::Else),
+                ("false", TokenKind::False),
+                ("for", TokenKind::For),
+                ("fun", TokenKind::Fun),
+                ("if", TokenKind::If),
+                ("nil", TokenKind::Nil),
+                ("or", TokenKind::Or),
+                ("print", TokenKind::Print),
+                ("return", TokenKind::Return),
+                ("super", TokenKind::Super),
+                ("this", TokenKind::This),
+                ("true", TokenKind::True),
+                ("var", TokenKind::Var),
+                ("while", TokenKind::While),
             ]),
         }
     }
@@ -280,9 +280,9 @@ impl Scanner {
         }
 
         self.tokens.push(Token {
-            kind: TokenType::Eof,
+            kind: TokenKind::Eof,
             text: "".to_string(),
-            literal: LiteralType::None,
+            literal: LiteralKind::None,
             line: self.line,
         });
         res
@@ -307,7 +307,7 @@ mod test {
 
         let tokens = scan.copy_tokens();
         assert_eq!(tokens.len(), 1); // the EOF token is the only one we expect
-        assert_eq!(tokens[tokens.len() - 1].kind, TokenType::Eof);
+        assert_eq!(tokens[tokens.len() - 1].kind, TokenKind::Eof);
     }
 
     #[test]
@@ -320,10 +320,10 @@ mod test {
 
         let tokens = scan.copy_tokens();
         assert_eq!(tokens.len(), 4);
-        assert_eq!(tokens[0].kind, TokenType::Plus);
-        assert_eq!(tokens[1].kind, TokenType::Minus);
-        assert_eq!(tokens[2].kind, TokenType::Comma);
-        assert_eq!(tokens[tokens.len() - 1].kind, TokenType::Eof);
+        assert_eq!(tokens[0].kind, TokenKind::Plus);
+        assert_eq!(tokens[1].kind, TokenKind::Minus);
+        assert_eq!(tokens[2].kind, TokenKind::Comma);
+        assert_eq!(tokens[tokens.len() - 1].kind, TokenKind::Eof);
     }
 
     #[test]
@@ -336,13 +336,13 @@ mod test {
 
         let tokens = scan.copy_tokens();
         assert_eq!(tokens.len(), 2);
-        assert_eq!(tokens[0].kind, TokenType::String);
+        assert_eq!(tokens[0].kind, TokenKind::String);
         assert_eq!(
             tokens[0].literal,
-            LiteralType::String("Hello world".to_string())
+            LiteralKind::String("Hello world".to_string())
         );
 
-        assert_eq!(tokens[tokens.len() - 1].kind, TokenType::Eof);
+        assert_eq!(tokens[tokens.len() - 1].kind, TokenKind::Eof);
     }
 
     #[test]
@@ -364,11 +364,11 @@ mod test {
 
         let tokens = scan.copy_tokens();
         assert_eq!(tokens.len(), 2, "\ntokens: {:?}", tokens);
-        assert_eq!(tokens[0].kind, TokenType::Number);
+        assert_eq!(tokens[0].kind, TokenKind::Number);
         assert_eq!(tokens[0].text, "1.2".to_string());
-        assert_eq!(tokens[0].literal, LiteralType::Number(1.2));
+        assert_eq!(tokens[0].literal, LiteralKind::Number(1.2));
 
-        assert_eq!(tokens[tokens.len() - 1].kind, TokenType::Eof);
+        assert_eq!(tokens[tokens.len() - 1].kind, TokenKind::Eof);
     }
 
     #[test]
@@ -382,28 +382,28 @@ mod test {
         let tokens = scan.copy_tokens();
         assert_eq!(tokens.len(), 5, "\ntokens: {:?}", tokens);
 
-        assert_eq!(tokens[0].kind, TokenType::And);
+        assert_eq!(tokens[0].kind, TokenKind::And);
         assert_eq!(tokens[0].text, "and".to_string());
-        assert_eq!(tokens[0].literal, LiteralType::None);
+        assert_eq!(tokens[0].literal, LiteralKind::None);
 
-        assert_eq!(tokens[1].kind, TokenType::Or);
+        assert_eq!(tokens[1].kind, TokenKind::Or);
         assert_eq!(tokens[1].text, "or".to_string());
-        assert_eq!(tokens[1].literal, LiteralType::None);
+        assert_eq!(tokens[1].literal, LiteralKind::None);
 
-        assert_eq!(tokens[2].kind, TokenType::Identifier);
+        assert_eq!(tokens[2].kind, TokenKind::Identifier);
         assert_eq!(tokens[2].text, "foobar".to_string());
         assert_eq!(
             tokens[2].literal,
-            LiteralType::Identifier("foobar".to_string())
+            LiteralKind::Identifier("foobar".to_string())
         );
 
-        assert_eq!(tokens[3].kind, TokenType::Identifier);
+        assert_eq!(tokens[3].kind, TokenKind::Identifier);
         assert_eq!(tokens[3].text, "printfoo".to_string());
         assert_eq!(
             tokens[3].literal,
-            LiteralType::Identifier("printfoo".to_string())
+            LiteralKind::Identifier("printfoo".to_string())
         );
 
-        assert_eq!(tokens[tokens.len() - 1].kind, TokenType::Eof);
+        assert_eq!(tokens[tokens.len() - 1].kind, TokenKind::Eof);
     }
 }

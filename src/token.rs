@@ -1,5 +1,5 @@
 #[derive(Debug, Clone, PartialEq)]
-pub enum LiteralType {
+pub enum LiteralKind {
     Identifier(String),
     String(String),
     Number(f64), // <-- all numbers are floating point at rutnime
@@ -8,21 +8,21 @@ pub enum LiteralType {
     None,
 }
 
-impl LiteralType {
+impl LiteralKind {
     pub fn to_string(&self) -> String {
         match &self {
-            LiteralType::Identifier(identifier) => identifier.clone(),
-            LiteralType::String(string) => string.clone(),
-            LiteralType::Number(num) => num.to_string(),
-            LiteralType::None => "nil".to_string(),
-            LiteralType::Bool(b) => b.to_string(),
-            LiteralType::Nil => "nil".to_string(),
+            LiteralKind::Identifier(identifier) => identifier.clone(),
+            LiteralKind::String(string) => string.clone(),
+            LiteralKind::Number(num) => num.to_string(),
+            LiteralKind::None => "nil".to_string(),
+            LiteralKind::Bool(b) => b.to_string(),
+            LiteralKind::Nil => "nil".to_string(),
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum TokenType {
+pub enum TokenKind {
     // Single-char tokens
     LeftParen,
     RightParen,
@@ -74,15 +74,15 @@ pub enum TokenType {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Token {
-    pub kind: TokenType,
+    pub kind: TokenKind,
     pub text: String,
     // TODO this duplicates 'text', and LiteralToken should be an optional
-    pub literal: LiteralType,
+    pub literal: LiteralKind,
     pub line: usize,
 }
 
 impl Token {
-    pub fn new(kind: TokenType, text: String, literal: LiteralType, line: usize) -> Token {
+    pub fn new(kind: TokenKind, text: String, literal: LiteralKind, line: usize) -> Token {
         Token {
             kind,
             text,
@@ -90,38 +90,38 @@ impl Token {
             line,
         }
     }
-    /// Eugh, LiteralType of None returns an EOF token
-    pub fn new_literal(literal: LiteralType, line: usize) -> Token {
+    /// Eugh, LiteralKind of None returns an EOF token
+    pub fn new_literal(literal: LiteralKind, line: usize) -> Token {
         match &literal {
-            LiteralType::Identifier(i) => Token {
-                kind: TokenType::Identifier,
+            LiteralKind::Identifier(i) => Token {
+                kind: TokenKind::Identifier,
                 text: i.clone(),
                 literal,
                 line,
             },
-            LiteralType::String(s) => Token {
-                kind: TokenType::String,
+            LiteralKind::String(s) => Token {
+                kind: TokenKind::String,
                 text: s.clone(),
                 literal,
                 line,
             },
-            LiteralType::Number(n) => Token {
-                kind: TokenType::Number,
+            LiteralKind::Number(n) => Token {
+                kind: TokenKind::Number,
                 text: n.to_string(),
                 literal,
                 line,
             },
-            LiteralType::None => Token {
-                kind: TokenType::Eof,
+            LiteralKind::None => Token {
+                kind: TokenKind::Eof,
                 text: literal.to_string(),
                 literal,
                 line,
             },
-            LiteralType::Bool(b) => {
+            LiteralKind::Bool(b) => {
                 let kind = if *b {
-                    TokenType::True
+                    TokenKind::True
                 } else {
-                    TokenType::False
+                    TokenKind::False
                 };
                 Token {
                     kind: kind,
@@ -130,8 +130,8 @@ impl Token {
                     line: line,
                 }
             }
-            LiteralType::Nil => Token {
-                kind: TokenType::Nil,
+            LiteralKind::Nil => Token {
+                kind: TokenKind::Nil,
                 text: literal.to_string(),
                 literal,
                 line,

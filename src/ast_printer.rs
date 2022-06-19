@@ -1,7 +1,7 @@
 use std::fmt::format;
 
 use crate::expr::{Expr, Visitor};
-use crate::token::{LiteralType, Token};
+use crate::token::{LiteralKind, Token};
 
 pub struct AstPrinter {}
 
@@ -35,7 +35,7 @@ impl Visitor<String> for AstPrinter {
         parenthisize(self, "group", &[&expr])
     }
 
-    fn visit_literal(&mut self, value: &LiteralType) -> String {
+    fn visit_literal(&mut self, value: &LiteralKind) -> String {
         value.to_string()
     }
 
@@ -47,15 +47,15 @@ impl Visitor<String> for AstPrinter {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::LiteralType;
-    use crate::TokenType;
+    use crate::LiteralKind;
+    use crate::TokenKind;
 
     #[test]
     fn print_ast() {
-        let token_1 = Token::new(TokenType::Minus, "-".to_string(), LiteralType::None, 1);
-        let token_2 = Token::new(TokenType::Star, "*".to_string(), LiteralType::None, 1);
-        let literal_1 = Expr::Literal(LiteralType::Number(123.0));
-        let literal_2 = Expr::Literal(LiteralType::Number(45.67));
+        let token_1 = Token::new(TokenKind::Minus, "-".to_string(), LiteralKind::None, 1);
+        let token_2 = Token::new(TokenKind::Star, "*".to_string(), LiteralKind::None, 1);
+        let literal_1 = Expr::Literal(LiteralKind::Number(123.0));
+        let literal_2 = Expr::Literal(LiteralKind::Number(45.67));
         let expr = Expr::Binary(
             Box::new(Expr::Unary(token_1, Box::new(literal_1))),
             token_2,

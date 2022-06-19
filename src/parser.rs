@@ -1,6 +1,6 @@
 use crate::error::LoxError;
 use crate::expr::Expr;
-use crate::token::{LiteralType, Token, TokenType};
+use crate::token::{LiteralKind, Token, TokenKind};
 
 pub struct Parser {
     tokens: Vec<Token>,
@@ -12,7 +12,7 @@ impl Parser {
         Parser { tokens, cur_idx: 0 }
     }
 
-    fn consume(&mut self, token_type: &TokenType, msg: &str) -> Result<Token, LoxError> {
+    fn consume(&mut self, token_type: &TokenKind, msg: &str) -> Result<Token, LoxError> {
         if self.check(token_type)? {
             return self.advance();
         }
@@ -20,32 +20,32 @@ impl Parser {
     }
     /// Grammar rule: primary -> NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" ;
     fn primary(&mut self) -> Result<Expr, LoxError> {
-        if self.token_matches(&[&TokenType::False])? {
-            return Ok(Expr::Literal(LiteralType::Bool(false)));
+        if self.token_matches(&[&TokenKind::False])? {
+            return Ok(Expr::Literal(LiteralKind::Bool(false)));
         }
-        if self.token_matches(&[&TokenType::True])? {
-            return Ok(Expr::Literal(LiteralType::Bool(true)));
+        if self.token_matches(&[&TokenKind::True])? {
+            return Ok(Expr::Literal(LiteralKind::Bool(true)));
         }
-        if self.token_matches(&[&TokenType::Nil])? {
-            return Ok(Expr::Literal(LiteralType::Nil));
+        if self.token_matches(&[&TokenKind::Nil])? {
+            return Ok(Expr::Literal(LiteralKind::Nil));
         }
-        if self.token_matches(&[&TokenType::Number, &TokenType::String])? {
+        if self.token_matches(&[&TokenKind::Number, &TokenKind::String])? {
             return Ok(Expr::Literal(self.previous()?.literal));
         }
-        if self.token_matches(&[&TokenType::LeftParen])? {
+        if self.token_matches(&[&TokenKind::LeftParen])? {
             let expr = self.expression();
             // TODO just throw in msg here
-            self.consume(&TokenType::RightParen, "Expect ')' after expression.")?;
+            self.consume(&TokenKind::RightParen, "Expect ')' after expression.")?;
             return Ok(Expr::Grouping(Box::from(expr)));
         }
-        Err(LoxError::SyntaxError(
+        Err(LoxError::ParserError(
             "Could not parse grammar: primary".to_string(),
         ))
     }
 
     /// Grammar rule: unary -> ( "!" | "-" ) unary | primary ;
     fn unary(&mut self) -> Result<Expr, LoxError> {
-        if self.token_matches(&[&TokenType::Bang, &TokenType::Minus])? {
+        if self.token_matches(&[&TokenKind::Bang, &TokenKind::Minus])? {
             let operator = self.previous()?;
             let right = self.unary()?;
             return Ok(Expr::Unary(operator, Box::from(right)));
@@ -57,7 +57,7 @@ impl Parser {
     fn factor(&mut self) -> Result<Expr, LoxError> {
         let mut expr = self.unary()?;
 
-        while self.token_matches(&[&TokenType::Slash, &TokenType::Star])? {
+        while self.token_matches(&[&TokenKind::Slash, &TokenKind::Star])? {
             let operator = self.previous()?;
             let right = self.unary()?;
             expr = Expr::Binary(Box::from(expr), operator, Box::from(right));
@@ -69,7 +69,7 @@ impl Parser {
     fn term(&mut self) -> Result<Expr, LoxError> {
         let mut expr = self.factor()?;
 
-        while self.token_matches(&[&TokenType::Minus, &TokenType::Plus])? {
+        while self.token_matches(&[&TokenKind::Minus, &TokenKind::Plus])? {
             let operator = self.previous()?;
             let right = self.factor()?;
             expr = Expr::Binary(Box::from(expr), operator, Box::from(right));
@@ -82,10 +82,10 @@ impl Parser {
         let mut expr = self.term()?;
 
         while self.token_matches(&[
-            &TokenType::Greater,
-            &TokenType::GreaterEqual,
-            &TokenType::Less,
-            &TokenType::LessEqual,
+            &TokenKind::Greater,
+            &TokenKind::GreaterEqual,
+            &TokenKind::Less,
+            &TokenKind::LessEqual,
         ])? {
             let operator = self.previous()?;
             let right = self.term()?;
@@ -99,7 +99,7 @@ impl Parser {
     fn equality(&mut self) -> Result<Expr, LoxError> {
         let mut expr = self.comaprison()?;
         // This pattern could be shared somehow
-        while self.token_matches(&[&TokenType::BangEqual, &TokenType::EqualEqual])? {
+        while self.token_matches(&[&TokenKind::BangEqual, &TokenKind::EqualEqual])? {
             let operator = self.previous()?;
             let right = self.comaprison()?;
             // TODO Don't allocate in a hot loop. This is a bit too 1:1 with the java impl for my comfort
@@ -112,7 +112,7 @@ impl Parser {
         self.tokens
             .iter()
             .nth(self.cur_idx - 1)
-            .ok_or(LoxError::ParseError(format!(
+            .ok_or(LoxError::ScanError(format!(
                 "cur_idx={} it out of range of tokens.len()={}, you may be missing an EOF token",
                 self.cur_idx,
                 self.tokens.len()
@@ -125,7 +125,7 @@ impl Parser {
         self.tokens
             .iter()
             .nth(self.cur_idx)
-            .ok_or(LoxError::ParseError(format!(
+            .ok_or(LoxError::ScanError(format!(
                 "cur_idx={} is out of range of tokens.len={}, you may be missing an EOF token",
                 self.cur_idx,
                 self.tokens.len()
@@ -134,7 +134,7 @@ impl Parser {
     }
 
     /// Checks that the current token being parsed is of a given type
-    fn check(&self, token_type: &TokenType) -> Result<bool, LoxError> {
+    fn check(&self, token_type: &TokenKind) -> Result<bool, LoxError> {
         if self.is_at_end()? {
             return Ok(false);
         }
@@ -142,7 +142,7 @@ impl Parser {
     }
 
     fn is_at_end(&self) -> Result<bool, LoxError> {
-        Ok(self.peek()?.kind == TokenType::Eof)
+        Ok(self.peek()?.kind == TokenKind::Eof)
     }
 
     /// Consumes a token, returns the previous even if we're at the end
@@ -154,7 +154,7 @@ impl Parser {
     }
 
     /// Return true if the token matches any of the given types
-    fn token_matches(&mut self, token_types: &[&TokenType]) -> Result<bool, LoxError> {
+    fn token_matches(&mut self, token_types: &[&TokenKind]) -> Result<bool, LoxError> {
         for token_type in token_types {
             if self.check(token_type)? {
                 self.advance()?;
@@ -173,30 +173,30 @@ impl Parser {
 mod test {
     use super::*;
     use crate::Expr;
-    use crate::LiteralType;
+    use crate::LiteralKind;
     use crate::Token;
-    use crate::TokenType;
+    use crate::TokenKind;
     #[test]
     fn equality_test() {
         let line = 1;
         let tokens = vec![
-            Token::new_literal(LiteralType::Number(5.0), line),
+            Token::new_literal(LiteralKind::Number(5.0), line),
             Token::new(
-                TokenType::EqualEqual,
+                TokenKind::EqualEqual,
                 "==".to_string(),
-                LiteralType::None,
+                LiteralKind::None,
                 line,
             ),
-            Token::new_literal(LiteralType::Number(1.0), line),
-            Token::new(TokenType::Eof, "EOF".to_string(), LiteralType::None, line),
+            Token::new_literal(LiteralKind::Number(1.0), line),
+            Token::new(TokenKind::Eof, "EOF".to_string(), LiteralKind::None, line),
         ];
         let mut parser = Parser::new(tokens);
         match parser.equality() {
             Ok(e) => match e {
                 Expr::Binary(lhs, op, rhs) => {
-                    assert_eq!(*lhs, Expr::Literal(LiteralType::Number(5.0)));
-                    assert_eq!(op.kind, TokenType::EqualEqual);
-                    assert_eq!(*rhs, Expr::Literal(LiteralType::Number(1.0)));
+                    assert_eq!(*lhs, Expr::Literal(LiteralKind::Number(5.0)));
+                    assert_eq!(op.kind, TokenKind::EqualEqual);
+                    assert_eq!(*rhs, Expr::Literal(LiteralKind::Number(1.0)));
                 }
                 e => assert!(
                     false,

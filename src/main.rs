@@ -1,5 +1,5 @@
 use crate::expr::Expr;
-use crate::token::{LiteralType, Token, TokenType};
+use crate::token::{LiteralKind, Token, TokenKind};
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 
