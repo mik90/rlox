@@ -26,13 +26,13 @@ impl LoxValue {
             LoxValue::Nil => false,
         }
     }
-    pub fn as_number(self) -> Result<f64, EvalError> {
+    pub fn as_number(self, line_number: usize) -> Result<f64, EvalError> {
         match self {
             LoxValue::Number(n) => Ok(n),
-            _ => Err(EvalError::InvalidType(format!(
-                "Could not convert {:?} to a double",
-                &self,
-            ))),
+            _ => Err(EvalError::InvalidType(
+                line_number,
+                format!("Could not convert {:?} to a double", &self,),
+            )),
         }
     }
 }
@@ -40,14 +40,15 @@ impl LoxValue {
 #[derive(Debug)]
 pub enum EvalError {
     UnreachableError(ErrorMessage),
-    InvalidType(ErrorMessage),
+    // Line number, error msg
+    InvalidType(usize, ErrorMessage),
 }
 
 impl fmt::Display for EvalError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &self {
-            EvalError::UnreachableError(e) => write!(f, "UnreachableError - message: {}", e),
-            EvalError::InvalidType(e) => write!(f, "InvalidType - message: {}", e),
+            EvalError::UnreachableError(e) => write!(f, "UnreachableError: {}", e),
+            EvalError::InvalidType(l, e) => write!(f, "InvalidType: On line {}, message: {}", l, e),
         }
     }
 }
@@ -69,27 +70,35 @@ impl Interpreter {
 impl Visitor<Result<LoxValue, EvalError>> for Interpreter {
     fn visit_binary(&mut self, lhs: &Expr, op: &Token, rhs: &Expr) -> Result<LoxValue, EvalError> {
         let (left, right) = (self.evaluate(lhs)?, self.evaluate(rhs)?);
+        let line = op.line;
 
         match op.kind {
-            TokenKind::Minus => Ok(LoxValue::Number(left.as_number()? - right.as_number()?)),
-            TokenKind::Slash => Ok(LoxValue::Number(left.as_number()? / right.as_number()?)),
-            TokenKind::Star => Ok(LoxValue::Number(left.as_number()? * right.as_number()?)),
-            TokenKind::Greater => Ok(LoxValue::Bool(left.as_number()? > right.as_number()?)),
-            TokenKind::GreaterEqual => Ok(LoxValue::Bool(left.as_number()? >= right.as_number()?)),
-            TokenKind::Less => Ok(LoxValue::Bool(left.as_number()? < right.as_number()?)),
-            TokenKind::LessEqual => Ok(LoxValue::Bool(left.as_number()? <= right.as_number()?)),
+            // Arithmetic operations on numbers
+            TokenKind::Minus => Ok(LoxValue::Number(left.as_number(line)? - right.as_number(line)?)),
+            TokenKind::Slash => Ok(LoxValue::Number(left.as_number(line)? / right.as_number(line)?)),
+            TokenKind::Star => Ok(LoxValue::Number(left.as_number(line)? * right.as_number(line)?)),
+
+            // Comparisons
+            TokenKind::Greater => Ok(LoxValue::Bool(left.as_number(line)? > right.as_number(line)?)),
+            TokenKind::GreaterEqual => Ok(LoxValue::Bool(left.as_number(line)? >= right.as_number(line)?)),
+            TokenKind::Less => Ok(LoxValue::Bool(left.as_number(line)? < right.as_number(line)?)),
+            TokenKind::LessEqual => Ok(LoxValue::Bool(left.as_number(line)? <= right.as_number(line)?)),
+
+            // Aithmetic and concat operations
             TokenKind::Plus => match (left, right) {
                 // Handle string concatenation
                 (LoxValue::String(l), LoxValue::String(r)) => {
                     Ok(LoxValue::String(format!("{l}{r}")))
                 }
                 (LoxValue::Number(l), LoxValue::Number(r)) => Ok(LoxValue::Number(l + r)),
-                (l, r) => Err(EvalError::InvalidType(format!(
+                (l, r) => Err(EvalError::InvalidType(op.line, format!(
                     "Cannot use operator '+' with left hand side operand '{:?}' and right side operand '{:?}'",
-                    l, r
+                     l, r
                 ))),
             },
-            _ => Err(EvalError::UnreachableError(format!(
+
+            // Unknown
+            _ => Err(EvalError::InvalidType(op.line,format!(
                 "Unexpected operator '{:?}' for binary expression",
                 op,
             ))),
@@ -130,26 +139,30 @@ impl Visitor<Result<LoxValue, EvalError>> for Interpreter {
 
         // apply the operator to the rhs
         match op.kind {
-            TokenKind::Minus => match rhs_value {
-                LoxValue::Number(n) => Ok(LoxValue::Number(-n)),
-                // Cannot apply unary minus to anything other than a number
-                _ => Err(EvalError::InvalidType(format!(
-                    "Cannot use unary '-' with {rhs_value:?}"
-                ))),
-            },
+            TokenKind::Minus => {
+                if let LoxValue::Number(n) = rhs_value {
+                    Ok(LoxValue::Number(-n))
+                } else {
+                    Err(EvalError::InvalidType(
+                        op.line,
+                        format!("Cannot use unary '-' with {rhs_value:?}"),
+                    ))
+                }
+            }
             TokenKind::Bang => Ok(LoxValue::Bool(!rhs_value.is_truthy())),
-            _ => Err(EvalError::InvalidType(format!(
-                "Cannot use {:?} as the operator in a unary expression",
-                op.kind
-            ))),
+            _ => Err(EvalError::InvalidType(
+                op.line,
+                format!(
+                    "Cannot use {:?} as the operator in a unary expression",
+                    op.kind
+                ),
+            )),
         }
     }
 }
 
 #[cfg(test)]
 mod test {
-    use core::num;
-
     use super::*;
     use crate::Expr;
 
