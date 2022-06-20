@@ -1,4 +1,7 @@
 use crate::expr::Expr;
+use crate::interpreter::Interpreter;
+use crate::parser::Parser;
+use crate::scanner::Scanner;
 use crate::token::{LiteralKind, Token, TokenKind};
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
@@ -17,16 +20,14 @@ fn main() {
     match args.len() {
         1 => {
             println!("Starting rlox repl. Enter 'Ctrl+D' to exit");
-            if let Err(e) = run_repl() {
-                eprintln!("Could not process repl session, {}", e);
+            if !run_repl() {
                 std::process::exit(1);
             }
         }
         2 => {
             let p = Path::new(args[1].as_str());
             println!("Executing script '{}'", p.to_string_lossy());
-            if let Err(e) = run_file(&p) {
-                eprintln!("Could not run file '{}'. {}", p.to_string_lossy(), e);
+            if !run_file(&p) {
                 std::process::exit(1);
             }
         }
@@ -37,13 +38,24 @@ fn main() {
     }
 }
 
-/// Runs some code and executes it
-fn run(code: String) -> Result<(), LoxError> {
+/// Scans input for tokens, parses into AST, then interprets AST
+fn run(code: String) -> bool {
     print!("(echo) {}", code);
-    todo!("Code execution not implemented yet")
+    let mut scanner = Scanner::new(code);
+    if let Err(e) = scanner.scan_tokens() {
+        eprintln!("{}", e);
+        return false;
+    }
+    let tokens = scanner.copy_tokens();
+
+    if let Some(ast) = Parser::new(tokens).parse() {
+        Interpreter::interpret(&ast)
+    } else {
+        false
+    }
 }
 
-fn run_repl() -> Result<(), LoxError> {
+fn run_repl() -> bool {
     let mut input = BufReader::new(std::io::stdin());
     loop {
         print!("> ");
@@ -52,18 +64,36 @@ fn run_repl() -> Result<(), LoxError> {
             Ok(0) => {
                 // No bytes left to read, this happens on Ctrl+D
                 println!("\nExiting repl");
-                return Ok(());
+                return true;
             }
-            Ok(_) => run(buffer)?,
+            Ok(_) => return run(buffer),
             Err(e) => {
                 eprintln!("Could not process input, error: {}", e);
-                return Err(e.into());
+                return false;
             }
         }
     }
 }
 
-fn run_file(path: &Path) -> Result<(), LoxError> {
-    let text = std::fs::read_to_string(path)?;
-    run(text)
+fn run_file(path: &Path) -> bool {
+    match std::fs::read_to_string(path) {
+        Ok(v) => run(v),
+        Err(e) => {
+            eprintln!(
+                "Could not open file '{}', hit error {}",
+                path.to_string_lossy(),
+                e
+            );
+            return false;
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    #[test]
+    fn eval_simple_expression() {
+        assert!(run("5 + 7".to_string()));
+    }
 }
