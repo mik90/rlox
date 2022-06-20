@@ -5,6 +5,7 @@ use crate::token::TokenKind;
 use crate::token::{LiteralKind, Token};
 use std::error;
 use std::fmt;
+use std::fmt::write;
 
 /// This somewhat duplicated tokens::LiteralKind but eschews the identifier and None type
 #[derive(Debug, PartialEq)]
@@ -37,6 +38,25 @@ impl LoxValue {
     }
 }
 
+impl fmt::Display for LoxValue {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match &self {
+            LoxValue::String(s) => write!(f, "{}", s),
+            LoxValue::Number(n) => {
+                let s = n.to_string();
+                if s.ends_with(".0") {
+                    // Lop off the .0 if it's there
+                    write!(f, "{:.1}", s)
+                } else {
+                    write!(f, "{}", s)
+                }
+            }
+            LoxValue::Bool(b) => write!(f, "{}", b),
+            LoxValue::Nil => write!(f, "nil"),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum EvalError {
     UnreachableError(ErrorMessage),
@@ -58,11 +78,25 @@ impl error::Error for EvalError {}
 pub struct Interpreter {}
 
 impl Interpreter {
-    pub fn evaluate(&mut self, expr: &Expr) -> Result<LoxValue, EvalError> {
+    fn evaluate(&mut self, expr: &Expr) -> Result<LoxValue, EvalError> {
         expr.accept(self)
     }
-    pub fn new() -> Interpreter {
+    fn new() -> Interpreter {
         Interpreter {}
+    }
+
+    /// Interpret an expression, return true on success and false on error
+    pub fn interpret(expr: &Expr) -> bool {
+        match Interpreter::new().evaluate(expr) {
+            Ok(v) => {
+                println!("{}", v);
+                true
+            }
+            Err(e) => {
+                eprintln!("{}", e);
+                false
+            }
+        }
     }
 }
 
