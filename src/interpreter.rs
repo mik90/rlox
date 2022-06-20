@@ -30,6 +30,20 @@ impl LoxValue {
     }
 }
 
+impl TryInto<f64> for LoxValue {
+    type Error = EvalError;
+
+    fn try_into(self) -> Result<f64, Self::Error> {
+        match self {
+            LoxValue::Number(n) => Ok(n),
+            _ => Err(EvalError::InvalidType(format!(
+                "Could not convert {:?} to a double",
+                &self,
+            ))),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum EvalError {
     UnreachableError(ErrorMessage),
@@ -57,11 +71,12 @@ impl Interpreter {
 impl Visitor<Result<LoxValue, EvalError>> for Interpreter {
     fn visit_binary(&mut self, lhs: &Expr, op: &Token, rhs: &Expr) -> Result<LoxValue, EvalError> {
         let (left, right) = (self.evaluate(lhs)?, self.evaluate(rhs)?);
+        let (left, right): (f64, f64) = (left.try_into()?, right.try_into()?);
 
         match op.kind {
-            TokenKind::Minus => todo!(),
-            TokenKind::Slash => todo!(),
-            TokenKind::Star => todo!(),
+            TokenKind::Minus => Ok(LoxValue::Number(left - right)),
+            TokenKind::Slash => Ok(LoxValue::Number(left / right)),
+            TokenKind::Star => Ok(LoxValue::Number(left * right)),
             _ => Err(EvalError::UnreachableError(format!(
                 "Unexpected operator '{:?}' for binary expression",
                 op,
