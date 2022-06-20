@@ -68,7 +68,7 @@ impl Scanner {
     }
 
     fn make_parser_error(&self, msg: String) -> LoxError {
-        return LoxError::ScanError(format!(
+        return LoxError::Scanner(format!(
             "{} at line {}. cur_idx={}",
             msg, self.line, self.cur_idx
         ));
@@ -126,7 +126,7 @@ impl Scanner {
             .collect::<String>();
         let number = substr
             .parse::<f64>()
-            .map_err(|_| LoxError::ScanError(format!("Could not parse '{}' as f64", substr)))?;
+            .map_err(|_| LoxError::Scanner(format!("Could not parse '{}' as f64", substr)))?;
         self.add_token_with_literal(TokenKind::Number, LiteralKind::Number(number))
     }
     fn scan_identifier(&mut self) -> Result<(), LoxError> {

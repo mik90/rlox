@@ -7,9 +7,9 @@ use std::io;
 pub type ErrorMessage = String;
 #[derive(Debug)]
 pub enum LoxError {
-    ScanError(ErrorMessage), // Not necessarily a fatal error. Returned in scanner
-    ParserError(ErrorMessage), // Also not necessarily a fatal error, maybe this should be split into fatal/non-fatal
-    IoError(io::Error),
+    Scanner(ErrorMessage), // Not necessarily a fatal error. Returned in scanner
+    Parser(ErrorMessage), // Also not necessarily a fatal error, maybe this should be split into fatal/non-fatal
+    Io(io::Error),
 }
 
 impl error::Error for LoxError {}
@@ -17,16 +17,16 @@ impl error::Error for LoxError {}
 impl fmt::Display for LoxError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &self {
-            LoxError::ScanError(e) => write!(f, "ScanError - message: {}", e),
-            LoxError::ParserError(e) => write!(f, "ParserError - message: {}", e),
-            LoxError::IoError(e) => write!(f, "IoError: {}", e),
+            LoxError::Scanner(e) => write!(f, "Scanner - message: {}", e),
+            LoxError::Parser(e) => write!(f, "Parser - message: {}", e),
+            LoxError::Io(e) => write!(f, "Io: {}", e),
         }
     }
 }
 
 impl From<io::Error> for LoxError {
     fn from(error: io::Error) -> Self {
-        LoxError::IoError(error)
+        LoxError::Io(error)
     }
 }
 
@@ -40,6 +40,6 @@ impl LoxError {
                 format!("On line {} at '{}': {}", token.line, token.lexeme, err_desc)
             }
         };
-        LoxError::ParserError(formatted_msg)
+        LoxError::Parser(formatted_msg)
     }
 }

@@ -148,7 +148,7 @@ impl Parser {
         self.tokens
             .get(self.cur_idx - 1)
             .ok_or_else(|| {
-                LoxError::ScanError(format!(
+                LoxError::Scanner(format!(
                 "cur_idx={} it out of range of tokens.len()={}, you may be missing an EOF token",
                 self.cur_idx,
                 self.tokens.len()
@@ -160,7 +160,7 @@ impl Parser {
     fn peek(&self) -> Result<Token, LoxError> {
         self.tokens
             .get(self.cur_idx)
-            .ok_or_else(||LoxError::ScanError(format!(
+            .ok_or_else(||LoxError::Scanner(format!(
                 "cur_idx={} is out of range of tokensreturn .len={}, you may be missing an EOF token",
                 self.cur_idx,
                 self.tokens.len()
