@@ -58,10 +58,10 @@ impl Scanner {
                 self.start_idx, self.cur_idx,
             )));
         }
-        let text = self.source[self.start_idx..self.cur_idx].to_string();
+        let lexeme = self.source[self.start_idx..self.cur_idx].to_string();
         self.tokens.push(Token {
             kind,
-            text,
+            lexeme,
             literal,
             line: self.line,
         });
@@ -136,7 +136,7 @@ impl Scanner {
             self.advance()?;
         }
         let len = self.cur_idx - self.start_idx;
-        let text = self
+        let lexeme = self
             .source
             .chars()
             .skip(self.start_idx)
@@ -144,12 +144,12 @@ impl Scanner {
             .collect::<String>();
         let token_type = self
             .keywords
-            .get(text.as_str())
+            .get(lexeme.as_str())
             .unwrap_or(&TokenKind::Identifier)
             .clone();
         match token_type {
             TokenKind::Identifier => {
-                self.add_token_with_literal(token_type, LiteralKind::Identifier(text))
+                self.add_token_with_literal(token_type, LiteralKind::Identifier(lexeme))
             }
             _ => self.add_token_with_literal(token_type, LiteralKind::None),
         }
@@ -281,7 +281,7 @@ impl Scanner {
 
         self.tokens.push(Token {
             kind: TokenKind::Eof,
-            text: "".to_string(),
+            lexeme: "".to_string(),
             literal: LiteralKind::None,
             line: self.line,
         });
@@ -365,7 +365,7 @@ mod test {
         let tokens = scan.copy_tokens();
         assert_eq!(tokens.len(), 2, "\ntokens: {:?}", tokens);
         assert_eq!(tokens[0].kind, TokenKind::Number);
-        assert_eq!(tokens[0].text, "1.2".to_string());
+        assert_eq!(tokens[0].lexeme, "1.2".to_string());
         assert_eq!(tokens[0].literal, LiteralKind::Number(1.2));
 
         assert_eq!(tokens[tokens.len() - 1].kind, TokenKind::Eof);
@@ -383,22 +383,22 @@ mod test {
         assert_eq!(tokens.len(), 5, "\ntokens: {:?}", tokens);
 
         assert_eq!(tokens[0].kind, TokenKind::And);
-        assert_eq!(tokens[0].text, "and".to_string());
+        assert_eq!(tokens[0].lexeme, "and".to_string());
         assert_eq!(tokens[0].literal, LiteralKind::None);
 
         assert_eq!(tokens[1].kind, TokenKind::Or);
-        assert_eq!(tokens[1].text, "or".to_string());
+        assert_eq!(tokens[1].lexeme, "or".to_string());
         assert_eq!(tokens[1].literal, LiteralKind::None);
 
         assert_eq!(tokens[2].kind, TokenKind::Identifier);
-        assert_eq!(tokens[2].text, "foobar".to_string());
+        assert_eq!(tokens[2].lexeme, "foobar".to_string());
         assert_eq!(
             tokens[2].literal,
             LiteralKind::Identifier("foobar".to_string())
         );
 
         assert_eq!(tokens[3].kind, TokenKind::Identifier);
-        assert_eq!(tokens[3].text, "printfoo".to_string());
+        assert_eq!(tokens[3].lexeme, "printfoo".to_string());
         assert_eq!(
             tokens[3].literal,
             LiteralKind::Identifier("printfoo".to_string())

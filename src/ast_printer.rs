@@ -28,7 +28,7 @@ fn parenthisize(visitor: &mut dyn Visitor<String>, name: &str, exprs: &[&Expr]) 
 
 impl Visitor<String> for AstPrinter {
     fn visit_binary(&mut self, lhs: &Expr, op: &Token, rhs: &Expr) -> String {
-        parenthisize(self, &op.text, &[lhs, rhs])
+        parenthisize(self, &op.lexeme, &[lhs, rhs])
     }
 
     fn visit_grouping(&mut self, expr: &Expr) -> String {
@@ -40,7 +40,7 @@ impl Visitor<String> for AstPrinter {
     }
 
     fn visit_unary(&mut self, op: &Token, right: &Expr) -> String {
-        parenthisize(self, &op.text, &[&right])
+        parenthisize(self, &op.lexeme, &[&right])
     }
 }
 

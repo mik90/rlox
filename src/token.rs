@@ -75,17 +75,17 @@ pub enum TokenKind {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Token {
     pub kind: TokenKind,
-    pub text: String,
-    // TODO this duplicates 'text', and LiteralToken should be an optional
+    pub lexeme: String,
+    // TODO this duplicates 'lexeme', and LiteralToken should be an optional
     pub literal: LiteralKind,
     pub line: usize,
 }
 
 impl Token {
-    pub fn new(kind: TokenKind, text: String, literal: LiteralKind, line: usize) -> Token {
+    pub fn new(kind: TokenKind, lexeme: String, literal: LiteralKind, line: usize) -> Token {
         Token {
             kind,
-            text,
+            lexeme,
             literal,
             line,
         }
@@ -95,25 +95,25 @@ impl Token {
         match &literal {
             LiteralKind::Identifier(i) => Token {
                 kind: TokenKind::Identifier,
-                text: i.clone(),
+                lexeme: i.clone(),
                 literal,
                 line,
             },
             LiteralKind::String(s) => Token {
                 kind: TokenKind::String,
-                text: s.clone(),
+                lexeme: s.clone(),
                 literal,
                 line,
             },
             LiteralKind::Number(n) => Token {
                 kind: TokenKind::Number,
-                text: n.to_string(),
+                lexeme: n.to_string(),
                 literal,
                 line,
             },
             LiteralKind::None => Token {
                 kind: TokenKind::Eof,
-                text: literal.to_string(),
+                lexeme: literal.to_string(),
                 literal,
                 line,
             },
@@ -125,14 +125,14 @@ impl Token {
                 };
                 Token {
                     kind: kind,
-                    text: b.to_string(),
+                    lexeme: b.to_string(),
                     literal: literal,
                     line: line,
                 }
             }
             LiteralKind::Nil => Token {
                 kind: TokenKind::Nil,
-                text: literal.to_string(),
+                lexeme: literal.to_string(),
                 literal,
                 line,
             },
