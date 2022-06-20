@@ -19,7 +19,7 @@ impl fmt::Display for LoxError {
         match &self {
             LoxError::ScanError(e) => write!(f, "ScanError - message: {}", e),
             LoxError::ParserError(e) => write!(f, "ParserError - message: {}", e),
-            LoxError::IoError(e) => write!(f, "IoError: {}", e.to_string()),
+            LoxError::IoError(e) => write!(f, "IoError: {}", e),
         }
     }
 }

@@ -9,8 +9,8 @@ pub enum LiteralKind {
     None,
 }
 
-impl LiteralKind {
-    pub fn to_string(&self) -> String {
+impl ToString for LiteralKind {
+    fn to_string(&self) -> String {
         match &self {
             LiteralKind::Identifier(identifier) => identifier.clone(),
             LiteralKind::String(string) => string.clone(),
@@ -24,7 +24,7 @@ impl LiteralKind {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenKind {
-    // Single-char tokens
+    // Single-char tokenInto<String>s
     LeftParen,
     RightParen,
     LeftBrace,
@@ -125,10 +125,10 @@ impl Token {
                     TokenKind::False
                 };
                 Token {
-                    kind: kind,
+                    kind,
                     lexeme: b.to_string(),
-                    literal: literal,
-                    line: line,
+                    literal,
+                    line,
                 }
             }
             LiteralKind::Nil => Token {

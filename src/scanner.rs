@@ -1,8 +1,8 @@
 use crate::{
     error::LoxError,
-    token::{self, LiteralKind, Token, TokenKind},
+    token::{LiteralKind, Token, TokenKind},
 };
-use std::{collections::HashMap, hash::Hash};
+use std::collections::HashMap;
 
 pub struct Scanner {
     source: String,
@@ -23,15 +23,13 @@ impl Scanner {
     }
 
     fn advance(&mut self) -> Result<char, LoxError> {
-        let c = self
-            .source
-            .chars()
-            .nth(self.cur_idx)
-            .ok_or(self.make_parser_error(format!(
+        let c = self.source.chars().nth(self.cur_idx).ok_or_else(|| {
+            self.make_parser_error(format!(
                 "Tried to index too far into souce code (cur_idx:{}, source code len:{})",
                 self.cur_idx,
                 self.source.len()
-            )))?;
+            ))
+        })?;
         self.cur_idx += 1;
         Ok(c)
     }
@@ -238,7 +236,7 @@ impl Scanner {
 
     pub fn new(source: String) -> Self {
         Scanner {
-            source: source,
+            source,
             tokens: Vec::new(),
             start_idx: 0,
             cur_idx: 0,
@@ -273,7 +271,7 @@ impl Scanner {
             // As per chapter 4.5.1, keep scanning even if there's an error during parsing
             if let Err(e) = self.scan_token() {
                 // Store the first error we saw in the scanning
-                if !res.is_err() {
+                if res.is_ok() {
                     res = Err(e);
                 }
             }

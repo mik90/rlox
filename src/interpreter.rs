@@ -5,7 +5,6 @@ use crate::token::TokenKind;
 use crate::token::{LiteralKind, Token};
 use std::error;
 use std::fmt;
-use std::fmt::write;
 
 /// This somewhat duplicated tokens::LiteralKind but eschews the identifier and None type
 #[derive(Debug, PartialEq)]
@@ -27,9 +26,9 @@ impl LoxValue {
             LoxValue::Nil => false,
         }
     }
-    pub fn as_number(self, line_number: usize) -> Result<f64, EvalError> {
+    pub fn as_number(&self, line_number: usize) -> Result<f64, EvalError> {
         match self {
-            LoxValue::Number(n) => Ok(n),
+            LoxValue::Number(n) => Ok(*n),
             _ => Err(EvalError::InvalidType(
                 line_number,
                 format!("Could not convert {:?} to a double", &self,),
@@ -152,8 +151,8 @@ impl Visitor<Result<LoxValue, EvalError>> for Interpreter {
     fn visit_literal(&mut self, value: &LiteralKind) -> Result<LoxValue, EvalError> {
         match value {
             LiteralKind::String(s) => Ok(LoxValue::String(s.clone())),
-            LiteralKind::Number(n) => Ok(LoxValue::Number(n.clone())),
-            LiteralKind::Bool(b) => Ok(LoxValue::Bool(b.clone())),
+            LiteralKind::Number(n) => Ok(LoxValue::Number(*n)),
+            LiteralKind::Bool(b) => Ok(LoxValue::Bool(*b)),
             LiteralKind::Nil => Ok(LoxValue::Nil),
             _ => Err(EvalError::UnreachableError(format!(
                 "Expected literal but found {value:?}"
@@ -198,7 +197,7 @@ impl Visitor<Result<LoxValue, EvalError>> for Interpreter {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::Expr;
+    use crate::expr::Expr;
 
     fn number_expr(n: f64) -> Box<Expr> {
         Box::new(Expr::Literal(LiteralKind::Number(n)))

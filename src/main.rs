@@ -1,10 +1,6 @@
-use crate::expr::Expr;
-use crate::interpreter::Interpreter;
-use crate::parser::Parser;
-use crate::scanner::Scanner;
-use crate::token::{LiteralKind, Token, TokenKind};
+use crate::{interpreter::Interpreter, parser::Parser, scanner::Scanner, token::Token};
 use std::io::{BufRead, BufReader};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 mod ast_printer;
 mod error;
@@ -13,7 +9,6 @@ mod interpreter;
 mod parser;
 mod scanner;
 mod token;
-use error::LoxError;
 
 fn main() {
     let args: Vec<_> = std::env::args().collect();
@@ -27,7 +22,7 @@ fn main() {
         2 => {
             let p = Path::new(args[1].as_str());
             println!("Executing script '{}'", p.to_string_lossy());
-            if !run_file(&p) {
+            if !run_file(p) {
                 std::process::exit(1);
             }
         }
@@ -66,7 +61,10 @@ fn run_repl() -> bool {
                 println!("\nExiting repl");
                 return true;
             }
-            Ok(_) => return run(buffer),
+            Ok(_) => {
+                // no need to exit even if there's an error in the repl
+                run(buffer);
+            }
             Err(e) => {
                 eprintln!("Could not process input, error: {}", e);
                 return false;
@@ -84,7 +82,7 @@ fn run_file(path: &Path) -> bool {
                 path.to_string_lossy(),
                 e
             );
-            return false;
+            false
         }
     }
 }

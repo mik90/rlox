@@ -15,8 +15,8 @@ impl Parser {
         match self.expression() {
             Ok(v) => Some(v),
             Err(e) => {
-                eprint!("Could not parse input. {}", e);
-                return None;
+                eprintln!("Could not parse input. {}", e);
+                None
             }
         }
     }
@@ -146,23 +146,22 @@ impl Parser {
     }
     fn previous(&mut self) -> Result<Token, LoxError> {
         self.tokens
-            .iter()
-            .nth(self.cur_idx - 1)
-            .ok_or(LoxError::ScanError(format!(
+            .get(self.cur_idx - 1)
+            .ok_or_else(|| {
+                LoxError::ScanError(format!(
                 "cur_idx={} it out of range of tokens.len()={}, you may be missing an EOF token",
                 self.cur_idx,
                 self.tokens.len()
-            )))
+            ))
+            })
             .cloned()
     }
 
     fn peek(&self) -> Result<Token, LoxError> {
-        // TODO not very safe :(
         self.tokens
-            .iter()
-            .nth(self.cur_idx)
-            .ok_or(LoxError::ScanError(format!(
-                "cur_idx={} is out of range of tokens.len={}, you may be missing an EOF token",
+            .get(self.cur_idx)
+            .ok_or_else(||LoxError::ScanError(format!(
+                "cur_idx={} is out of range of tokensreturn .len={}, you may be missing an EOF token",
                 self.cur_idx,
                 self.tokens.len()
             )))
@@ -197,7 +196,7 @@ impl Parser {
                 return Ok(true);
             }
         }
-        return Ok(false);
+        Ok(false)
     }
 
     /// Grammar rules: expression -> equality ;
@@ -209,11 +208,10 @@ impl Parser {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::expr::Expr;
     use crate::scanner::Scanner;
-    use crate::Expr;
-    use crate::LiteralKind;
-    use crate::Token;
-    use crate::TokenKind;
+    use crate::token::*;
+
     #[test]
     fn equality_test() {
         let line = 1;

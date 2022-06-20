@@ -1,16 +1,14 @@
-use std::fmt::format;
-
 use crate::expr::{Expr, Visitor};
 use crate::token::{LiteralKind, Token};
 
 pub struct AstPrinter {}
 
 impl AstPrinter {
-    pub fn print(&mut self, expr: &Expr) -> String {
-        expr.accept(self)
-    }
-    pub fn new() -> AstPrinter {
-        AstPrinter {}
+    /// Only used for testing
+    #[allow(dead_code)]
+    pub fn print(expr: &Expr) -> String {
+        let mut printer = AstPrinter {};
+        expr.accept(&mut printer)
     }
 }
 
@@ -32,7 +30,7 @@ impl Visitor<String> for AstPrinter {
     }
 
     fn visit_grouping(&mut self, expr: &Expr) -> String {
-        parenthisize(self, "group", &[&expr])
+        parenthisize(self, "group", &[expr])
     }
 
     fn visit_literal(&mut self, value: &LiteralKind) -> String {
@@ -40,15 +38,14 @@ impl Visitor<String> for AstPrinter {
     }
 
     fn visit_unary(&mut self, op: &Token, right: &Expr) -> String {
-        parenthisize(self, &op.lexeme, &[&right])
+        parenthisize(self, &op.lexeme, &[right])
     }
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::LiteralKind;
-    use crate::TokenKind;
+    use crate::token::*;
 
     #[test]
     fn print_ast() {
@@ -61,8 +58,7 @@ mod test {
             token_2,
             Box::new(Expr::Grouping(Box::new(literal_2))),
         );
-        let mut printer = AstPrinter::new();
-        let text = printer.print(&expr);
+        let text = AstPrinter::print(&expr);
         assert_eq!(text, "(* (- 123) (group 45.67))");
     }
 }
