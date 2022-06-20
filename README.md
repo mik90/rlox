@@ -8,8 +8,12 @@ Current chapter: 7
 
 the main binary can parse a script or work as a repl
 
-## Future items
+## Cleanup items
 
-- Handle multi-line comments
 - Split out LoxError into more errors like ScannerError and ParserError
 - Avoid OOP style of mutable state and pass in more params
+- Visitor pattern should be taking in Expr::Unary directly and not Expr alnog somehow
+
+## Future features
+
+- Handle multi-line comments

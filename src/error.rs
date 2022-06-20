@@ -4,7 +4,7 @@ use std::error;
 use std::fmt;
 use std::io;
 
-type ErrorMessage = String;
+pub type ErrorMessage = String;
 #[derive(Debug)]
 pub enum LoxError {
     ScanError(ErrorMessage), // Not necessarily a fatal error. Returned in scanner

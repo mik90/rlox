@@ -1,4 +1,5 @@
 #[derive(Debug, Clone, PartialEq)]
+
 pub enum LiteralKind {
     Identifier(String),
     String(String),
