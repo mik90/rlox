@@ -7,3 +7,9 @@ Lox interpreter as part of the Crafting Interpreters book whose source code can 
 Current chapter: 6
 
 the main binary can parse a script or work as a repl
+
+## Future items
+
+- Handle multi-line comments
+- Split out LoxError into more errors like ScannerError and ParserError
+- Avoid OOP style of mutable state and pass in more params

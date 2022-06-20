@@ -406,4 +406,16 @@ mod test {
 
         assert_eq!(tokens[tokens.len() - 1].kind, TokenKind::Eof);
     }
+
+    #[test]
+    fn scan_expr() {
+        let input = "(* (- 123) (group 45.67))".to_string();
+
+        let mut scan = Scanner::new(input);
+        let res = scan.scan_tokens();
+        assert!(res.is_ok(), "{}", res.unwrap_err().to_string());
+
+        let tokens = scan.copy_tokens();
+        assert_eq!(tokens.len(), 12, "\ntokens: {:?}", tokens);
+    }
 }

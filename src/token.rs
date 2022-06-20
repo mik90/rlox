@@ -82,11 +82,11 @@ pub struct Token {
 }
 
 impl Token {
-    pub fn new(kind: TokenKind, lexeme: String, literal: LiteralKind, line: usize) -> Token {
+    pub fn new(kind: TokenKind, lexeme: String, line: usize) -> Token {
         Token {
             kind,
             lexeme,
-            literal,
+            literal: LiteralKind::None,
             line,
         }
     }

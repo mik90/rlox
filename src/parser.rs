@@ -11,12 +11,47 @@ impl Parser {
     pub fn new(tokens: Vec<Token>) -> Parser {
         Parser { tokens, cur_idx: 0 }
     }
+    pub fn parse(&mut self) -> Option<Expr> {
+        match self.expression() {
+            Ok(v) => Some(v),
+            Err(e) => {
+                eprint!("Could not parse input. {}", e);
+                return None;
+            }
+        }
+    }
+
+    /// Discard tokens until we reach a new synchronization point
+    /// Useful for using after a syntax error occurs
+    fn synchronize(&mut self) -> Result<(), LoxError> {
+        self.advance()?;
+        while !self.is_at_end()? {
+            if self.previous()?.kind == TokenKind::SemiColon {
+                return Ok(());
+            }
+            match self.peek()?.kind {
+                // Any of these are synchronization points
+                TokenKind::Class
+                | TokenKind::For
+                | TokenKind::Fun
+                | TokenKind::If
+                | TokenKind::Print
+                | TokenKind::Return
+                | TokenKind::Var
+                | TokenKind::While => return Ok(()),
+                // Not at a synchronization point, keep advancign
+                _ => (),
+            }
+            self.advance()?;
+        }
+        Ok(())
+    }
 
     fn consume(&mut self, token_type: &TokenKind, msg: &str) -> Result<Token, LoxError> {
         if self.check(token_type)? {
             return self.advance();
         }
-        Err(LoxError::new_syntax_err(self.peek()?, msg))
+        Err(LoxError::new_parser_err(self.peek()?, msg))
     }
     /// Grammar rule: primary -> NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" ;
     fn primary(&mut self) -> Result<Expr, LoxError> {
@@ -33,13 +68,14 @@ impl Parser {
             return Ok(Expr::Literal(self.previous()?.literal));
         }
         if self.token_matches(&[&TokenKind::LeftParen])? {
-            let expr = self.expression();
+            let expr = self.expression()?;
             // TODO just throw in msg here
             self.consume(&TokenKind::RightParen, "Expect ')' after expression.")?;
             return Ok(Expr::Grouping(Box::from(expr)));
         }
-        Err(LoxError::ParserError(
-            "Could not parse grammar: primary".to_string(),
+        Err(LoxError::new_parser_err(
+            self.peek()?,
+            "Expected expression but did not find one.",
         ))
     }
 
@@ -164,14 +200,16 @@ impl Parser {
         return Ok(false);
     }
 
-    fn expression(&mut self) -> Expr {
-        todo!()
+    /// Grammar rules: expression -> equality ;
+    fn expression(&mut self) -> Result<Expr, LoxError> {
+        self.equality()
     }
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::scanner::Scanner;
     use crate::Expr;
     use crate::LiteralKind;
     use crate::Token;
@@ -181,14 +219,9 @@ mod test {
         let line = 1;
         let tokens = vec![
             Token::new_literal(LiteralKind::Number(5.0), line),
-            Token::new(
-                TokenKind::EqualEqual,
-                "==".to_string(),
-                LiteralKind::None,
-                line,
-            ),
+            Token::new(TokenKind::EqualEqual, "==".to_string(), line),
             Token::new_literal(LiteralKind::Number(1.0), line),
-            Token::new(TokenKind::Eof, "EOF".to_string(), LiteralKind::None, line),
+            Token::new(TokenKind::Eof, "EOF".to_string(), line),
         ];
         let mut parser = Parser::new(tokens);
         match parser.equality() {
@@ -206,5 +239,35 @@ mod test {
             },
             Err(e) => assert!(false, "{:?}", e),
         }
+    }
+
+    #[test]
+    fn parse_tokens_from_scanner() {
+        let input = "1 * 2 + (3 - 5)".to_string();
+        let mut scan = Scanner::new(input);
+        let res = scan.scan_tokens();
+        assert!(res.is_ok(), "{}", res.unwrap_err().to_string());
+
+        let tokens = scan.copy_tokens();
+
+        // This is where the tokens are actually tested
+        let mut parser = Parser::new(tokens);
+        let expr = parser.parse();
+        assert!(expr.is_some());
+    }
+
+    #[test]
+    fn parse_invalid_tokens_from_scanner() {
+        let input = "*( 2 + (3 - 5)".to_string();
+        let mut scan = Scanner::new(input);
+        let res = scan.scan_tokens();
+        assert!(res.is_ok(), "{}", res.unwrap_err().to_string());
+
+        let tokens = scan.copy_tokens();
+
+        // This is where the tokens are actually tested
+        let mut parser = Parser::new(tokens);
+        let expr = parser.parse();
+        assert!(expr.is_none());
     }
 }

@@ -52,8 +52,8 @@ mod test {
 
     #[test]
     fn print_ast() {
-        let token_1 = Token::new(TokenKind::Minus, "-".to_string(), LiteralKind::None, 1);
-        let token_2 = Token::new(TokenKind::Star, "*".to_string(), LiteralKind::None, 1);
+        let token_1 = Token::new(TokenKind::Minus, "-".to_string(), 1);
+        let token_2 = Token::new(TokenKind::Star, "*".to_string(), 1);
         let literal_1 = Expr::Literal(LiteralKind::Number(123.0));
         let literal_2 = Expr::Literal(LiteralKind::Number(45.67));
         let expr = Expr::Binary(

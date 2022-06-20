@@ -31,7 +31,7 @@ impl From<io::Error> for LoxError {
 }
 
 impl LoxError {
-    pub fn new_syntax_err(token: Token, err_desc: &str) -> LoxError {
+    pub fn new_parser_err(token: Token, err_desc: &str) -> LoxError {
         let formatted_msg = match token.kind {
             TokenKind::Eof => {
                 format!("On line {} at end: {}", token.line, err_desc)
