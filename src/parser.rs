@@ -270,4 +270,24 @@ mod test {
         let expr = parser.parse();
         assert!(expr.is_none());
     }
+
+    #[test]
+    fn parse_tokens() {
+        let tokens = vec![
+            Token::new(TokenKind::Minus, "-".to_string(), 1),
+            Token::new_literal(LiteralKind::Number(123.0), 1),
+            Token::new(TokenKind::Star, "*".to_string(), 1),
+            Token::new_literal(LiteralKind::Number(45.67), 1),
+            Token::new(TokenKind::Eof, "EOF".to_string(), 1),
+        ];
+
+        // This is where the tokens are actually tested
+        let mut parser = Parser::new(tokens);
+        let expr = parser.parse();
+        assert!(expr.is_some());
+        match expr.unwrap() {
+            Expr::Binary(_, _, _) => assert!(true),
+            _ => assert!(false, "Expected a binary expression"),
+        }
+    }
 }
