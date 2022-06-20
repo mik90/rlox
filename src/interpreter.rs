@@ -6,10 +6,8 @@ use crate::token::{LiteralKind, Token};
 use std::error;
 use std::fmt;
 
-pub struct Interpreter {}
-
 /// This somewhat duplicated tokens::LiteralKind but eschews the identifier and None type
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum LoxValue {
     // Possible value types in lox
     String(String),
@@ -28,12 +26,7 @@ impl LoxValue {
             LoxValue::Nil => false,
         }
     }
-}
-
-impl TryInto<f64> for LoxValue {
-    type Error = EvalError;
-
-    fn try_into(self) -> Result<f64, Self::Error> {
+    pub fn as_number(self) -> Result<f64, EvalError> {
         match self {
             LoxValue::Number(n) => Ok(n),
             _ => Err(EvalError::InvalidType(format!(
@@ -61,9 +54,14 @@ impl fmt::Display for EvalError {
 
 impl error::Error for EvalError {}
 
+pub struct Interpreter {}
+
 impl Interpreter {
     pub fn evaluate(&mut self, expr: &Expr) -> Result<LoxValue, EvalError> {
         expr.accept(self)
+    }
+    pub fn new() -> Interpreter {
+        Interpreter {}
     }
 }
 
@@ -71,12 +69,26 @@ impl Interpreter {
 impl Visitor<Result<LoxValue, EvalError>> for Interpreter {
     fn visit_binary(&mut self, lhs: &Expr, op: &Token, rhs: &Expr) -> Result<LoxValue, EvalError> {
         let (left, right) = (self.evaluate(lhs)?, self.evaluate(rhs)?);
-        let (left, right): (f64, f64) = (left.try_into()?, right.try_into()?);
 
         match op.kind {
-            TokenKind::Minus => Ok(LoxValue::Number(left - right)),
-            TokenKind::Slash => Ok(LoxValue::Number(left / right)),
-            TokenKind::Star => Ok(LoxValue::Number(left * right)),
+            TokenKind::Minus => Ok(LoxValue::Number(left.as_number()? - right.as_number()?)),
+            TokenKind::Slash => Ok(LoxValue::Number(left.as_number()? / right.as_number()?)),
+            TokenKind::Star => Ok(LoxValue::Number(left.as_number()? * right.as_number()?)),
+            TokenKind::Greater => Ok(LoxValue::Bool(left.as_number()? > right.as_number()?)),
+            TokenKind::GreaterEqual => Ok(LoxValue::Bool(left.as_number()? >= right.as_number()?)),
+            TokenKind::Less => Ok(LoxValue::Bool(left.as_number()? < right.as_number()?)),
+            TokenKind::LessEqual => Ok(LoxValue::Bool(left.as_number()? <= right.as_number()?)),
+            TokenKind::Plus => match (left, right) {
+                // Handle string concatenation
+                (LoxValue::String(l), LoxValue::String(r)) => {
+                    Ok(LoxValue::String(format!("{l}{r}")))
+                }
+                (LoxValue::Number(l), LoxValue::Number(r)) => Ok(LoxValue::Number(l + r)),
+                (l, r) => Err(EvalError::InvalidType(format!(
+                    "Cannot use operator '+' with left hand side operand '{:?}' and right side operand '{:?}'",
+                    l, r
+                ))),
+            },
             _ => Err(EvalError::UnreachableError(format!(
                 "Unexpected operator '{:?}' for binary expression",
                 op,
@@ -126,11 +138,56 @@ impl Visitor<Result<LoxValue, EvalError>> for Interpreter {
                 ))),
             },
             TokenKind::Bang => Ok(LoxValue::Bool(!rhs_value.is_truthy())),
-            // No other operators are supported for the rhs
             _ => Err(EvalError::InvalidType(format!(
                 "Cannot use {:?} as the operator in a unary expression",
                 op.kind
             ))),
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use core::num;
+
+    use super::*;
+    use crate::Expr;
+
+    fn number_expr(n: f64) -> Box<Expr> {
+        Box::new(Expr::Literal(LiteralKind::Number(n)))
+    }
+
+    fn string_expr(s: &str) -> Box<Expr> {
+        Box::new(Expr::Literal(LiteralKind::String(s.to_owned())))
+    }
+
+    #[test]
+    fn eval_addition() {
+        let expr = Expr::Binary(
+            number_expr(3.0),
+            Token::new(TokenKind::Plus, "+".to_string(), 1),
+            number_expr(3.0),
+        );
+        let mut interpreter = Interpreter::new();
+        let res = interpreter.evaluate(&expr);
+        assert!(res.is_ok(), "evaluate() failed with {:?}", res.err());
+        let res = res.unwrap();
+        if let LoxValue::Number(n) = res {
+            assert_eq!(n, 6.0)
+        } else {
+            assert!(false, "Expected LoxValue::Number but was {:?}", res)
+        }
+    }
+
+    #[test]
+    fn eval_muffin() {
+        let expr = Expr::Binary(
+            number_expr(3.0),
+            Token::new(TokenKind::Slash, "/".to_string(), 1),
+            string_expr("muffin"),
+        );
+        let mut interpreter = Interpreter::new();
+        let res = interpreter.evaluate(&expr);
+        assert!(res.is_err(), "Expected evaluate() to fail but it didn't");
     }
 }
