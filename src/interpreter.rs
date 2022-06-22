@@ -99,7 +99,6 @@ impl Interpreter {
     }
 }
 
-/// Possibly should switch this to an Option or Result
 impl Visitor<Result<LoxValue, EvalError>> for Interpreter {
     fn visit_binary(&mut self, lhs: &Expr, op: &Token, rhs: &Expr) -> Result<LoxValue, EvalError> {
         let (left, right) = (self.evaluate(lhs)?, self.evaluate(rhs)?);
@@ -139,13 +138,7 @@ impl Visitor<Result<LoxValue, EvalError>> for Interpreter {
     }
 
     fn visit_grouping(&mut self, expr: &Expr) -> Result<LoxValue, EvalError> {
-        if let Expr::Grouping(g) = expr {
-            self.evaluate(g)
-        } else {
-            Err(EvalError::UnreachableError(format!(
-                "Expected grouping but found {expr:?}"
-            )))
-        }
+        self.evaluate(expr)
     }
 
     fn visit_literal(&mut self, value: &LiteralKind) -> Result<LoxValue, EvalError> {
@@ -154,6 +147,7 @@ impl Visitor<Result<LoxValue, EvalError>> for Interpreter {
             LiteralKind::Number(n) => Ok(LoxValue::Number(*n)),
             LiteralKind::Bool(b) => Ok(LoxValue::Bool(*b)),
             LiteralKind::Nil => Ok(LoxValue::Nil),
+            // TODO unsure how to handle an Identifier here since there's no LoxValue for it
             _ => Err(EvalError::UnreachableError(format!(
                 "Expected literal but found {value:?}"
             ))),
@@ -162,13 +156,7 @@ impl Visitor<Result<LoxValue, EvalError>> for Interpreter {
 
     fn visit_unary(&mut self, op: &Token, right: &Expr) -> Result<LoxValue, EvalError> {
         // evaluate the rhs of the unary
-        let rhs_value = if let Expr::Unary(_, right) = right {
-            self.evaluate(right)
-        } else {
-            Err(EvalError::UnreachableError(format!(
-                "Expected Unary but found {right:?}"
-            )))
-        }?;
+        let rhs_value = self.evaluate(right)?;
 
         // apply the operator to the rhs
         match op.kind {
