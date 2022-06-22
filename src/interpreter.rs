@@ -26,12 +26,27 @@ impl LoxValue {
             LoxValue::Nil => false,
         }
     }
-    pub fn as_number(&self, line_number: usize) -> Result<f64, EvalError> {
-        match self {
-            LoxValue::Number(n) => Ok(*n),
-            _ => Err(EvalError::InvalidType(
-                line_number,
-                format!("Could not convert {:?} to a double", &self,),
+    pub fn as_numbers(
+        line_num: usize,
+        lhs: LoxValue,
+        rhs: LoxValue,
+    ) -> Result<(f64, f64), EvalError> {
+        match (&lhs, &rhs) {
+            (LoxValue::Number(l), LoxValue::Number(r)) => Ok((*l, *r)),
+            (LoxValue::Number(_), _) => Err(EvalError::InvalidType(
+                line_num,
+                format!("Could not convert rhs operand '{}' to a number", rhs),
+            )),
+            (_, LoxValue::Number(_)) => Err(EvalError::InvalidType(
+                line_num,
+                format!("Could not convert lhs operand '{}' to a number", lhs),
+            )),
+            (_, _) => Err(EvalError::InvalidType(
+                line_num,
+                format!(
+                    "Could not convert lhs '{}' nor rhs '{}' operands to a number",
+                    lhs, rhs
+                ),
             )),
         }
     }
@@ -106,19 +121,40 @@ impl Visitor<Result<LoxValue, EvalError>> for Interpreter {
 
         match op.kind {
             // Arithmetic operations on numbers
-            TokenKind::Minus => Ok(LoxValue::Number(left.as_number(line)? - right.as_number(line)?)),
-            TokenKind::Slash => Ok(LoxValue::Number(left.as_number(line)? / right.as_number(line)?)),
-            TokenKind::Star => Ok(LoxValue::Number(left.as_number(line)? * right.as_number(line)?)),
+            TokenKind::Minus => {
+                let (l, r) = LoxValue::as_numbers(line, left, right)?;
+                 Ok(LoxValue::Number(l - r))
+            },
+            TokenKind::Slash => {
+                let (l, r) = LoxValue::as_numbers(line, left, right)?;
+                 Ok(LoxValue::Number(l / r))
+            },
+            TokenKind::Star => {
+                let (l, r) = LoxValue::as_numbers(line, left, right)?;
+                 Ok(LoxValue::Number(l * r))
+            },
 
             // Comparisons
-            TokenKind::Greater => Ok(LoxValue::Bool(left.as_number(line)? > right.as_number(line)?)),
-            TokenKind::GreaterEqual => Ok(LoxValue::Bool(left.as_number(line)? >= right.as_number(line)?)),
-            TokenKind::Less => Ok(LoxValue::Bool(left.as_number(line)? < right.as_number(line)?)),
-            TokenKind::LessEqual => Ok(LoxValue::Bool(left.as_number(line)? <= right.as_number(line)?)),
+            TokenKind::Greater => {
+                let (l, r) = LoxValue::as_numbers(line, left, right)?;
+                 Ok(LoxValue::Bool(l > r))
+            },
+            TokenKind::GreaterEqual => {
+                let (l, r) = LoxValue::as_numbers(line, left, right)?;
+                 Ok(LoxValue::Bool(l >= r))
+            },
+            TokenKind::Less => {
+                let (l, r) = LoxValue::as_numbers(line, left, right)?;
+                 Ok(LoxValue::Bool(l < r))
+            },
+            TokenKind::LessEqual => {
+                let (l, r) = LoxValue::as_numbers(line, left, right)?;
+                 Ok(LoxValue::Bool(l <= r))
+            },
 
             // Aithmetic and concat operations
             TokenKind::Plus => match (left, right) {
-                // Handle string concatenation
+                // String concatenation
                 (LoxValue::String(l), LoxValue::String(r)) => {
                     Ok(LoxValue::String(format!("{l}{r}")))
                 }
@@ -191,6 +227,13 @@ mod test {
         Box::new(Expr::Literal(LiteralKind::Number(n)))
     }
 
+    fn negated_number_expr(n: f64) -> Box<Expr> {
+        Box::new(Expr::Unary(
+            Token::new(TokenKind::Minus, "-".to_string(), 1),
+            number_expr(n),
+        ))
+    }
+
     fn string_expr(s: &str) -> Box<Expr> {
         Box::new(Expr::Literal(LiteralKind::String(s.to_owned())))
     }
@@ -223,5 +266,20 @@ mod test {
         let mut interpreter = Interpreter::new();
         let res = interpreter.evaluate(&expr);
         assert!(res.is_err(), "Expected evaluate() to fail but it didn't");
+    }
+
+    #[test]
+    fn eval_negated_number() {
+        let expr = negated_number_expr(5.0);
+        let mut interpreter = Interpreter::new();
+        let res = interpreter.evaluate(&expr);
+        assert!(res.is_ok(), "evaluate() failed with {:?}", res.err());
+
+        let res = res.unwrap();
+        if let LoxValue::Number(n) = res {
+            assert_eq!(n, -5.0)
+        } else {
+            assert!(false, "Expected LoxValue::Number but was {:?}", res)
+        }
     }
 }

@@ -33,38 +33,12 @@ impl Scanner {
         self.cur_idx += 1;
         Ok(c)
     }
-    fn add_token(&mut self, kind: TokenKind) -> Result<(), LoxError> {
-        self.add_token_with_literal(kind, LiteralKind::None)
+    fn add_token(&mut self, kind: TokenKind, lexeme: String) {
+        self.tokens.push(Token::new(kind, lexeme, self.line))
     }
 
-    fn add_token_with_literal(
-        &mut self,
-        kind: TokenKind,
-        literal: LiteralKind,
-    ) -> Result<(), LoxError> {
-        // TODO clean up this error handling/printout
-        if self.start_idx > self.source.len() || self.cur_idx > self.source.len() {
-            return Err(self.make_parser_error(format!(
-                "Tried to index too far into souce code (start_idx:{}, cur_idx:{}, source code len:{})",
-                self.start_idx,
-                self.cur_idx,
-                self.source.len())));
-        }
-        if self.start_idx > self.cur_idx {
-            return Err(self.make_parser_error(format!(
-                "start_idx is greater than cur_idx! (start_idx:{}, cur_idx:{})",
-                self.start_idx, self.cur_idx,
-            )));
-        }
-        let lexeme = self.source[self.start_idx..self.cur_idx].to_string();
-        self.tokens.push(Token {
-            kind,
-            lexeme,
-            literal,
-            line: self.line,
-        });
-
-        Ok(())
+    fn add_token_with_literal(&mut self, literal: LiteralKind) {
+        self.tokens.push(Token::new_literal(literal, self.line))
     }
 
     fn make_parser_error(&self, msg: String) -> LoxError {
@@ -75,25 +49,23 @@ impl Scanner {
     }
 
     // allows us to handle two-character lexemes
-    fn has_extra_char(&mut self, expected: char) -> bool {
+    fn has_extra_char(&mut self, expected: char) -> Result<bool, LoxError> {
         if self.is_at_end() {
-            return false;
+            return Ok(false);
         }
 
         if let Some(c) = self.source.chars().nth(self.cur_idx) {
             if c != expected {
-                return false;
+                return Ok(false);
             }
         } else {
-            // TODO if the cur idx is greater than source, this should return some type of error
-            eprintln!(
-                "cur_idx ({}) is greater than source.len ({})",
-                self.cur_idx,
+            return Err(self.make_parser_error(format!(
+                "In has_extra_char() cur_idx is greater than source.len ({})",
                 self.source.len()
-            );
+            )));
         }
         self.cur_idx += 1;
-        true
+        Ok(true)
     }
     fn peek(&self) -> char {
         self.source.chars().nth(self.cur_idx).unwrap_or('\0')
@@ -127,7 +99,8 @@ impl Scanner {
         let number = substr
             .parse::<f64>()
             .map_err(|_| LoxError::Scanner(format!("Could not parse '{}' as f64", substr)))?;
-        self.add_token_with_literal(TokenKind::Number, LiteralKind::Number(number))
+        self.add_token_with_literal(LiteralKind::Number(number));
+        Ok(())
     }
     fn scan_identifier(&mut self) -> Result<(), LoxError> {
         while self.peek().is_alphanumeric() {
@@ -146,11 +119,10 @@ impl Scanner {
             .unwrap_or(&TokenKind::Identifier)
             .clone();
         match token_type {
-            TokenKind::Identifier => {
-                self.add_token_with_literal(token_type, LiteralKind::Identifier(lexeme))
-            }
-            _ => self.add_token_with_literal(token_type, LiteralKind::None),
-        }
+            TokenKind::Identifier => self.add_token_with_literal(LiteralKind::Identifier(lexeme)),
+            _ => self.add_token(token_type, lexeme),
+        };
+        Ok(())
     }
 
     fn scan_string(&mut self) -> Result<(), LoxError> {
@@ -178,7 +150,8 @@ impl Scanner {
             .skip(self.start_idx + 1)
             .take(substr_len)
             .collect::<String>();
-        self.add_token_with_literal(TokenKind::String, LiteralKind::String(value))
+        self.add_token_with_literal(LiteralKind::String(value));
+        Ok(())
     }
 
     fn scan_token(&mut self) -> Result<(), LoxError> {
@@ -200,16 +173,16 @@ impl Scanner {
             '+' => TokenKind::Plus,
             ';' => TokenKind::SemiColon,
             '*' => TokenKind::Star,
-            '!' if self.has_extra_char('=') => TokenKind::BangEqual,
+            '!' if self.has_extra_char('=')? => TokenKind::BangEqual,
             '!' => TokenKind::Bang,
-            '=' if self.has_extra_char('=') => TokenKind::EqualEqual,
+            '=' if self.has_extra_char('=')? => TokenKind::EqualEqual,
             '=' => TokenKind::Equal,
-            '<' if self.has_extra_char('=') => TokenKind::LessEqual,
+            '<' if self.has_extra_char('=')? => TokenKind::LessEqual,
             '<' => TokenKind::Less,
-            '>' if self.has_extra_char('=') => TokenKind::GreaterEqual,
+            '>' if self.has_extra_char('=')? => TokenKind::GreaterEqual,
             '>' => TokenKind::Greater,
             '/' => {
-                if self.has_extra_char('/') {
+                if self.has_extra_char('/')? {
                     // if we hit a comment, consume until we hit the end of the line
                     while self.peek() != '\n' && !self.is_at_end() {
                         self.advance()?;
@@ -231,7 +204,8 @@ impl Scanner {
         };
         // TODO add some type of logging
         // println!("Adding token type {:?}", token_type);
-        self.add_token(token_type)
+        self.add_token(token_type, c.to_string());
+        Ok(())
     }
 
     pub fn new(source: String) -> Self {
@@ -277,12 +251,8 @@ impl Scanner {
             }
         }
 
-        self.tokens.push(Token {
-            kind: TokenKind::Eof,
-            lexeme: "".to_string(),
-            literal: LiteralKind::None,
-            line: self.line,
-        });
+        self.tokens
+            .push(Token::new(TokenKind::Eof, "".to_string(), self.line));
         res
     }
 

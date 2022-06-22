@@ -92,6 +92,7 @@ impl Token {
         }
     }
     /// Eugh, LiteralKind of None returns an EOF token
+    /// Entails copying a string although we would have to copy it anyways from the slice of input
     pub fn new_literal(literal: LiteralKind, line: usize) -> Token {
         match &literal {
             LiteralKind::Identifier(i) => Token {
