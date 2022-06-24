@@ -13,6 +13,8 @@ pub enum Expr {
     Literal(LiteralKind),
     /// Unary    : Token operator, Expr right
     Unary(Token, Box<Expr>),
+    /// Variable : Token name
+    Variable(LiteralKind),
 }
 
 pub trait Visitor<T> {

@@ -112,8 +112,15 @@ impl Parser {
     // Grammar rules
     // ------------------------------------------------------------------
 
-    /// Grammar rule: program -> statement* EOF;
-    fn program(&mut self) -> Result<Stmt, LoxError> {
+    /// Grammar rule: program -> declaration* EOF;
+
+    /// Grammar rule: varDecl -> "var" IDENTIFIER ( "=" expression )? ";" ;
+    fn var_decl(&mut self) -> Result<Stmt, LoxError> {
+        todo!()
+    }
+
+    /// Grammar rule: declaration -> varDecl | statement ;
+    fn declaration(&mut self) -> Result<Stmt, LoxError> {
         todo!()
     }
 
@@ -131,10 +138,7 @@ impl Parser {
         let expr = self.expression()?;
         self.consume(
             &TokenKind::SemiColon,
-            &format!(
-                "For an expression statement, expected ';' after expression {:?}",
-                expr
-            ),
+            &format!("expected ';' after expression {:?}", expr),
         )?;
         Ok(Stmt::Expression(expr))
     }
@@ -144,10 +148,7 @@ impl Parser {
         let expr = self.expression()?;
         self.consume(
             &TokenKind::SemiColon,
-            &format!(
-                "For a print statement, expected ';' after expression {:?}",
-                expr
-            ),
+            &format!("expected ';' after expression {:?}", expr),
         )?;
         Ok(Stmt::Print(expr))
     }
@@ -157,7 +158,7 @@ impl Parser {
         self.equality()
     }
 
-    /// Grammar rule: primary -> NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" ;
+    /// Grammar rule: primary -> NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" | IDENTIFIER ;
     fn primary(&mut self) -> Result<Expr, LoxError> {
         if self.token_matches(&[&TokenKind::False])? {
             return Ok(Expr::Literal(LiteralKind::Bool(false)));

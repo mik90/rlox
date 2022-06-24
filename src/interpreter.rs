@@ -1,4 +1,4 @@
-use crate::error::{ErrorMessage, LoxError};
+use crate::error::ErrorMessage;
 use crate::expr;
 use crate::expr::Expr;
 use crate::stmt;
