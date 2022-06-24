@@ -8,6 +8,7 @@ mod expr;
 mod interpreter;
 mod parser;
 mod scanner;
+mod stmt;
 mod token;
 
 fn main() {
@@ -43,11 +44,14 @@ fn run(code: String) -> bool {
     }
     let tokens = scanner.copy_tokens();
 
-    if let Some(ast) = Parser::new(tokens).parse() {
-        Interpreter::interpret(&ast)
-    } else {
-        false
-    }
+    let statements = match Parser::new(tokens).parse() {
+        Ok(statements) => statements,
+        Err(e) => {
+            eprintln!("{}", e);
+            return false;
+        }
+    };
+    Interpreter::interpret(statements)
 }
 
 fn run_repl() -> bool {
@@ -92,6 +96,6 @@ mod test {
     use super::*;
     #[test]
     fn eval_simple_expression() {
-        assert!(run("5 + 7".to_string()));
+        assert!(run("5 + 7;".to_string()));
     }
 }

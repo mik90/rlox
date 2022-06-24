@@ -1,5 +1,6 @@
 use crate::error::LoxError;
 use crate::expr::Expr;
+use crate::stmt::Stmt;
 use crate::token::{LiteralKind, Token, TokenKind};
 
 pub struct Parser {
@@ -11,14 +12,13 @@ impl Parser {
     pub fn new(tokens: Vec<Token>) -> Parser {
         Parser { tokens, cur_idx: 0 }
     }
-    pub fn parse(&mut self) -> Option<Expr> {
-        match self.expression() {
-            Ok(v) => Some(v),
-            Err(e) => {
-                eprintln!("Could not parse input. {}", e);
-                None
-            }
+
+    pub fn parse(&mut self) -> Result<Vec<Stmt>, LoxError> {
+        let mut statements = Vec::new();
+        while !self.is_at_end()? {
+            statements.push(self.statement()?);
         }
+        Ok(statements)
     }
 
     /// Discard tokens until we reach a new synchronization point
@@ -53,6 +53,110 @@ impl Parser {
         }
         Err(LoxError::new_parser_err(self.peek()?, msg))
     }
+    fn previous(&mut self) -> Result<Token, LoxError> {
+        self.tokens
+            .get(self.cur_idx - 1)
+            .ok_or_else(|| {
+                LoxError::Scanner(format!(
+                "cur_idx={} it out of range of tokens.len()={}, you may be missing an EOF token",
+                self.cur_idx,
+                self.tokens.len()
+            ))
+            })
+            .cloned()
+    }
+
+    fn peek(&self) -> Result<Token, LoxError> {
+        self.tokens
+            .get(self.cur_idx)
+            .ok_or_else(||LoxError::Scanner(format!(
+                "cur_idx={} is out of range of tokensreturn .len={}, you may be missing an EOF token",
+                self.cur_idx,
+                self.tokens.len()
+            )))
+            .cloned()
+    }
+
+    /// Checks that the current token being parsed is of a given type
+    fn check(&self, token_type: &TokenKind) -> Result<bool, LoxError> {
+        if self.is_at_end()? {
+            return Ok(false);
+        }
+        Ok(&self.peek()?.kind == token_type)
+    }
+
+    fn is_at_end(&self) -> Result<bool, LoxError> {
+        Ok(self.peek()?.kind == TokenKind::Eof)
+    }
+
+    /// Consumes a token, returns the previous even if we're at the end
+    fn advance(&mut self) -> Result<Token, LoxError> {
+        if !self.is_at_end()? {
+            self.cur_idx += 1;
+        }
+        self.previous()
+    }
+
+    /// Return true if the token matches any of the given types
+    fn token_matches(&mut self, token_types: &[&TokenKind]) -> Result<bool, LoxError> {
+        for token_type in token_types {
+            if self.check(token_type)? {
+                self.advance()?;
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
+    // ------------------------------------------------------------------
+    // Grammar rules
+    // ------------------------------------------------------------------
+
+    /// Grammar rule: program -> statement* EOF;
+    fn program(&mut self) -> Result<Stmt, LoxError> {
+        todo!()
+    }
+
+    /// Grammar rule: statement -> exprStmt | printStmt ;
+    fn statement(&mut self) -> Result<Stmt, LoxError> {
+        if self.token_matches(&[&TokenKind::Print])? {
+            return self.print_statement();
+        }
+        // if it's not a print statement, assume it's an expression statement
+        self.expression_statement()
+    }
+
+    /// Grammar rule: exprStmt -> expression ";" ;
+    fn expression_statement(&mut self) -> Result<Stmt, LoxError> {
+        let expr = self.expression()?;
+        self.consume(
+            &TokenKind::SemiColon,
+            &format!(
+                "For an expression statement, expected ';' after expression {:?}",
+                expr
+            ),
+        )?;
+        Ok(Stmt::Expression(expr))
+    }
+
+    /// Grammar rule: printStmt -> "print" expression ";" ;
+    fn print_statement(&mut self) -> Result<Stmt, LoxError> {
+        let expr = self.expression()?;
+        self.consume(
+            &TokenKind::SemiColon,
+            &format!(
+                "For a print statement, expected ';' after expression {:?}",
+                expr
+            ),
+        )?;
+        Ok(Stmt::Print(expr))
+    }
+
+    /// Grammar rule: expression -> equality ;
+    fn expression(&mut self) -> Result<Expr, LoxError> {
+        self.equality()
+    }
+
     /// Grammar rule: primary -> NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" ;
     fn primary(&mut self) -> Result<Expr, LoxError> {
         if self.token_matches(&[&TokenKind::False])? {
@@ -144,65 +248,9 @@ impl Parser {
         }
         Ok(expr)
     }
-    fn previous(&mut self) -> Result<Token, LoxError> {
-        self.tokens
-            .get(self.cur_idx - 1)
-            .ok_or_else(|| {
-                LoxError::Scanner(format!(
-                "cur_idx={} it out of range of tokens.len()={}, you may be missing an EOF token",
-                self.cur_idx,
-                self.tokens.len()
-            ))
-            })
-            .cloned()
-    }
-
-    fn peek(&self) -> Result<Token, LoxError> {
-        self.tokens
-            .get(self.cur_idx)
-            .ok_or_else(||LoxError::Scanner(format!(
-                "cur_idx={} is out of range of tokensreturn .len={}, you may be missing an EOF token",
-                self.cur_idx,
-                self.tokens.len()
-            )))
-            .cloned()
-    }
-
-    /// Checks that the current token being parsed is of a given type
-    fn check(&self, token_type: &TokenKind) -> Result<bool, LoxError> {
-        if self.is_at_end()? {
-            return Ok(false);
-        }
-        Ok(&self.peek()?.kind == token_type)
-    }
-
-    fn is_at_end(&self) -> Result<bool, LoxError> {
-        Ok(self.peek()?.kind == TokenKind::Eof)
-    }
-
-    /// Consumes a token, returns the previous even if we're at the end
-    fn advance(&mut self) -> Result<Token, LoxError> {
-        if !self.is_at_end()? {
-            self.cur_idx += 1;
-        }
-        self.previous()
-    }
-
-    /// Return true if the token matches any of the given types
-    fn token_matches(&mut self, token_types: &[&TokenKind]) -> Result<bool, LoxError> {
-        for token_type in token_types {
-            if self.check(token_type)? {
-                self.advance()?;
-                return Ok(true);
-            }
-        }
-        Ok(false)
-    }
-
-    /// Grammar rules: expression -> equality ;
-    fn expression(&mut self) -> Result<Expr, LoxError> {
-        self.equality()
-    }
+    // ------------------------------------------------------------------
+    // end grammar rules
+    // ------------------------------------------------------------------
 }
 
 #[cfg(test)]
@@ -210,6 +258,7 @@ mod test {
     use super::*;
     use crate::expr::Expr;
     use crate::scanner::Scanner;
+    use crate::stmt;
     use crate::token::*;
 
     #[test]
@@ -219,6 +268,7 @@ mod test {
             Token::new_literal(LiteralKind::Number(5.0), line),
             Token::new(TokenKind::EqualEqual, "==".to_string(), line),
             Token::new_literal(LiteralKind::Number(1.0), line),
+            Token::new(TokenKind::SemiColon, ";".to_string(), 1),
             Token::new(TokenKind::Eof, "EOF".to_string(), line),
         ];
         let mut parser = Parser::new(tokens);
@@ -241,7 +291,7 @@ mod test {
 
     #[test]
     fn parse_tokens_from_scanner() {
-        let input = "1 * 2 + (3 - 5)".to_string();
+        let input = "1 * 2 + (3 - 5);".to_string();
         let mut scan = Scanner::new(input);
         let res = scan.scan_tokens();
         assert!(res.is_ok(), "{}", res.unwrap_err().to_string());
@@ -250,13 +300,13 @@ mod test {
 
         // This is where the tokens are actually tested
         let mut parser = Parser::new(tokens);
-        let expr = parser.parse();
-        assert!(expr.is_some());
+        let res = parser.parse();
+        assert!(res.is_ok(), "{}", res.unwrap_err());
     }
 
     #[test]
     fn parse_invalid_tokens_from_scanner() {
-        let input = "*( 2 + (3 - 5)".to_string();
+        let input = "*( 2 + (3 - 5);".to_string();
         let mut scan = Scanner::new(input);
         let res = scan.scan_tokens();
         assert!(res.is_ok(), "{}", res.unwrap_err().to_string());
@@ -265,8 +315,8 @@ mod test {
 
         // This is where the tokens are actually tested
         let mut parser = Parser::new(tokens);
-        let expr = parser.parse();
-        assert!(expr.is_none());
+        let res = parser.parse();
+        assert!(res.is_err());
     }
 
     #[test]
@@ -276,16 +326,23 @@ mod test {
             Token::new_literal(LiteralKind::Number(123.0), 1),
             Token::new(TokenKind::Star, "*".to_string(), 1),
             Token::new_literal(LiteralKind::Number(45.67), 1),
+            Token::new(TokenKind::SemiColon, ";".to_string(), 1),
             Token::new(TokenKind::Eof, "EOF".to_string(), 1),
         ];
 
         // This is where the tokens are actually tested
         let mut parser = Parser::new(tokens);
-        let expr = parser.parse();
-        assert!(expr.is_some());
-        match expr.unwrap() {
-            Expr::Binary(_, _, _) => assert!(true),
-            _ => assert!(false, "Expected a binary expression"),
+
+        let res = parser.parse();
+        assert!(res.is_ok(), "{}", res.unwrap_err().to_string());
+        let statements = res.unwrap();
+        assert_eq!(statements.len(), 1);
+        match &statements[0] {
+            stmt::Stmt::Expression(expr) => match expr {
+                Expr::Binary(_, _, _) => assert!(true),
+                _ => assert!(false, "Expected a binary expression"),
+            },
+            _ => assert!(false, "Expected an expression statement"),
         }
     }
 }

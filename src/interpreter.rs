@@ -1,6 +1,7 @@
-use crate::error::ErrorMessage;
+use crate::error::{ErrorMessage, LoxError};
+use crate::expr;
 use crate::expr::Expr;
-use crate::expr::Visitor;
+use crate::stmt;
 use crate::token::TokenKind;
 use crate::token::{LiteralKind, Token};
 use std::error;
@@ -99,22 +100,23 @@ impl Interpreter {
         Interpreter {}
     }
 
+    fn execute(&mut self, stmt: stmt::Stmt) -> Result<(), EvalError> {
+        stmt.accept(self)
+    }
     /// Interpret an expression, return true on success and false on error
-    pub fn interpret(expr: &Expr) -> bool {
-        match Interpreter::new().evaluate(expr) {
-            Ok(v) => {
-                println!("{}", v);
-                true
-            }
-            Err(e) => {
-                eprintln!("{}", e);
-                false
+    pub fn interpret(statements: Vec<stmt::Stmt>) -> bool {
+        let mut interpreter = Interpreter::new();
+        for stmt in statements {
+            if let Err(e) = interpreter.execute(stmt) {
+                eprintln!("Error during interpret(): {}", e);
+                return false;
             }
         }
+        true
     }
 }
 
-impl Visitor<Result<LoxValue, EvalError>> for Interpreter {
+impl expr::Visitor<Result<LoxValue, EvalError>> for Interpreter {
     fn visit_binary(&mut self, lhs: &Expr, op: &Token, rhs: &Expr) -> Result<LoxValue, EvalError> {
         let (left, right) = (self.evaluate(lhs)?, self.evaluate(rhs)?);
         let line = op.line;
@@ -215,6 +217,24 @@ impl Visitor<Result<LoxValue, EvalError>> for Interpreter {
                 ),
             )),
         }
+    }
+}
+
+impl stmt::Visitor<EvalError> for Interpreter {
+    fn visit_expression_stmt(&mut self, expr: &Expr) -> Result<(), EvalError> {
+        match self.evaluate(expr) {
+            // This isn't an error in the sense that a statement that is
+            // > 3 + 5
+            // isn't an error
+            Ok(_) => Ok(()), // discards the value from the expression statemetn
+            Err(e) => Err(e),
+        }
+    }
+
+    fn visit_print_stmt(&mut self, expr: &Expr) -> Result<(), EvalError> {
+        let value = self.evaluate(expr)?;
+        println!("{}", value.to_string());
+        Ok(())
     }
 }
 
