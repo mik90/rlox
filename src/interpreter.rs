@@ -218,6 +218,10 @@ impl expr::Visitor<Result<LoxValue, EvalError>> for Interpreter {
             )),
         }
     }
+
+    fn visit_variable(&mut self, name: &Token) -> Result<LoxValue, EvalError> {
+        todo!()
+    }
 }
 
 impl stmt::Visitor<EvalError> for Interpreter {
@@ -235,6 +239,14 @@ impl stmt::Visitor<EvalError> for Interpreter {
         let value = self.evaluate(expr)?;
         println!("{}", value.to_string());
         Ok(())
+    }
+
+    fn visit_var_stmt(
+        &mut self,
+        name: &Token,
+        initializer: &Option<Expr>,
+    ) -> Result<(), EvalError> {
+        todo!()
     }
 }
 

@@ -16,7 +16,7 @@ impl Parser {
     pub fn parse(&mut self) -> Result<Vec<Stmt>, LoxError> {
         let mut statements = Vec::new();
         while !self.is_at_end()? {
-            statements.push(self.statement()?);
+            statements.push(self.declaration()?);
         }
         Ok(statements)
     }
@@ -116,12 +116,39 @@ impl Parser {
 
     /// Grammar rule: varDecl -> "var" IDENTIFIER ( "=" expression )? ";" ;
     fn var_decl(&mut self) -> Result<Stmt, LoxError> {
-        todo!()
+        let name = self.consume(&TokenKind::Identifier, "Expect variable name.")?;
+
+        // The initializing expression is entirely optional
+        let initializer = if self.token_matches(&[&TokenKind::Equal])? {
+            Some(self.expression()?)
+        } else {
+            None
+        };
+
+        self.consume(
+            &TokenKind::SemiColon,
+            "Expect ';' after variable declaration.",
+        )?;
+        Ok(Stmt::Var(name, initializer))
     }
 
+    /// This is a synchronizatin point, it will synchronize on parsing errors
     /// Grammar rule: declaration -> varDecl | statement ;
     fn declaration(&mut self) -> Result<Stmt, LoxError> {
-        todo!()
+        let mut parsing_attempt = || -> Result<Stmt, LoxError> {
+            if self.token_matches(&[&TokenKind::Var])? {
+                return self.var_decl();
+            }
+            return self.statement();
+        };
+        match parsing_attempt() {
+            Ok(v) => Ok(v),
+            Err(e) => {
+                // Syncrhonize on any errors then return an error
+                self.synchronize()?;
+                return Err(e);
+            }
+        }
     }
 
     /// Grammar rule: statement -> exprStmt | printStmt ;
@@ -171,6 +198,9 @@ impl Parser {
         }
         if self.token_matches(&[&TokenKind::Number, &TokenKind::String])? {
             return Ok(Expr::Literal(self.previous()?.literal));
+        }
+        if self.token_matches(&[&TokenKind::Identifier])? {
+            return Ok(Expr::Variable(self.previous()?));
         }
         if self.token_matches(&[&TokenKind::LeftParen])? {
             let expr = self.expression()?;

@@ -40,6 +40,10 @@ impl Visitor<String> for AstPrinter {
     fn visit_unary(&mut self, op: &Token, right: &Expr) -> String {
         parenthisize(self, &op.lexeme, &[right])
     }
+
+    fn visit_variable(&mut self, name: &Token) -> String {
+        name.lexeme.to_string()
+    }
 }
 
 #[cfg(test)]

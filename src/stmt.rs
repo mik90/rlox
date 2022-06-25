@@ -7,14 +7,15 @@ pub enum Stmt {
     Expression(Expr),
     /// Print      : Expr expression
     Print(Expr),
-    /// Var      :  Token name, Expr initializer
-    Var(Token, Expr),
+    /// The initializer is optional
+    /// Var        :  Token name, [Expr initializer]
+    Var(Token, Option<Expr>),
 }
 
 pub trait Visitor<E> {
     fn visit_expression_stmt(&mut self, expr: &Expr) -> Result<(), E>;
     fn visit_print_stmt(&mut self, expr: &Expr) -> Result<(), E>;
-    fn visit_var_stmt(&mut self, name: &Token, initializer: &Expr) -> Result<(), E>;
+    fn visit_var_stmt(&mut self, name: &Token, initializer: &Option<Expr>) -> Result<(), E>;
 }
 
 impl Stmt {
