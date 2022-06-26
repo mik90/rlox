@@ -1,5 +1,6 @@
-#[derive(Debug, Clone, PartialEq)]
+use std::fmt;
 
+#[derive(Debug, Clone, PartialEq)]
 pub enum LiteralKind {
     Identifier(String),
     String(String),
@@ -139,5 +140,11 @@ impl Token {
                 line,
             },
         }
+    }
+}
+
+impl fmt::Display for Token {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} on line {}", self.lexeme, self.line)
     }
 }

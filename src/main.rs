@@ -3,6 +3,7 @@ use std::io::{BufRead, BufReader};
 use std::path::Path;
 
 mod ast_printer;
+mod environment;
 mod error;
 mod expr;
 mod interpreter;

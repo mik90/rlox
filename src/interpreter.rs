@@ -1,3 +1,4 @@
+use crate::environment::Environment;
 use crate::error::ErrorMessage;
 use crate::expr;
 use crate::expr::Expr;
@@ -8,7 +9,7 @@ use std::error;
 use std::fmt;
 
 /// This somewhat duplicated tokens::LiteralKind but eschews the identifier and None type
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum LoxValue {
     // Possible value types in lox
     String(String),
@@ -77,6 +78,7 @@ pub enum EvalError {
     UnreachableError(ErrorMessage),
     // Line number, error msg
     InvalidType(usize, ErrorMessage),
+    UndefinedVariable(Token),
 }
 
 impl fmt::Display for EvalError {
@@ -84,20 +86,25 @@ impl fmt::Display for EvalError {
         match &self {
             EvalError::UnreachableError(e) => write!(f, "UnreachableError: {}", e),
             EvalError::InvalidType(l, e) => write!(f, "InvalidType: On line {}, message: {}", l, e),
+            EvalError::UndefinedVariable(token) => write!(f, "Undefined variable: {}", token),
         }
     }
 }
 
 impl error::Error for EvalError {}
 
-pub struct Interpreter {}
+pub struct Interpreter {
+    environment: Environment,
+}
 
 impl Interpreter {
     fn evaluate(&mut self, expr: &Expr) -> Result<LoxValue, EvalError> {
         expr.accept(self)
     }
     fn new() -> Interpreter {
-        Interpreter {}
+        Interpreter {
+            environment: Environment::new(),
+        }
     }
 
     fn execute(&mut self, stmt: stmt::Stmt) -> Result<(), EvalError> {
@@ -220,7 +227,9 @@ impl expr::Visitor<Result<LoxValue, EvalError>> for Interpreter {
     }
 
     fn visit_variable(&mut self, name: &Token) -> Result<LoxValue, EvalError> {
-        todo!()
+        self.environment
+            .get(name)
+            .ok_or(EvalError::UndefinedVariable(name.clone()))
     }
 }
 
@@ -246,14 +255,23 @@ impl stmt::Visitor<EvalError> for Interpreter {
         name: &Token,
         initializer: &Option<Expr>,
     ) -> Result<(), EvalError> {
-        todo!()
+        let value = if let Some(initializing_expr) = initializer {
+            Some(self.evaluate(initializing_expr)?)
+        } else {
+            None
+        };
+
+        self.environment
+            .define(&name.lexeme, value.unwrap_or(LoxValue::Nil));
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::expr::Expr;
+    use crate::token::*;
+    use crate::{expr::Expr, stmt::Stmt};
 
     fn number_expr(n: f64) -> Box<Expr> {
         Box::new(Expr::Literal(LiteralKind::Number(n)))
@@ -264,6 +282,20 @@ mod test {
             Token::new(TokenKind::Minus, "-".to_string(), 1),
             number_expr(n),
         ))
+    }
+
+    /// Declares a value of 'name' and inits it with 'value' in one statement
+    fn declare_and_init_number(name: &str, value: f64) -> Stmt {
+        let token = Token::new_literal(LiteralKind::Identifier(name.to_string()), 1);
+        Stmt::Var(token, Some(Expr::Literal(LiteralKind::Number(value))))
+    }
+
+    fn print_variable(name: &str) -> Stmt {
+        let var_to_print = Expr::Variable(Token::new_literal(
+            LiteralKind::Identifier(name.to_string()),
+            1,
+        ));
+        Stmt::Print(var_to_print)
     }
 
     fn string_expr(s: &str) -> Box<Expr> {
@@ -313,5 +345,18 @@ mod test {
         } else {
             assert!(false, "Expected LoxValue::Number but was {:?}", res)
         }
+    }
+    #[test]
+    fn eval_assignment() {
+        let stmt = declare_and_init_number("foo", 5.0);
+
+        let mut interpreter = Interpreter::new();
+
+        let res = interpreter.execute(stmt);
+        assert!(res.is_ok(), "evaluate() failed with {:?}", res.err());
+
+        let stmt = print_variable("foo");
+        let res = interpreter.execute(stmt);
+        assert!(res.is_ok(), "evaluate() failed with {:?}", res.err());
     }
 }
