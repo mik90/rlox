@@ -16,5 +16,5 @@ the main binary can parse a script or work as a repl
 - LiteralKind has its own copy of the value that Token's lexeme stores although the lexeme is always stringified
   - Maybe there should be an optional LoxValue type for a token instead
   - The TokenKind enum could have an `is_literal` function that tells you whether or not the specific enumeration is of a literal type
-- Environment should return by ref instead of copy
+- Environment should return by ref instead of copy for `get()`
 - Replace `token_matches` with `token_matches_any` and add a new single tokenkind sig for `token_matches`

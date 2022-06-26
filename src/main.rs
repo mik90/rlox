@@ -47,8 +47,11 @@ fn run(code: String, interpreter: &mut Interpreter) -> bool {
 
     let statements = match Parser::new(tokens).parse() {
         Ok(statements) => statements,
-        Err(e) => {
-            eprintln!("{}", e);
+        Err(errors) => {
+            eprintln!("Found at least one error during parsing:");
+            for error in errors {
+                eprintln!("{}", error);
+            }
             return false;
         }
     };

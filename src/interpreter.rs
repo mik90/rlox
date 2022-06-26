@@ -232,7 +232,14 @@ impl expr::Visitor<Result<LoxValue, EvalError>> for Interpreter {
     }
 
     fn visit_assign(&mut self, name: &Token, value: &Expr) -> Result<LoxValue, EvalError> {
-        todo!()
+        let value = self.evaluate(value)?;
+
+        if let Some(v) = self.environment.get_mut(name) {
+            *v = value;
+            return Ok(v.clone());
+        } else {
+            return Err(EvalError::UndefinedVariable(name.clone()));
+        }
     }
 }
 

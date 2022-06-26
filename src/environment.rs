@@ -22,6 +22,11 @@ impl Environment {
     pub fn get(&self, name: &Token) -> Option<LoxValue> {
         self.values.get(&name.lexeme).map(|value| value.clone())
     }
+
+    // quite ugly in that get returns a copy while get_mut returns a ref
+    pub fn get_mut(&mut self, name: &Token) -> Option<&mut LoxValue> {
+        self.values.get_mut(&name.lexeme)
+    }
 }
 
 #[cfg(test)]

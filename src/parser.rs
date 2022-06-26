@@ -1,4 +1,4 @@
-use crate::error::{self, LoxError};
+use crate::error::LoxError;
 use crate::expr::Expr;
 use crate::stmt::Stmt;
 use crate::token::{LiteralKind, Token, TokenKind};
@@ -18,23 +18,15 @@ impl Parser {
         }
     }
 
-    pub fn parse(&mut self) -> Result<Vec<Stmt>, LoxError> {
+    pub fn parse(&mut self) -> Result<Vec<Stmt>, Vec<LoxError>> {
         let mut statements = Vec::new();
-        while !self.is_at_end()? {
-            statements.push(self.declaration()?);
+        while !self.is_at_end().map_err(|e| vec![e])? {
+            statements.push(self.declaration().map_err(|e| vec![e])?);
         }
 
-        if !self.non_fatal_errors.is_empty() {
-            eprintln!("Found at least one error during parsing:");
-            for error in self.non_fatal_errors.iter() {
-                eprintln!("{}", error);
-            }
-            eprintln!("Returning the first error found.");
-        }
-
-        match self.non_fatal_errors.first() {
-            Some(e) => Err(e.clone()),
-            None => Ok(statements),
+        match self.non_fatal_errors.is_empty() {
+            true => Ok(statements),
+            false => Err(self.non_fatal_errors.clone()),
         }
     }
 
@@ -368,7 +360,11 @@ mod test {
         // This is where the tokens are actually tested
         let mut parser = Parser::new(tokens);
         let res = parser.parse();
-        assert!(res.is_ok(), "{}", res.unwrap_err());
+        assert!(
+            res.is_ok(),
+            "{}",
+            res.unwrap_err().first().unwrap().to_string()
+        );
     }
 
     #[test]
@@ -401,7 +397,11 @@ mod test {
         let mut parser = Parser::new(tokens);
 
         let res = parser.parse();
-        assert!(res.is_ok(), "{}", res.unwrap_err().to_string());
+        assert!(
+            res.is_ok(),
+            "{}",
+            res.unwrap_err().first().unwrap().to_string()
+        );
         let statements = res.unwrap();
         assert_eq!(statements.len(), 1);
         match &statements[0] {
