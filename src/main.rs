@@ -100,7 +100,19 @@ mod test {
     #[test]
     fn eval_simple_expression() {
         let mut interpreter = Interpreter::new();
+
         let code = "5 + 7;".to_string();
+        assert!(run(code, &mut interpreter));
+    }
+
+    #[test]
+    fn eval_simple_statements() {
+        let mut interpreter = Interpreter::new();
+
+        let code = "var foo = 5 + 7;".to_string();
+        assert!(run(code, &mut interpreter));
+
+        let code = "print foo;".to_string();
         assert!(run(code, &mut interpreter));
     }
 }

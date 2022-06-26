@@ -230,6 +230,10 @@ impl expr::Visitor<Result<LoxValue, EvalError>> for Interpreter {
             .get(name)
             .ok_or(EvalError::UndefinedVariable(name.clone()))
     }
+
+    fn visit_assign(&mut self, name: &Token, value: &Expr) -> Result<LoxValue, EvalError> {
+        todo!()
+    }
 }
 
 impl stmt::Visitor<EvalError> for Interpreter {

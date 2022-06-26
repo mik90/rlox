@@ -15,6 +15,8 @@ pub enum Expr {
     Unary(Token, Box<Expr>),
     /// Variable : Token name
     Variable(Token),
+    /// Assign : Token name, Expr Value
+    Assign(Token, Box<Expr>),
 }
 
 pub trait Visitor<T> {
@@ -23,6 +25,7 @@ pub trait Visitor<T> {
     fn visit_literal(&mut self, value: &LiteralKind) -> T;
     fn visit_unary(&mut self, op: &Token, right: &Expr) -> T;
     fn visit_variable(&mut self, name: &Token) -> T;
+    fn visit_assign(&mut self, name: &Token, value: &Expr) -> T;
 }
 
 impl Expr {
@@ -33,6 +36,7 @@ impl Expr {
             Expr::Literal(lit) => visitor.visit_literal(lit),
             Expr::Unary(op, expr) => visitor.visit_unary(op, expr),
             Expr::Variable(name) => visitor.visit_variable(name),
+            Expr::Assign(name, value) => visitor.visit_assign(name, value),
         }
     }
 }

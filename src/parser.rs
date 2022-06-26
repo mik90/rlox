@@ -1,4 +1,4 @@
-use crate::error::LoxError;
+use crate::error::{self, LoxError};
 use crate::expr::Expr;
 use crate::stmt::Stmt;
 use crate::token::{LiteralKind, Token, TokenKind};
@@ -6,11 +6,16 @@ use crate::token::{LiteralKind, Token, TokenKind};
 pub struct Parser {
     tokens: Vec<Token>,
     cur_idx: usize,
+    non_fatal_errors: Vec<LoxError>,
 }
 
 impl Parser {
     pub fn new(tokens: Vec<Token>) -> Parser {
-        Parser { tokens, cur_idx: 0 }
+        Parser {
+            tokens,
+            cur_idx: 0,
+            non_fatal_errors: Vec::new(),
+        }
     }
 
     pub fn parse(&mut self) -> Result<Vec<Stmt>, LoxError> {
@@ -18,7 +23,18 @@ impl Parser {
         while !self.is_at_end()? {
             statements.push(self.declaration()?);
         }
-        Ok(statements)
+
+        if self.non_fatal_errors.is_empty() {
+            eprintln!("Found at least one error during parsing:");
+            for error in self.non_fatal_errors.iter() {
+                eprintln!("{}", error);
+            }
+        }
+
+        match self.non_fatal_errors.last() {
+            Some(e) => Err(e.clone()),
+            None => Ok(statements),
+        }
     }
 
     /// Discard tokens until we reach a new synchronization point
@@ -182,7 +198,26 @@ impl Parser {
 
     /// Grammar rule: expression -> equality ;
     fn expression(&mut self) -> Result<Expr, LoxError> {
-        self.equality()
+        self.assignment()
+    }
+
+    /// Grammar rule: IDENTIFIER "=" assignment | equality ;
+    fn assignment(&mut self) -> Result<Expr, LoxError> {
+        let expr = self.equality()?;
+        if self.token_matches(&[&TokenKind::Equal])? {
+            let equals = self.previous()?;
+            let value = self.assignment()?;
+
+            if let Expr::Variable(name) = expr {
+                return Ok(Expr::Assign(name, Box::from(value)));
+            }
+
+            // Chapter 8.4.1 says to just report this error instead of panicking and synchronizing
+            let err_msg = format!("On line {}, invalid assignment target.", equals.line);
+            eprintln!("{}", err_msg);
+            self.non_fatal_errors.push(LoxError::Parser(err_msg));
+        }
+        Ok(expr)
     }
 
     /// Grammar rule: primary -> NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" | IDENTIFIER ;

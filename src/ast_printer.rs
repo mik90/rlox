@@ -44,6 +44,11 @@ impl Visitor<String> for AstPrinter {
     fn visit_variable(&mut self, name: &Token) -> String {
         name.lexeme.to_string()
     }
+
+    /// May not be right
+    fn visit_assign(&mut self, name: &Token, value: &Expr) -> String {
+        parenthisize(self, &name.lexeme, &[value])
+    }
 }
 
 #[cfg(test)]
