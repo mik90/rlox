@@ -24,14 +24,15 @@ impl Parser {
             statements.push(self.declaration()?);
         }
 
-        if self.non_fatal_errors.is_empty() {
+        if !self.non_fatal_errors.is_empty() {
             eprintln!("Found at least one error during parsing:");
             for error in self.non_fatal_errors.iter() {
                 eprintln!("{}", error);
             }
+            eprintln!("Returning the first error found.");
         }
 
-        match self.non_fatal_errors.last() {
+        match self.non_fatal_errors.first() {
             Some(e) => Err(e.clone()),
             None => Ok(statements),
         }

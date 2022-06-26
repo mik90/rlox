@@ -115,4 +115,19 @@ mod test {
         let code = "print foo;".to_string();
         assert!(run(code, &mut interpreter));
     }
+
+    #[test]
+    fn eval_invalid_expression() {
+        let mut interpreter = Interpreter::new();
+
+        let code = "var a = 1.0;".to_string();
+        assert!(run(code, &mut interpreter));
+        let code = "var b = 1.0;".to_string();
+        assert!(run(code, &mut interpreter));
+        let code = "var c = 1.0;".to_string();
+        assert!(run(code, &mut interpreter));
+
+        let code = "a + b = c;".to_string();
+        assert_eq!(run(code, &mut interpreter), false);
+    }
 }
