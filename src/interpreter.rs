@@ -101,7 +101,7 @@ impl Interpreter {
     fn evaluate(&mut self, expr: &Expr) -> Result<LoxValue, EvalError> {
         expr.accept(self)
     }
-    fn new() -> Interpreter {
+    pub fn new() -> Interpreter {
         Interpreter {
             environment: Environment::new(),
         }
@@ -111,10 +111,9 @@ impl Interpreter {
         stmt.accept(self)
     }
     /// Interpret an expression, return true on success and false on error
-    pub fn interpret(statements: Vec<stmt::Stmt>) -> bool {
-        let mut interpreter = Interpreter::new();
+    pub fn interpret(&mut self, statements: Vec<stmt::Stmt>) -> bool {
         for stmt in statements {
-            if let Err(e) = interpreter.execute(stmt) {
+            if let Err(e) = self.execute(stmt) {
                 eprintln!("Error during interpret(): {}", e);
                 return false;
             }

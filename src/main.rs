@@ -36,7 +36,7 @@ fn main() {
 }
 
 /// Scans input for tokens, parses into AST, then interprets AST
-fn run(code: String) -> bool {
+fn run(code: String, interpreter: &mut Interpreter) -> bool {
     print!("(echo) {}", code);
     let mut scanner = Scanner::new(code);
     if let Err(e) = scanner.scan_tokens() {
@@ -52,10 +52,11 @@ fn run(code: String) -> bool {
             return false;
         }
     };
-    Interpreter::interpret(statements)
+    interpreter.interpret(statements)
 }
 
 fn run_repl() -> bool {
+    let mut interpreter = Interpreter::new();
     let mut input = BufReader::new(std::io::stdin());
     loop {
         print!("> ");
@@ -68,7 +69,7 @@ fn run_repl() -> bool {
             }
             Ok(_) => {
                 // no need to exit even if there's an error in the repl
-                run(buffer);
+                run(buffer, &mut interpreter);
             }
             Err(e) => {
                 eprintln!("Could not process input, error: {}", e);
@@ -79,8 +80,9 @@ fn run_repl() -> bool {
 }
 
 fn run_file(path: &Path) -> bool {
+    let mut interpreter = Interpreter::new();
     match std::fs::read_to_string(path) {
-        Ok(v) => run(v),
+        Ok(code) => run(code, &mut interpreter),
         Err(e) => {
             eprintln!(
                 "Could not open file '{}', hit error {}",
@@ -97,6 +99,8 @@ mod test {
     use super::*;
     #[test]
     fn eval_simple_expression() {
-        assert!(run("5 + 7;".to_string()));
+        let mut interpreter = Interpreter::new();
+        let code = "5 + 7;".to_string();
+        assert!(run(code, &mut interpreter));
     }
 }
