@@ -178,7 +178,7 @@ impl Parser {
     /// Grammar rule: block -> "{" declaration* "}" ;
     fn block(&mut self) -> Result<Vec<Stmt>, LoxError> {
         let mut statements = Vec::new();
-        while !self.check(&TokenKind::RightBrace)? && self.is_at_end()? {
+        while !self.check(&TokenKind::RightBrace)? && !self.is_at_end()? {
             statements.push(self.declaration()?);
         }
         self.consume(&TokenKind::RightBrace, "Expect '}' after block.")?;

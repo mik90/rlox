@@ -96,7 +96,7 @@ impl fmt::Display for EvalError {
 impl error::Error for EvalError {}
 
 pub struct Interpreter {
-    environment: Rc<RefCell<Environment>>,
+    cur_environment: Rc<RefCell<Environment>>,
 }
 
 impl Interpreter {
@@ -106,17 +106,47 @@ impl Interpreter {
 
     pub fn new() -> Interpreter {
         Interpreter {
-            environment: Environment::new(),
+            cur_environment: Environment::new(),
         }
     }
 
-    fn execute(&mut self, stmt: stmt::Stmt) -> Result<(), EvalError> {
+    #[cfg(test)]
+    pub fn get_environment(&self) -> Rc<RefCell<Environment>> {
+        self.cur_environment.clone()
+    }
+
+    fn execute(&mut self, stmt: &stmt::Stmt) -> Result<(), EvalError> {
         stmt.accept(self)
     }
+
+    /// Helper for the Stmt visitor
+    fn execute_block(
+        &mut self,
+        statements: &Vec<stmt::Stmt>,
+        environment: Rc<RefCell<Environment>>,
+    ) -> Result<(), EvalError> {
+        let prev_env = self.cur_environment.clone();
+
+        let execute_statements = || -> Result<(), EvalError> {
+            // pop the new env onto our current stack
+            self.cur_environment = environment;
+            for stmt in statements {
+                self.execute(stmt)?;
+            }
+            Ok(())
+        };
+
+        let res = execute_statements();
+        // Reset the env in case any stmt couldnt be executed
+        self.cur_environment = prev_env;
+
+        res
+    }
+
     /// Interpret an expression, return true on success and false on error
     pub fn interpret(&mut self, statements: Vec<stmt::Stmt>) -> bool {
         for stmt in statements {
-            if let Err(e) = self.execute(stmt) {
+            if let Err(e) = self.execute(&stmt) {
                 eprintln!("Error during interpret(): {}", e);
                 return false;
             }
@@ -229,7 +259,7 @@ impl expr::Visitor<Result<LoxValue, EvalError>> for Interpreter {
     }
 
     fn visit_variable(&mut self, name: &Token) -> Result<LoxValue, EvalError> {
-        self.environment
+        self.cur_environment
             .borrow()
             .get(&name.lexeme)
             .ok_or(EvalError::UndefinedVariable(name.clone()))
@@ -239,7 +269,7 @@ impl expr::Visitor<Result<LoxValue, EvalError>> for Interpreter {
         let value = self.evaluate(value)?;
 
         match self
-            .environment
+            .cur_environment
             .borrow_mut()
             .assign(&name.lexeme, value.clone())
         {
@@ -277,27 +307,19 @@ impl stmt::Visitor<EvalError> for Interpreter {
             None
         };
 
-        self.environment
+        self.cur_environment
             .borrow_mut()
             .define(&name.lexeme, value.unwrap_or(LoxValue::Nil));
         Ok(())
     }
 
     fn visit_block(&mut self, statements: &Vec<stmt::Stmt>) -> Result<(), EvalError> {
-        execute_block(
+        self.execute_block(
             statements,
-            Environment::new_with_enclosing(self.environment.clone()),
+            Environment::new_with_enclosing(self.cur_environment.clone()),
         )?;
         Ok(())
     }
-}
-
-/// Helper for the Stmt visitor
-fn execute_block(
-    statements: &Vec<stmt::Stmt>,
-    environment: Rc<RefCell<Environment>>,
-) -> Result<(), EvalError> {
-    todo!()
 }
 
 #[cfg(test)]
@@ -305,12 +327,6 @@ mod test {
     use super::*;
     use crate::token::*;
     use crate::{expr::Expr, stmt::Stmt};
-
-    impl Interpreter {
-        fn get_environment(&self) -> Rc<RefCell<Environment>> {
-            self.environment.clone()
-        }
-    }
 
     fn number_expr(n: f64) -> Box<Expr> {
         Box::new(Expr::Literal(LiteralKind::Number(n)))
@@ -397,11 +413,11 @@ mod test {
 
         let mut interpreter = Interpreter::new();
 
-        let res = interpreter.execute(stmt);
+        let res = interpreter.execute(&stmt);
         assert!(res.is_ok(), "evaluate() failed with {:?}", res.err());
 
         let stmt = print_variable("foo");
-        let res = interpreter.execute(stmt);
+        let res = interpreter.execute(&stmt);
         assert!(res.is_ok(), "evaluate() failed with {:?}", res.err());
     }
 
@@ -412,7 +428,7 @@ mod test {
         let stmt = declare_and_init_number("foo", 5.0);
 
         {
-            let res = interpreter.execute(stmt);
+            let res = interpreter.execute(&stmt);
             assert!(res.is_ok(), "evaluate() failed with {:?}", res.err());
             let env = interpreter.get_environment();
             let value = env.borrow().get("foo");
@@ -423,7 +439,7 @@ mod test {
         {
             let stmt = assign_to_var("foo", 10.0);
 
-            let res = interpreter.execute(stmt);
+            let res = interpreter.execute(&stmt);
             assert!(res.is_ok(), "evaluate() failed with {:?}", res.err());
             let env = interpreter.get_environment();
             let value = env.borrow().get("foo");

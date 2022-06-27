@@ -27,7 +27,7 @@ impl Environment {
         }))
     }
 
-    // Allows redefinition of a variable
+    // Allows redefinition of a variable in a single scope
     pub fn define(&mut self, name: &str, value: LoxValue) {
         self.values.insert(name.to_string(), value);
     }

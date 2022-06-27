@@ -97,9 +97,12 @@ fn run_file(path: &Path) -> bool {
     }
 }
 
+// These are mostly front-end intergration tests
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::interpreter::LoxValue;
+
     #[test]
     fn eval_simple_expression() {
         let mut interpreter = Interpreter::new();
@@ -131,6 +134,50 @@ mod test {
         assert!(run(code, &mut interpreter));
 
         let code = "a + b = c;".to_string();
-        assert_eq!(run(code, &mut interpreter), false);
+        assert_eq!(
+            run(code, &mut interpreter),
+            false,
+            "You should not be able to assign to a binary expression"
+        );
+    }
+
+    #[test]
+    fn eval_blocks() {
+        let mut interpreter = Interpreter::new();
+
+        let code = r#"
+var a = "global a"; 
+var b = "global b"; 
+{
+  var b = "scope b";
+  {
+    var b = "shadowing";
+    a = b;
+  }
+}
+"#
+        .to_string();
+        assert!(run(code, &mut interpreter));
+        let env = interpreter.get_environment();
+
+        let value = env.borrow().get("a");
+        assert!(value.is_some());
+        let value = value.unwrap();
+        assert_eq!(
+            value,
+            LoxValue::String("shadowing".to_string()),
+            "Value was {}",
+            value
+        );
+
+        let value = env.borrow().get("b");
+        assert!(value.is_some());
+        let value = value.unwrap();
+        assert_eq!(
+            value,
+            LoxValue::String("global b".to_string()),
+            "Value was {}",
+            value
+        );
     }
 }

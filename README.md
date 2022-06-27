@@ -4,7 +4,7 @@ Lox interpreter as part of the Crafting Interpreters book whose source code can 
 
 <https://github.com/rodaine/rlox> was useful as a reference for translating the Java visitor pattern to Rust
 
-Current chapter: 8
+Current chapter: 9
 
 the main binary can parse a script or work as a repl
 
@@ -18,3 +18,5 @@ the main binary can parse a script or work as a repl
   - The TokenKind enum could have an `is_literal` function that tells you whether or not the specific enumeration is of a literal type
 - Environment should return by ref instead of copy for `get()`
 - Replace `token_matches` with `token_matches_any` and add a new single tokenkind sig for `token_matches`
+- The REPL should print out the result of expressions without requiring another `print` statement
+  - So it'll just execute statements but for expressions it'll evaluate it and then print out the value
