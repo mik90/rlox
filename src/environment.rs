@@ -14,17 +14,17 @@ pub struct Environment {
 }
 
 impl Environment {
-    pub fn new() -> Environment {
-        Environment {
+    pub fn new() -> Rc<RefCell<Environment>> {
+        Rc::new(RefCell::new(Environment {
             values: HashMap::new(),
             enclosing: None,
-        }
+        }))
     }
-    pub fn new_with_enclosing(enclosing: Rc<RefCell<Environment>>) -> Environment {
-        Environment {
+    pub fn new_with_enclosing(enclosing: Rc<RefCell<Environment>>) -> Rc<RefCell<Environment>> {
+        Rc::new(RefCell::new(Environment {
             values: HashMap::new(),
             enclosing: Some(enclosing),
-        }
+        }))
     }
 
     // Allows redefinition of a variable
@@ -64,12 +64,14 @@ mod test {
 
     #[test]
     fn set_and_get() {
-        let mut env = Environment::new();
+        let shared_env = Environment::new();
         let token = Token::new(TokenKind::Identifier, "foo".to_string(), 1);
 
-        env.define(&token.lexeme, LoxValue::Bool(true));
+        shared_env
+            .borrow_mut()
+            .define(&token.lexeme, LoxValue::Bool(true));
 
-        let value = env.get(&token.lexeme);
+        let value = shared_env.borrow().get(&token.lexeme);
         assert!(value.is_some());
 
         let value = value.unwrap();

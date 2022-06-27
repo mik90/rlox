@@ -5,8 +5,10 @@ use crate::expr::Expr;
 use crate::stmt;
 use crate::token::TokenKind;
 use crate::token::{LiteralKind, Token};
+use std::cell::RefCell;
 use std::error;
 use std::fmt;
+use std::rc::Rc;
 
 /// This somewhat duplicated tokens::LiteralKind but eschews the identifier and None type
 #[derive(Debug, PartialEq, Clone)]
@@ -94,7 +96,7 @@ impl fmt::Display for EvalError {
 impl error::Error for EvalError {}
 
 pub struct Interpreter {
-    environment: Environment,
+    environment: Rc<RefCell<Environment>>,
 }
 
 impl Interpreter {
@@ -228,6 +230,7 @@ impl expr::Visitor<Result<LoxValue, EvalError>> for Interpreter {
 
     fn visit_variable(&mut self, name: &Token) -> Result<LoxValue, EvalError> {
         self.environment
+            .borrow()
             .get(&name.lexeme)
             .ok_or(EvalError::UndefinedVariable(name.clone()))
     }
@@ -235,7 +238,11 @@ impl expr::Visitor<Result<LoxValue, EvalError>> for Interpreter {
     fn visit_assign(&mut self, name: &Token, value: &Expr) -> Result<LoxValue, EvalError> {
         let value = self.evaluate(value)?;
 
-        match self.environment.assign(&name.lexeme, value.clone()) {
+        match self
+            .environment
+            .borrow_mut()
+            .assign(&name.lexeme, value.clone())
+        {
             true => Ok(value),
             false => Err(EvalError::UndefinedVariable(name.clone())),
         }
@@ -271,13 +278,26 @@ impl stmt::Visitor<EvalError> for Interpreter {
         };
 
         self.environment
+            .borrow_mut()
             .define(&name.lexeme, value.unwrap_or(LoxValue::Nil));
         Ok(())
     }
 
     fn visit_block(&mut self, statements: &Vec<stmt::Stmt>) -> Result<(), EvalError> {
-        todo!()
+        execute_block(
+            statements,
+            Environment::new_with_enclosing(self.environment.clone()),
+        )?;
+        Ok(())
     }
+}
+
+/// Helper for the Stmt visitor
+fn execute_block(
+    statements: &Vec<stmt::Stmt>,
+    environment: Rc<RefCell<Environment>>,
+) -> Result<(), EvalError> {
+    todo!()
 }
 
 #[cfg(test)]
@@ -287,8 +307,8 @@ mod test {
     use crate::{expr::Expr, stmt::Stmt};
 
     impl Interpreter {
-        fn get_environment(&self) -> &Environment {
-            &self.environment
+        fn get_environment(&self) -> Rc<RefCell<Environment>> {
+            self.environment.clone()
         }
     }
 
@@ -395,7 +415,7 @@ mod test {
             let res = interpreter.execute(stmt);
             assert!(res.is_ok(), "evaluate() failed with {:?}", res.err());
             let env = interpreter.get_environment();
-            let value = env.get("foo");
+            let value = env.borrow().get("foo");
             assert!(value.is_some());
             assert_eq!(value.unwrap(), LoxValue::Number(5.0));
         }
@@ -406,7 +426,7 @@ mod test {
             let res = interpreter.execute(stmt);
             assert!(res.is_ok(), "evaluate() failed with {:?}", res.err());
             let env = interpreter.get_environment();
-            let value = env.get("foo");
+            let value = env.borrow().get("foo");
             assert!(value.is_some());
             assert_eq!(value.unwrap(), LoxValue::Number(10.0));
         }

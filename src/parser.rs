@@ -166,21 +166,23 @@ impl Parser {
             return self.print_statement();
         }
         if self.token_matches(&[&TokenKind::LeftBrace])? {
-            return self.block();
+            let statements = self.block()?;
+            return Ok(Stmt::Block(statements));
         }
 
         // if it's not a print statement, assume it's an expression statement
         self.expression_statement()
     }
 
+    /// This rule will be reused for function bodies so we don't want to always return a Stmt::Block
     /// Grammar rule: block -> "{" declaration* "}" ;
-    fn block(&mut self) -> Result<Stmt, LoxError> {
+    fn block(&mut self) -> Result<Vec<Stmt>, LoxError> {
         let mut statements = Vec::new();
         while !self.check(&TokenKind::RightBrace)? && self.is_at_end()? {
             statements.push(self.declaration()?);
         }
         self.consume(&TokenKind::RightBrace, "Expect '}' after block.")?;
-        Ok(Stmt::Block(statements))
+        Ok(statements)
     }
 
     /// Grammar rule: exprStmt -> expression ";" ;
