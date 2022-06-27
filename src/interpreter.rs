@@ -101,6 +101,7 @@ impl Interpreter {
     fn evaluate(&mut self, expr: &Expr) -> Result<LoxValue, EvalError> {
         expr.accept(self)
     }
+
     pub fn new() -> Interpreter {
         Interpreter {
             environment: Environment::new(),
@@ -227,18 +228,16 @@ impl expr::Visitor<Result<LoxValue, EvalError>> for Interpreter {
 
     fn visit_variable(&mut self, name: &Token) -> Result<LoxValue, EvalError> {
         self.environment
-            .get(name)
+            .get(&name.lexeme)
             .ok_or(EvalError::UndefinedVariable(name.clone()))
     }
 
     fn visit_assign(&mut self, name: &Token, value: &Expr) -> Result<LoxValue, EvalError> {
         let value = self.evaluate(value)?;
 
-        if let Some(v) = self.environment.get_mut(name) {
-            *v = value;
-            return Ok(v.clone());
-        } else {
-            return Err(EvalError::UndefinedVariable(name.clone()));
+        match self.environment.assign(&name.lexeme, value.clone()) {
+            true => Ok(value),
+            false => Err(EvalError::UndefinedVariable(name.clone())),
         }
     }
 }
@@ -275,6 +274,10 @@ impl stmt::Visitor<EvalError> for Interpreter {
             .define(&name.lexeme, value.unwrap_or(LoxValue::Nil));
         Ok(())
     }
+
+    fn visit_block(&mut self, statements: &Vec<stmt::Stmt>) -> Result<(), EvalError> {
+        todo!()
+    }
 }
 
 #[cfg(test)]
@@ -282,6 +285,12 @@ mod test {
     use super::*;
     use crate::token::*;
     use crate::{expr::Expr, stmt::Stmt};
+
+    impl Interpreter {
+        fn get_environment(&self) -> &Environment {
+            &self.environment
+        }
+    }
 
     fn number_expr(n: f64) -> Box<Expr> {
         Box::new(Expr::Literal(LiteralKind::Number(n)))
@@ -298,6 +307,12 @@ mod test {
     fn declare_and_init_number(name: &str, value: f64) -> Stmt {
         let token = Token::new_literal(LiteralKind::Identifier(name.to_string()), 1);
         Stmt::Var(token, Some(Expr::Literal(LiteralKind::Number(value))))
+    }
+
+    fn assign_to_var(name: &str, value: f64) -> Stmt {
+        let token = Token::new_literal(LiteralKind::Identifier(name.to_string()), 1);
+        let expr = Expr::Assign(token, Box::new(Expr::Literal(LiteralKind::Number(value))));
+        Stmt::Expression(expr)
     }
 
     fn print_variable(name: &str) -> Stmt {
@@ -368,5 +383,32 @@ mod test {
         let stmt = print_variable("foo");
         let res = interpreter.execute(stmt);
         assert!(res.is_ok(), "evaluate() failed with {:?}", res.err());
+    }
+
+    #[test]
+    fn eval_var_update() {
+        let mut interpreter = Interpreter::new();
+
+        let stmt = declare_and_init_number("foo", 5.0);
+
+        {
+            let res = interpreter.execute(stmt);
+            assert!(res.is_ok(), "evaluate() failed with {:?}", res.err());
+            let env = interpreter.get_environment();
+            let value = env.get("foo");
+            assert!(value.is_some());
+            assert_eq!(value.unwrap(), LoxValue::Number(5.0));
+        }
+
+        {
+            let stmt = assign_to_var("foo", 10.0);
+
+            let res = interpreter.execute(stmt);
+            assert!(res.is_ok(), "evaluate() failed with {:?}", res.err());
+            let env = interpreter.get_environment();
+            let value = env.get("foo");
+            assert!(value.is_some());
+            assert_eq!(value.unwrap(), LoxValue::Number(10.0));
+        }
     }
 }

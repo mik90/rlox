@@ -160,13 +160,27 @@ impl Parser {
         }
     }
 
-    /// Grammar rule: statement -> exprStmt | printStmt ;
+    /// Grammar rule: statement -> exprStmt | printStmt | block ;
     fn statement(&mut self) -> Result<Stmt, LoxError> {
         if self.token_matches(&[&TokenKind::Print])? {
             return self.print_statement();
         }
+        if self.token_matches(&[&TokenKind::LeftBrace])? {
+            return self.block();
+        }
+
         // if it's not a print statement, assume it's an expression statement
         self.expression_statement()
+    }
+
+    /// Grammar rule: block -> "{" declaration* "}" ;
+    fn block(&mut self) -> Result<Stmt, LoxError> {
+        let mut statements = Vec::new();
+        while !self.check(&TokenKind::RightBrace)? && self.is_at_end()? {
+            statements.push(self.declaration()?);
+        }
+        self.consume(&TokenKind::RightBrace, "Expect '}' after block.")?;
+        Ok(Stmt::Block(statements))
     }
 
     /// Grammar rule: exprStmt -> expression ";" ;

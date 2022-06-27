@@ -8,14 +8,17 @@ pub enum Stmt {
     /// Print      : Expr expression
     Print(Expr),
     /// The initializer is optional
-    /// Var        :  Token name, [Expr initializer]
+    /// Var        : Token name, [Expr initializer]
     Var(Token, Option<Expr>),
+    /// Block      : Vec<Stmt> statements
+    Block(Vec<Stmt>),
 }
 
 pub trait Visitor<E> {
     fn visit_expression_stmt(&mut self, expr: &Expr) -> Result<(), E>;
     fn visit_print_stmt(&mut self, expr: &Expr) -> Result<(), E>;
     fn visit_var_stmt(&mut self, name: &Token, initializer: &Option<Expr>) -> Result<(), E>;
+    fn visit_block(&mut self, statements: &Vec<Stmt>) -> Result<(), E>;
 }
 
 impl Stmt {
@@ -24,6 +27,7 @@ impl Stmt {
             Stmt::Expression(expr) => visitor.visit_expression_stmt(expr),
             Stmt::Print(expr) => visitor.visit_print_stmt(expr),
             Stmt::Var(name, initializer) => visitor.visit_var_stmt(name, initializer),
+            Stmt::Block(statements) => visitor.visit_block(statements),
         }
     }
 }
