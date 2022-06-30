@@ -320,6 +320,22 @@ impl stmt::Visitor<EvalError> for Interpreter {
         )?;
         Ok(())
     }
+
+    fn visit_if_stmt(
+        &mut self,
+        condition: &Expr,
+        then_branch: &Box<stmt::Stmt>,
+        else_branch: &Option<Box<stmt::Stmt>>,
+    ) -> Result<(), EvalError> {
+        if self.evaluate(condition)?.is_truthy() {
+            self.execute(then_branch)
+        } else if let Some(else_branch) = else_branch {
+            self.execute(else_branch)
+        } else {
+            // The 'if' was falsy and there was no 'else'
+            Ok(())
+        }
+    }
 }
 
 #[cfg(test)]

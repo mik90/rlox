@@ -160,8 +160,11 @@ impl Parser {
         }
     }
 
-    /// Grammar rule: statement -> exprStmt | printStmt | block ;
+    /// Grammar rule: statement -> exprStmt | ifStmt | printStmt | block ;
     fn statement(&mut self) -> Result<Stmt, LoxError> {
+        if self.token_matches(&[&TokenKind::If])? {
+            return self.if_statement();
+        }
         if self.token_matches(&[&TokenKind::Print])? {
             return self.print_statement();
         }
@@ -172,6 +175,22 @@ impl Parser {
 
         // if it's not a print statement, assume it's an expression statement
         self.expression_statement()
+    }
+
+    /// Grammar rule: ifStmt -> "if" "(" expression ")" statement ( "else" statement )? ;
+    fn if_statement(&mut self) -> Result<Stmt, LoxError> {
+        self.consume(&TokenKind::LeftParen, "Expect '(' after 'if'.")?;
+        let condition = self.expression()?;
+        self.consume(&TokenKind::RightParen, "Expect ')' after if consition.")?;
+
+        let then_branch = self.statement()?;
+        let else_branch = if self.token_matches(&[&TokenKind::Else])? {
+            Some(Box::new(self.statement()?))
+        } else {
+            None
+        };
+
+        Ok(Stmt::If(condition, Box::new(then_branch), else_branch))
     }
 
     /// This rule will be reused for function bodies so we don't want to always return a Stmt::Block
