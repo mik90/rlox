@@ -353,6 +353,17 @@ impl stmt::Visitor<EvalError> for Interpreter {
             Ok(())
         }
     }
+
+    fn visit_while_stmt(
+        &mut self,
+        condition: &Expr,
+        body: &Box<stmt::Stmt>,
+    ) -> Result<(), EvalError> {
+        while self.evaluate(condition)?.is_truthy() {
+            self.execute(body)?;
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]

@@ -160,13 +160,16 @@ impl Parser {
         }
     }
 
-    /// Grammar rule: statement -> exprStmt | ifStmt | printStmt | block ;
+    /// Grammar rule: statement -> exprStmt | ifStmt | printStmt | whileStmt | block ;
     fn statement(&mut self) -> Result<Stmt, LoxError> {
         if self.token_matches(&[&TokenKind::If])? {
             return self.if_statement();
         }
         if self.token_matches(&[&TokenKind::Print])? {
             return self.print_statement();
+        }
+        if self.token_matches(&[&TokenKind::While])? {
+            return self.while_statement();
         }
         if self.token_matches(&[&TokenKind::LeftBrace])? {
             let statements = self.block()?;
@@ -175,6 +178,16 @@ impl Parser {
 
         // if it's not a print statement, assume it's an expression statement
         self.expression_statement()
+    }
+
+    /// Grammar rule: whileStmt -> "while" "(" expression ")" statement ;
+    fn while_statement(&mut self) -> Result<Stmt, LoxError> {
+        self.consume(&TokenKind::LeftParen, "Expect '(' after while.")?;
+        let condition = self.expression()?;
+        self.consume(&TokenKind::RightParen, "Expect ')' after condition.")?;
+        let body = self.statement()?;
+
+        Ok(Stmt::While(condition, Box::new(body)))
     }
 
     /// Grammar rule: ifStmt -> "if" "(" expression ")" statement ( "else" statement )? ;
