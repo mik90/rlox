@@ -180,4 +180,42 @@ var b = "global b";
             value
         );
     }
+
+    #[test]
+    fn eval_if() {
+        let mut interpreter = Interpreter::new();
+
+        let code = r#"
+var a = "foo"; 
+if (true)
+  a = "bar";
+"#
+        .to_string();
+        assert!(run(code, &mut interpreter));
+        let env = interpreter.get_environment();
+
+        let value = env.borrow().get("a");
+        assert!(value.is_some());
+        assert_eq!(value.unwrap(), LoxValue::String("bar".to_string()));
+    }
+
+    #[test]
+    fn eval_else() {
+        let mut interpreter = Interpreter::new();
+
+        let code = r#"
+var a = ""; 
+if (false)
+  a = "foo";
+else
+  a = "bar";
+"#
+        .to_string();
+        assert!(run(code, &mut interpreter));
+        let env = interpreter.get_environment();
+
+        let value = env.borrow().get("a");
+        assert!(value.is_some());
+        assert_eq!(value.unwrap(), LoxValue::String("bar".to_string()));
+    }
 }
