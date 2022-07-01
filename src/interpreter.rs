@@ -231,6 +231,23 @@ impl expr::Visitor<Result<LoxValue, EvalError>> for Interpreter {
         }
     }
 
+    fn visit_logical(&mut self, lhs: &Expr, op: &Token, rhs: &Expr) -> Result<LoxValue, EvalError> {
+        let left = self.evaluate(lhs)?;
+
+        if op.kind == TokenKind::Or {
+            if left.is_truthy() {
+                return Ok(left);
+            }
+        } else {
+            // Not an or, if lhs is falsey then just return that
+            if !left.is_truthy() {
+                return Ok(left);
+            }
+        }
+
+        self.evaluate(rhs)
+    }
+
     fn visit_unary(&mut self, op: &Token, right: &Expr) -> Result<LoxValue, EvalError> {
         // evaluate the rhs of the unary
         let rhs_value = self.evaluate(right)?;

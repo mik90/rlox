@@ -224,14 +224,15 @@ impl Parser {
         Ok(Stmt::Print(expr))
     }
 
-    /// Grammar rule: expression -> equality ;
+    /// Grammar rule: expression -> assignment ;
     fn expression(&mut self) -> Result<Expr, LoxError> {
         self.assignment()
     }
 
-    /// Grammar rule: IDENTIFIER "=" assignment | equality ;
+    /// Grammar rule: assignment -> IDENTIFIER "=" assignment | equality | logic_or;
     fn assignment(&mut self) -> Result<Expr, LoxError> {
-        let expr = self.equality()?;
+        let expr = self.or()?;
+
         if self.token_matches(&[&TokenKind::Equal])? {
             let equals = self.previous()?;
             let value = self.assignment()?;
@@ -244,6 +245,30 @@ impl Parser {
             let err_msg = format!("On line {}, invalid assignment target.", equals.line);
             eprintln!("{}", err_msg);
             self.non_fatal_errors.push(LoxError::Parser(err_msg));
+        }
+        Ok(expr)
+    }
+
+    /// Grammar rule: logic_or -> logic_and ( "or" logic_and )* ;
+    fn or(&mut self) -> Result<Expr, LoxError> {
+        let mut expr = self.and()?;
+
+        while self.token_matches(&[&TokenKind::Or])? {
+            let operator = self.previous()?;
+            let right = self.and()?;
+            expr = Expr::Logical(Box::new(expr), operator, Box::new(right));
+        }
+        Ok(expr)
+    }
+
+    /// Grammar rule: logic_and -> equality ( "and" equality )* ;
+    fn and(&mut self) -> Result<Expr, LoxError> {
+        let mut expr = self.equality()?;
+
+        while self.token_matches(&[&TokenKind::And])? {
+            let operator = self.previous()?;
+            let right = self.equality()?;
+            expr = Expr::Logical(Box::new(expr), operator, Box::new(right));
         }
         Ok(expr)
     }

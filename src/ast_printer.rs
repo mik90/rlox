@@ -36,6 +36,9 @@ impl Visitor<String> for AstPrinter {
     fn visit_literal(&mut self, value: &LiteralKind) -> String {
         value.to_string()
     }
+    fn visit_logical(&mut self, lhs: &Expr, op: &Token, rhs: &Expr) -> String {
+        parenthisize(self, &op.lexeme, &[lhs, rhs])
+    }
 
     fn visit_unary(&mut self, op: &Token, right: &Expr) -> String {
         parenthisize(self, &op.lexeme, &[right])

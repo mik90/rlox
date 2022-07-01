@@ -11,6 +11,8 @@ pub enum Expr {
     Grouping(Box<Expr>),
     /// Literal  : Object value
     Literal(LiteralKind),
+    /// Logical  : Expr left, Token operator, Expr right
+    Logical(Box<Expr>, Token, Box<Expr>),
     /// Unary    : Token operator, Expr right
     Unary(Token, Box<Expr>),
     /// Variable : Token name
@@ -23,6 +25,7 @@ pub trait Visitor<T> {
     fn visit_binary(&mut self, lhs: &Expr, op: &Token, rhs: &Expr) -> T;
     fn visit_grouping(&mut self, expr: &Expr) -> T;
     fn visit_literal(&mut self, value: &LiteralKind) -> T;
+    fn visit_logical(&mut self, lhs: &Expr, op: &Token, rhs: &Expr) -> T;
     fn visit_unary(&mut self, op: &Token, right: &Expr) -> T;
     fn visit_variable(&mut self, name: &Token) -> T;
     fn visit_assign(&mut self, name: &Token, value: &Expr) -> T;
@@ -34,6 +37,7 @@ impl Expr {
             Expr::Binary(lhs, op, rhs) => visitor.visit_binary(lhs, op, rhs),
             Expr::Grouping(expr) => visitor.visit_grouping(expr),
             Expr::Literal(lit) => visitor.visit_literal(lit),
+            Expr::Logical(lhs, op, rhs) => visitor.visit_logical(lhs, op, rhs),
             Expr::Unary(op, expr) => visitor.visit_unary(op, expr),
             Expr::Variable(name) => visitor.visit_variable(name),
             Expr::Assign(name, value) => visitor.visit_assign(name, value),
