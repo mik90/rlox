@@ -54,7 +54,10 @@ impl Visitor<String> for AstPrinter {
     }
 
     fn visit_call(&mut self, callee: &Expr, paren: &Token, arguments: &Vec<Expr>) -> String {
-        todo!("call printing not implemented")
+        format!(
+            "Not fully implemented, here's some debug logging\ncallee={:?}, paren={}, arguments={:?}",
+            callee, paren.lexeme, arguments
+        )
     }
 }
 

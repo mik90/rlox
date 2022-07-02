@@ -301,6 +301,15 @@ impl expr::Visitor<Result<LoxValue, EvalError>> for Interpreter {
         paren: &Token,
         arguments: &Vec<Expr>,
     ) -> Result<LoxValue, EvalError> {
+        let callee = self.evaluate(callee)?;
+
+        let mut evaluated_args = Vec::new();
+        for arg in arguments {
+            evaluated_args.push(self.evaluate(arg)?);
+        }
+
+        //let function = LoxCallable::from(callee);
+        // function.call(self, arguments)
         todo!()
     }
 }
