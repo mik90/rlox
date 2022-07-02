@@ -160,8 +160,11 @@ impl Parser {
         }
     }
 
-    /// Grammar rule: statement -> exprStmt | ifStmt | printStmt | whileStmt | block ;
+    /// Grammar rule: statement -> exprStmt | forStmt | ifStmt | printStmt | whileStmt | block ;
     fn statement(&mut self) -> Result<Stmt, LoxError> {
+        if self.token_matches(&[&TokenKind::For])? {
+            return self.for_statement();
+        }
         if self.token_matches(&[&TokenKind::If])? {
             return self.if_statement();
         }
@@ -180,9 +183,60 @@ impl Parser {
         self.expression_statement()
     }
 
+    /// Desugars a for loop into a while statement with an optional initializer
+    /// Grammar rule: forStmt -> "for" "(" ( varDecl | exprStmt | ";" ) expression? ";" expression? ")" statement ;
+    fn for_statement(&mut self) -> Result<Stmt, LoxError> {
+        self.consume(&TokenKind::LeftParen, "Expect '(' after 'for'")?;
+
+        let initializer = if self.token_matches(&[&TokenKind::SemiColon])? {
+            // Initializer is omitted
+            None
+        } else if self.token_matches(&[&TokenKind::Var])? {
+            Some(self.var_decl()?)
+        } else {
+            Some(self.expression_statement()?)
+        };
+
+        let condition = if !self.check(&TokenKind::SemiColon)? {
+            Some(self.expression()?)
+        } else {
+            None
+        };
+        self.consume(&TokenKind::SemiColon, "Expect ';' after loop condition")?;
+
+        let increment = if !self.check(&TokenKind::RightParen)? {
+            Some(self.expression()?)
+        } else {
+            None
+        };
+        self.consume(&TokenKind::RightParen, "Expect ')' after 'for' clauses")?;
+
+        let mut body = self.statement()?;
+
+        if let Some(i) = increment {
+            // Execute increment at the end of the body for each iteration
+            body = Stmt::Block(vec![body, Stmt::Expression(i)]);
+        }
+
+        // If there's no condition, make it into an infinite loop
+        let condition = match condition {
+            Some(condition) => condition,
+            None => Expr::Literal(LiteralKind::Bool(true)),
+        };
+        body = Stmt::While(condition, Box::new(body));
+
+        // add the initializer at the front of the block
+        // Runs once before the loop
+        if let Some(i) = initializer {
+            body = Stmt::Block(vec![i, body]);
+        }
+
+        Ok(body)
+    }
+
     /// Grammar rule: whileStmt -> "while" "(" expression ")" statement ;
     fn while_statement(&mut self) -> Result<Stmt, LoxError> {
-        self.consume(&TokenKind::LeftParen, "Expect '(' after while.")?;
+        self.consume(&TokenKind::LeftParen, "Expect '(' after 'while'")?;
         let condition = self.expression()?;
         self.consume(&TokenKind::RightParen, "Expect ')' after condition.")?;
         let body = self.statement()?;

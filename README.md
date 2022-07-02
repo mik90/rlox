@@ -20,3 +20,4 @@ the main binary can parse a script or work as a repl
 - Replace `token_matches` with `token_matches_any` and add a new single tokenkind sig for `token_matches`
 - The REPL should print out the result of expressions without requiring another `print` statement
   - So it'll just execute statements but for expressions it'll evaluate it and then print out the value
+- Support for `break` and `continue` statements. They may be nested inside other blocks.

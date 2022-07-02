@@ -218,4 +218,42 @@ else
         assert!(value.is_some());
         assert_eq!(value.unwrap(), LoxValue::String("bar".to_string()));
     }
+
+    #[test]
+    fn eval_for() {
+        let mut interpreter = Interpreter::new();
+
+        let code = r#"
+var a = 0; 
+for (var i = 0; i < 10; i = i + 1) {
+    a = i;
+}
+"#
+        .to_string();
+        assert!(run(code, &mut interpreter));
+        let env = interpreter.get_environment();
+
+        let value = env.borrow().get("a");
+        assert!(value.is_some());
+        assert_eq!(value.unwrap(), LoxValue::Number(9.0));
+    }
+
+    #[test]
+    fn eval_while() {
+        let mut interpreter = Interpreter::new();
+
+        let code = r#"
+var a = 0;
+while (a < 5) {
+  a = a + 1;
+}
+"#
+        .to_string();
+        assert!(run(code, &mut interpreter));
+        let env = interpreter.get_environment();
+
+        let value = env.borrow().get("a");
+        assert!(value.is_some());
+        assert_eq!(value.unwrap(), LoxValue::Number(5.0));
+    }
 }
