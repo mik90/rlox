@@ -1,4 +1,4 @@
-use crate::error::LoxError;
+use crate::error::{self, LoxError};
 use crate::expr::Expr;
 use crate::stmt::Stmt;
 use crate::token::{LiteralKind, Token, TokenKind};
@@ -115,6 +115,30 @@ impl Parser {
             }
         }
         Ok(false)
+    }
+    /// Consume all the arguments in the call
+    fn finish_call(&mut self, callee: Expr) -> Result<Expr, LoxError> {
+        let mut arguments = Vec::new();
+        if !self.check(&TokenKind::RightParen)? {
+            loop {
+                if arguments.len() >= 255 {
+                    self.non_fatal_errors.push(LoxError::new_parser_err(
+                        self.peek()?,
+                        "Can't have more than 255 arguments",
+                    ));
+                }
+
+                arguments.push(self.expression()?);
+
+                if !self.token_matches(&[&TokenKind::Comma])? {
+                    break;
+                }
+            }
+        }
+
+        let paren = self.consume(&TokenKind::RightParen, "Expect ')' after arguments.")?;
+
+        Ok(Expr::Call(Box::new(callee), paren, arguments))
     }
 
     // ------------------------------------------------------------------
@@ -369,14 +393,33 @@ impl Parser {
         ))
     }
 
-    /// Grammar rule: unary -> ( "!" | "-" ) unary | primary ;
+    /// Grammar rule: unary -> ( "!" | "-" ) unary | call ;
     fn unary(&mut self) -> Result<Expr, LoxError> {
         if self.token_matches(&[&TokenKind::Bang, &TokenKind::Minus])? {
             let operator = self.previous()?;
             let right = self.unary()?;
             return Ok(Expr::Unary(operator, Box::from(right)));
         }
-        self.primary()
+        self.call()
+    }
+
+    /// Grammar rule: call -> primary ( "(" arguments? ")" )* ;
+    fn call(&mut self) -> Result<Expr, LoxError> {
+        let mut expr = self.primary()?;
+        // consume as many arguments as exist
+        loop {
+            if self.token_matches(&[&TokenKind::LeftParen])? {
+                expr = self.finish_call(expr)?;
+            } else {
+                break;
+            }
+        }
+        Ok(expr)
+    }
+
+    /// Grammar rule: arguments -> expression ( "," expression )* ;
+    fn arguments(&mut self) -> Result<Expr, LoxError> {
+        todo!()
     }
 
     /// Grammar rule: factor -> unary ( ( "/" | "*" ) unary )* ;

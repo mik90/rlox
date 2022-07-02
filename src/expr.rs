@@ -7,6 +7,8 @@ use crate::token::Token;
 pub enum Expr {
     /// Binary   : Expr left, Token operator, Expr right
     Binary(Box<Expr>, Token, Box<Expr>),
+    /// Call     : Expr callee, Token paren, Vec<Expr> arguments
+    Call(Box<Expr>, Token, Vec<Expr>),
     /// Grouping : Expr expression
     Grouping(Box<Expr>),
     /// Literal  : Object value
@@ -23,6 +25,7 @@ pub enum Expr {
 
 pub trait Visitor<T> {
     fn visit_binary(&mut self, lhs: &Expr, op: &Token, rhs: &Expr) -> T;
+    fn visit_call(&mut self, callee: &Expr, paren: &Token, arguments: &Vec<Expr>) -> T;
     fn visit_grouping(&mut self, expr: &Expr) -> T;
     fn visit_literal(&mut self, value: &LiteralKind) -> T;
     fn visit_logical(&mut self, lhs: &Expr, op: &Token, rhs: &Expr) -> T;
@@ -35,6 +38,7 @@ impl Expr {
     pub fn accept<T>(&self, visitor: &mut dyn Visitor<T>) -> T {
         match self {
             Expr::Binary(lhs, op, rhs) => visitor.visit_binary(lhs, op, rhs),
+            Expr::Call(callee, paren, arguments) => visitor.visit_call(callee, paren, arguments),
             Expr::Grouping(expr) => visitor.visit_grouping(expr),
             Expr::Literal(lit) => visitor.visit_literal(lit),
             Expr::Logical(lhs, op, rhs) => visitor.visit_logical(lhs, op, rhs),

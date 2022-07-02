@@ -294,6 +294,15 @@ impl expr::Visitor<Result<LoxValue, EvalError>> for Interpreter {
             false => Err(EvalError::UndefinedVariable(name.clone())),
         }
     }
+
+    fn visit_call(
+        &mut self,
+        callee: &Expr,
+        paren: &Token,
+        arguments: &Vec<Expr>,
+    ) -> Result<LoxValue, EvalError> {
+        todo!()
+    }
 }
 
 impl stmt::Visitor<EvalError> for Interpreter {

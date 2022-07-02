@@ -4,7 +4,7 @@ Lox interpreter as part of the Crafting Interpreters book whose source code can 
 
 <https://github.com/rodaine/rlox> was useful as a reference for translating the Java visitor pattern to Rust
 
-Current chapter: 9
+Current chapter: 10
 
 the main binary can parse a script or work as a repl
 

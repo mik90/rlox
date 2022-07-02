@@ -52,6 +52,10 @@ impl Visitor<String> for AstPrinter {
     fn visit_assign(&mut self, name: &Token, value: &Expr) -> String {
         parenthisize(self, &name.lexeme, &[value])
     }
+
+    fn visit_call(&mut self, callee: &Expr, paren: &Token, arguments: &Vec<Expr>) -> String {
+        todo!("call printing not implemented")
+    }
 }
 
 #[cfg(test)]
