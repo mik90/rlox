@@ -10,6 +10,7 @@ use std::cell::RefCell;
 use std::error;
 use std::fmt;
 use std::rc::Rc;
+use std::time;
 
 #[derive(Debug)]
 pub enum EvalError {
@@ -33,6 +34,29 @@ impl error::Error for EvalError {}
 
 pub struct Interpreter {
     cur_environment: Rc<RefCell<Environment>>,
+    globals: Environment,
+}
+
+/// Returns the time since the epoch in seconds as a double
+struct NativeClock {}
+impl LoxCallable for NativeClock {
+    fn arity(&self) -> usize {
+        0
+    }
+
+    fn call(&self, _: &mut Interpreter, _: &Vec<Expr>) -> LoxValue {
+        match time::SystemTime::now().duration_since(time::SystemTime::UNIX_EPOCH) {
+            Ok(t) => LoxValue::Number(t.as_secs_f64()),
+            Err(t) => {
+                panic!("System time {} is before unix epoch!", t)
+            }
+        }
+    }
+}
+impl fmt::Display for NativeClock {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "<native fn>")
+    }
 }
 
 impl Interpreter {
@@ -41,8 +65,11 @@ impl Interpreter {
     }
 
     pub fn new() -> Interpreter {
+        let mut globals = Environment::new();
+        globals.define("clock", LoxValue::Callable(Rc::new(NativeClock {})));
         Interpreter {
-            cur_environment: Environment::new(),
+            cur_environment: Environment::new_sharable(),
+            globals: globals,
         }
     }
 

@@ -14,11 +14,14 @@ pub struct Environment {
 }
 
 impl Environment {
-    pub fn new() -> Rc<RefCell<Environment>> {
-        Rc::new(RefCell::new(Environment {
+    pub fn new() -> Environment {
+        Environment {
             values: HashMap::new(),
             enclosing: None,
-        }))
+        }
+    }
+    pub fn new_sharable() -> Rc<RefCell<Environment>> {
+        Rc::new(RefCell::new(Environment::new()))
     }
     pub fn new_with_enclosing(enclosing: Rc<RefCell<Environment>>) -> Rc<RefCell<Environment>> {
         Rc::new(RefCell::new(Environment {
@@ -64,7 +67,7 @@ mod test {
 
     #[test]
     fn set_and_get() {
-        let shared_env = Environment::new();
+        let shared_env = Environment::new_sharable();
         let token = Token::new(TokenKind::Identifier, "foo".to_string(), 1);
 
         shared_env
