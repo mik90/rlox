@@ -8,6 +8,7 @@ mod error;
 mod expr;
 mod interpreter;
 mod lox_callable;
+mod lox_value;
 mod parser;
 mod scanner;
 mod stmt;
@@ -102,7 +103,7 @@ fn run_file(path: &Path) -> bool {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::interpreter::LoxValue;
+    use crate::lox_value::LoxValue;
 
     #[test]
     fn eval_simple_expression() {

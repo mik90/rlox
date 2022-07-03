@@ -1,79 +1,15 @@
 use crate::environment::Environment;
 use crate::error::ErrorMessage;
-use crate::expr;
 use crate::expr::Expr;
+use crate::lox_callable::LoxCallable;
 use crate::stmt;
 use crate::token::TokenKind;
 use crate::token::{LiteralKind, Token};
+use crate::{expr, lox_callable, lox_value::LoxValue};
 use std::cell::RefCell;
 use std::error;
 use std::fmt;
 use std::rc::Rc;
-
-/// This somewhat duplicated tokens::LiteralKind but eschews the identifier and None type
-#[derive(Debug, PartialEq, Clone)]
-pub enum LoxValue {
-    // Possible value types in lox
-    String(String),
-    Number(f64),
-    Bool(bool),
-    Nil,
-}
-
-impl LoxValue {
-    /// Follows ruby rules where everything is truthy except false and nil
-    pub fn is_truthy(&self) -> bool {
-        match &self {
-            LoxValue::String(_) => true,
-            LoxValue::Number(_) => true,
-            LoxValue::Bool(b) => b.to_owned(),
-            LoxValue::Nil => false,
-        }
-    }
-    pub fn as_numbers(
-        line_num: usize,
-        lhs: LoxValue,
-        rhs: LoxValue,
-    ) -> Result<(f64, f64), EvalError> {
-        match (&lhs, &rhs) {
-            (LoxValue::Number(l), LoxValue::Number(r)) => Ok((*l, *r)),
-            (LoxValue::Number(_), _) => Err(EvalError::InvalidType(
-                line_num,
-                format!("Could not convert rhs operand '{}' to a number", rhs),
-            )),
-            (_, LoxValue::Number(_)) => Err(EvalError::InvalidType(
-                line_num,
-                format!("Could not convert lhs operand '{}' to a number", lhs),
-            )),
-            (_, _) => Err(EvalError::InvalidType(
-                line_num,
-                format!(
-                    "Could not convert lhs '{}' nor rhs '{}' operands to a number",
-                    lhs, rhs
-                ),
-            )),
-        }
-    }
-}
-
-impl fmt::Display for LoxValue {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match &self {
-            LoxValue::String(s) => write!(f, "{}", s),
-            LoxValue::Number(n) => {
-                let s = n.to_string();
-                if s.ends_with(".0") {
-                    // Lop off the .0 if it's there
-                    write!(f, "{:.1}", s)
-                } else {
-                    write!(f, "{}", s)
-                }
-            }
-            LoxValue::Bool(b) => write!(f, "{}", b),
-            LoxValue::Nil => write!(f, "nil"),
-        }
-    }
-}
 
 #[derive(Debug)]
 pub enum EvalError {
@@ -301,16 +237,35 @@ impl expr::Visitor<Result<LoxValue, EvalError>> for Interpreter {
         paren: &Token,
         arguments: &Vec<Expr>,
     ) -> Result<LoxValue, EvalError> {
-        let callee = self.evaluate(callee)?;
-
         let mut evaluated_args = Vec::new();
         for arg in arguments {
             evaluated_args.push(self.evaluate(arg)?);
         }
 
-        //let function = LoxCallable::from(callee);
-        // function.call(self, arguments)
-        todo!()
+        let function = match self.evaluate(callee)? {
+            LoxValue::Callable(function) => function,
+            non_callable_type => {
+                return Err(EvalError::InvalidType(
+                    paren.line,
+                    format!(
+                        "Can only call functions and classes. Cannot call type {:?}",
+                        non_callable_type
+                    ),
+                ));
+            }
+        };
+
+        if arguments.len() != function.arity() {
+            return Err(EvalError::InvalidType(
+                paren.line,
+                format!(
+                    "Expected {} arguments but got {}.",
+                    function.arity(),
+                    arguments.len()
+                ),
+            ));
+        }
+        Ok(function.call(self, arguments))
     }
 }
 

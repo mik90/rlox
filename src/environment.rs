@@ -1,4 +1,4 @@
-use crate::interpreter::LoxValue;
+use crate::lox_value::LoxValue;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;

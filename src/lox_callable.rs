@@ -1,6 +1,6 @@
-use crate::interpreter::{Interpreter, LoxValue};
+use crate::{expr::Expr, interpreter::Interpreter, lox_value::LoxValue};
 /// A callable lox object
-pub trait LoxCallable<T> {
-    // Unsure if lox values are generic enough
-    fn call(interpreter: &mut Interpreter, arguments: &Vec<LoxValue>) -> LoxValue;
+pub trait LoxCallable {
+    fn arity(&self) -> usize;
+    fn call(&self, interpreter: &mut Interpreter, arguments: &Vec<Expr>) -> LoxValue;
 }
