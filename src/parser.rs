@@ -1,4 +1,4 @@
-use crate::error::{self, LoxError};
+use crate::error::LoxError;
 use crate::expr::Expr;
 use crate::stmt::Stmt;
 use crate::token::{LiteralKind, Token, TokenKind};
@@ -172,14 +172,14 @@ impl Parser {
             if self.token_matches(&[&TokenKind::Var])? {
                 return self.var_decl();
             }
-            return self.statement();
+            self.statement()
         };
         match parsing_attempt() {
             Ok(v) => Ok(v),
             Err(e) => {
                 // Syncrhonize on any errors then return an error
                 self.synchronize()?;
-                return Err(e);
+                Err(e)
             }
         }
     }

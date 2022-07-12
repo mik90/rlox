@@ -21,13 +21,13 @@ pub enum Stmt {
 pub trait Visitor<E> {
     fn visit_expression_stmt(&mut self, expr: &Expr) -> Result<(), E>;
     fn visit_print_stmt(&mut self, expr: &Expr) -> Result<(), E>;
-    fn visit_while_stmt(&mut self, condition: &Expr, body: &Box<Stmt>) -> Result<(), E>;
+    fn visit_while_stmt(&mut self, condition: &Expr, body: &Stmt) -> Result<(), E>;
     fn visit_var_stmt(&mut self, name: &Token, initializer: &Option<Expr>) -> Result<(), E>;
-    fn visit_block(&mut self, statements: &Vec<Stmt>) -> Result<(), E>;
+    fn visit_block(&mut self, statements: &[Stmt]) -> Result<(), E>;
     fn visit_if_stmt(
         &mut self,
         condition: &Expr,
-        then_branch: &Box<Stmt>,
+        then_branch: &Stmt,
         else_branch: &Option<Box<Stmt>>,
     ) -> Result<(), E>;
 }

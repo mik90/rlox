@@ -76,16 +76,16 @@ impl Scanner {
 
     fn scan_number(&mut self) -> Result<(), LoxError> {
         // consume all the digits before the .
-        while self.peek().is_digit(10) {
+        while self.peek().is_ascii_digit() {
             self.advance()?;
         }
 
-        if self.peek() == '.' && self.peek_next().is_digit(10) {
+        if self.peek() == '.' && self.peek_next().is_ascii_digit() {
             // consume the "."
             self.advance()?;
 
             // consume all the digits _after_ the dot
-            while self.peek().is_digit(10) {
+            while self.peek().is_ascii_digit() {
                 self.advance()?;
             }
         }

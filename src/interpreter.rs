@@ -1,11 +1,13 @@
 use crate::environment::Environment;
 use crate::error::ErrorMessage;
 use crate::expr::Expr;
-use crate::lox_callable::LoxCallable;
 use crate::stmt;
 use crate::token::TokenKind;
 use crate::token::{LiteralKind, Token};
-use crate::{expr, lox_callable, lox_value::LoxValue};
+use crate::{
+    expr,
+    lox_value::{LoxCallable, LoxValue},
+};
 use std::cell::RefCell;
 use std::error;
 use std::fmt;
@@ -44,7 +46,7 @@ impl LoxCallable for NativeClock {
         0
     }
 
-    fn call(&self, _: &mut Interpreter, _: &Vec<Expr>) -> LoxValue {
+    fn call(&self, _: &mut Interpreter, _: &[Expr]) -> LoxValue {
         match time::SystemTime::now().duration_since(time::SystemTime::UNIX_EPOCH) {
             Ok(t) => LoxValue::Number(t.as_secs_f64()),
             Err(t) => {
@@ -85,7 +87,7 @@ impl Interpreter {
     /// Helper for the Stmt visitor
     fn execute_block(
         &mut self,
-        statements: &Vec<stmt::Stmt>,
+        statements: &[stmt::Stmt],
         environment: Rc<RefCell<Environment>>,
     ) -> Result<(), EvalError> {
         let prev_env = self.cur_environment.clone();
@@ -242,7 +244,7 @@ impl expr::Visitor<Result<LoxValue, EvalError>> for Interpreter {
         self.cur_environment
             .borrow()
             .get(&name.lexeme)
-            .ok_or(EvalError::UndefinedVariable(name.clone()))
+            .ok_or_else(|| EvalError::UndefinedVariable(name.clone()))
     }
 
     fn visit_assign(&mut self, name: &Token, value: &Expr) -> Result<LoxValue, EvalError> {
@@ -262,7 +264,7 @@ impl expr::Visitor<Result<LoxValue, EvalError>> for Interpreter {
         &mut self,
         callee: &Expr,
         paren: &Token,
-        arguments: &Vec<Expr>,
+        arguments: &[Expr],
     ) -> Result<LoxValue, EvalError> {
         let mut evaluated_args = Vec::new();
         for arg in arguments {
@@ -309,7 +311,7 @@ impl stmt::Visitor<EvalError> for Interpreter {
 
     fn visit_print_stmt(&mut self, expr: &Expr) -> Result<(), EvalError> {
         let value = self.evaluate(expr)?;
-        println!("{}", value.to_string());
+        println!("{}", value);
         Ok(())
     }
 
@@ -330,7 +332,7 @@ impl stmt::Visitor<EvalError> for Interpreter {
         Ok(())
     }
 
-    fn visit_block(&mut self, statements: &Vec<stmt::Stmt>) -> Result<(), EvalError> {
+    fn visit_block(&mut self, statements: &[stmt::Stmt]) -> Result<(), EvalError> {
         self.execute_block(
             statements,
             Environment::new_with_enclosing(self.cur_environment.clone()),
@@ -341,7 +343,7 @@ impl stmt::Visitor<EvalError> for Interpreter {
     fn visit_if_stmt(
         &mut self,
         condition: &Expr,
-        then_branch: &Box<stmt::Stmt>,
+        then_branch: &stmt::Stmt,
         else_branch: &Option<Box<stmt::Stmt>>,
     ) -> Result<(), EvalError> {
         if self.evaluate(condition)?.is_truthy() {
@@ -354,11 +356,7 @@ impl stmt::Visitor<EvalError> for Interpreter {
         }
     }
 
-    fn visit_while_stmt(
-        &mut self,
-        condition: &Expr,
-        body: &Box<stmt::Stmt>,
-    ) -> Result<(), EvalError> {
+    fn visit_while_stmt(&mut self, condition: &Expr, body: &stmt::Stmt) -> Result<(), EvalError> {
         while self.evaluate(condition)?.is_truthy() {
             self.execute(body)?;
         }

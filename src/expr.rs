@@ -25,7 +25,7 @@ pub enum Expr {
 
 pub trait Visitor<T> {
     fn visit_binary(&mut self, lhs: &Expr, op: &Token, rhs: &Expr) -> T;
-    fn visit_call(&mut self, callee: &Expr, paren: &Token, arguments: &Vec<Expr>) -> T;
+    fn visit_call(&mut self, callee: &Expr, paren: &Token, arguments: &[Expr]) -> T;
     fn visit_grouping(&mut self, expr: &Expr) -> T;
     fn visit_literal(&mut self, value: &LiteralKind) -> T;
     fn visit_logical(&mut self, lhs: &Expr, op: &Token, rhs: &Expr) -> T;

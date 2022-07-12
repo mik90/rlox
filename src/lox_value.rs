@@ -1,7 +1,15 @@
-use crate::interpreter::EvalError;
-use crate::lox_callable::LoxCallable;
+use crate::{
+    expr::Expr,
+    interpreter::{EvalError, Interpreter},
+};
 use std::fmt;
 use std::rc::Rc;
+
+/// A callable lox object
+pub trait LoxCallable {
+    fn arity(&self) -> usize;
+    fn call(&self, interpreter: &mut Interpreter, arguments: &[Expr]) -> LoxValue;
+}
 
 /// This somewhat duplicated tokens::LiteralKind but eschews the identifier and None type
 #[derive(Clone)]

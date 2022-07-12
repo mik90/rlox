@@ -53,7 +53,7 @@ impl Visitor<String> for AstPrinter {
         parenthisize(self, &name.lexeme, &[value])
     }
 
-    fn visit_call(&mut self, callee: &Expr, paren: &Token, arguments: &Vec<Expr>) -> String {
+    fn visit_call(&mut self, callee: &Expr, paren: &Token, arguments: &[Expr]) -> String {
         format!(
             "Not fully implemented, here's some debug logging\ncallee={:?}, paren={}, arguments={:?}",
             callee, paren.lexeme, arguments
