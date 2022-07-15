@@ -7,6 +7,8 @@ pub enum Stmt {
     Expression(Expr),
     /// If         : Expr condition, Stmt thenBranch, [Stmt elseBranch]
     If(Expr, Box<Stmt>, Option<Box<Stmt>>),
+    /// Function : Token Name, Vec<Token> params, Vec<Stmt> body
+    Function(Token, Vec<Token>, Vec<Stmt>),
     /// Print      : Expr expression
     Print(Expr),
     /// While      : Expr condition, Stmt body
@@ -21,6 +23,12 @@ pub enum Stmt {
 pub trait Visitor<E> {
     fn visit_expression_stmt(&mut self, expr: &Expr) -> Result<(), E>;
     fn visit_print_stmt(&mut self, expr: &Expr) -> Result<(), E>;
+    fn visit_function_stmt(
+        &mut self,
+        name: &Token,
+        params: &[Token],
+        body: &[Stmt],
+    ) -> Result<(), E>;
     fn visit_while_stmt(&mut self, condition: &Expr, body: &Stmt) -> Result<(), E>;
     fn visit_var_stmt(&mut self, name: &Token, initializer: &Option<Expr>) -> Result<(), E>;
     fn visit_block(&mut self, statements: &[Stmt]) -> Result<(), E>;
@@ -43,6 +51,7 @@ impl Stmt {
                 visitor.visit_if_stmt(condition, then_branch, else_branch)
             }
             Stmt::While(condition, body) => visitor.visit_while_stmt(condition, body),
+            Stmt::Function(name, params, body) => visitor.visit_function_stmt(name, params, body),
         }
     }
 }

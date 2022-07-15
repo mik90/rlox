@@ -1,4 +1,5 @@
-use crate::expr::{Expr, Visitor};
+use crate::expr;
+use crate::expr::Expr;
 use crate::token::{LiteralKind, Token};
 
 pub struct AstPrinter {}
@@ -12,7 +13,7 @@ impl AstPrinter {
     }
 }
 
-fn parenthisize(visitor: &mut dyn Visitor<String>, name: &str, exprs: &[&Expr]) -> String {
+fn parenthisize(visitor: &mut dyn expr::Visitor<String>, name: &str, exprs: &[&Expr]) -> String {
     let mut ast = format!("({}", name);
 
     for expr in exprs {
@@ -24,7 +25,7 @@ fn parenthisize(visitor: &mut dyn Visitor<String>, name: &str, exprs: &[&Expr]) 
     ast
 }
 
-impl Visitor<String> for AstPrinter {
+impl expr::Visitor<String> for AstPrinter {
     fn visit_binary(&mut self, lhs: &Expr, op: &Token, rhs: &Expr) -> String {
         parenthisize(self, &op.lexeme, &[lhs, rhs])
     }

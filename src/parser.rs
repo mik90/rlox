@@ -9,6 +9,8 @@ pub struct Parser {
     non_fatal_errors: Vec<LoxError>,
 }
 
+const MAX_FUNC_PARAMS: usize = 255;
+
 impl Parser {
     pub fn new(tokens: Vec<Token>) -> Parser {
         Parser {
@@ -165,10 +167,56 @@ impl Parser {
         Ok(Stmt::Var(name, initializer))
     }
 
+    /// Grammar rule: funDecl -> "fun" function ;
+    fn fun_decl(&mut self) -> Result<Stmt, LoxError> {
+        todo!()
+    }
+
+    /// Grammar rule: function -> IDENTIFIER "(" parameters? ")" block ;
+    fn function(&mut self, kind: &str) -> Result<Stmt, LoxError> {
+        let name = self.consume(&TokenKind::Identifier, &format!("Expect {kind} name."))?;
+
+        self.consume(
+            &TokenKind::LeftParen,
+            &format!("Expect '(' after {kind} name"),
+        )?;
+        let mut parameters = Vec::new();
+        // Consume parameters between the parens
+        if !self.check(&TokenKind::RightParen)? {
+            loop {
+                if parameters.len() >= MAX_FUNC_PARAMS {
+                    return Err(LoxError::new_parser_err(
+                        self.peek()?,
+                        &format!("Can't have more than {MAX_FUNC_PARAMS} parameters."),
+                    ));
+                }
+                parameters.push(self.consume(&TokenKind::Identifier, "Expect parameter name.")?);
+                if !self.token_matches(&[&TokenKind::Comma])? {
+                    break;
+                }
+            }
+        }
+        self.consume(&TokenKind::RightParen, "Expect ')' after parameters")?;
+        self.consume(
+            &TokenKind::LeftBrace,
+            &format!("Expect '{{' before {kind} body"),
+        )?;
+        let body = self.block()?;
+        Ok(Stmt::Function(name, parameters, body))
+    }
+
+    /// Grammar rule: parameters -> IDENTIFIER ( "," IDENTIFIER )* ;
+    fn parameters(&mut self) -> Result<Stmt, LoxError> {
+        todo!()
+    }
+
     /// This is a synchronizatin point, it will synchronize on parsing errors
-    /// Grammar rule: declaration -> varDecl | statement ;
+    /// Grammar rule: declaration -> funDecl | varDecl | statement ;
     fn declaration(&mut self) -> Result<Stmt, LoxError> {
         let mut parsing_attempt = || -> Result<Stmt, LoxError> {
+            if self.token_matches(&[&TokenKind::Fun])? {
+                return self.function("function");
+            }
             if self.token_matches(&[&TokenKind::Var])? {
                 return self.var_decl();
             }
@@ -550,6 +598,43 @@ mod test {
         let mut parser = Parser::new(tokens);
         let res = parser.parse();
         assert!(res.is_err());
+    }
+
+    #[test]
+    fn parse_func_from_scanner() {
+        let code = r#"
+fun foo(a, b) {
+    print a + b;
+}
+"#
+        .to_string();
+
+        let mut scan = Scanner::new(code);
+        let res = scan.scan_tokens();
+        assert!(res.is_ok(), "{}", res.unwrap_err().to_string());
+        let tokens = scan.copy_tokens();
+
+        // This is where the tokens are actually tested
+        let mut parser = Parser::new(tokens);
+
+        let res = parser.parse();
+        assert!(
+            res.is_ok(),
+            "Could not parse input, got {:?}",
+            res.unwrap_err()
+        );
+        match res {
+            Ok(v) => {
+                assert_eq!(v.is_empty(), false);
+                let stmt = &v[0];
+                if let Stmt::Function(_, _, _) = stmt {
+                    assert!(true);
+                } else {
+                    assert!(false, "Expected Stmt::Function but got {:?}", stmt);
+                }
+            }
+            Err(e) => assert!(false, "{:?}", e),
+        }
     }
 
     #[test]

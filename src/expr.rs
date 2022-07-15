@@ -19,7 +19,7 @@ pub enum Expr {
     Unary(Token, Box<Expr>),
     /// Variable : Token name
     Variable(Token),
-    /// Assign : Token name, Expr Value
+    /// Assign   : Token name, Expr Value
     Assign(Token, Box<Expr>),
 }
 

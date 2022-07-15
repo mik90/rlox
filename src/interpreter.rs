@@ -362,6 +362,15 @@ impl stmt::Visitor<EvalError> for Interpreter {
         }
         Ok(())
     }
+
+    fn visit_function_stmt(
+        &mut self,
+        name: &Token,
+        params: &[Token],
+        body: &[stmt::Stmt],
+    ) -> Result<(), EvalError> {
+        todo!()
+    }
 }
 
 #[cfg(test)]
