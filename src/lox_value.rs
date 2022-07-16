@@ -1,6 +1,9 @@
 use crate::{
+    environment::Environment,
     expr::Expr,
     interpreter::{EvalError, Interpreter},
+    stmt,
+    token::Token,
 };
 use std::fmt;
 use std::rc::Rc;
@@ -8,7 +11,35 @@ use std::rc::Rc;
 /// A callable lox object
 pub trait LoxCallable {
     fn arity(&self) -> usize;
-    fn call(&self, interpreter: &mut Interpreter, arguments: &[Expr]) -> LoxValue;
+    fn call(&self, interpreter: &mut Interpreter, arguments: &[LoxValue]) -> LoxValue;
+}
+
+struct LoxFunction {
+    // Equivalent to stmt::Stmt::Function
+    name: Token,
+    params: Vec<Token>,
+    body: Vec<stmt::Stmt>,
+}
+
+impl LoxFunction {
+    fn new(name: Token, params: Vec<Token>, body: Vec<stmt::Stmt>) -> LoxFunction {
+        LoxFunction { name, params, body }
+    }
+}
+impl LoxCallable for LoxFunction {
+    fn arity(&self) -> usize {
+        self.params.len()
+    }
+    fn call(&self, interpreter: &mut Interpreter, arguments: &[LoxValue]) -> LoxValue {
+        let env = Environment::new_with_enclosing(interpreter.get_globals());
+        //
+        for i in 0..self.params.len() {
+            let lexeme = &self.params[i].lexeme;
+            let arg = arguments[i].clone();
+            env.borrow_mut().define(lexeme, arg);
+        }
+        todo!()
+    }
 }
 
 /// This somewhat duplicated tokens::LiteralKind but eschews the identifier and None type

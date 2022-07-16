@@ -36,7 +36,7 @@ impl error::Error for EvalError {}
 
 pub struct Interpreter {
     cur_environment: Rc<RefCell<Environment>>,
-    globals: Environment,
+    globals: Rc<RefCell<Environment>>,
 }
 
 /// Returns the time since the epoch in seconds as a double
@@ -46,7 +46,7 @@ impl LoxCallable for NativeClock {
         0
     }
 
-    fn call(&self, _: &mut Interpreter, _: &[Expr]) -> LoxValue {
+    fn call(&self, _: &mut Interpreter, _: &[LoxValue]) -> LoxValue {
         match time::SystemTime::now().duration_since(time::SystemTime::UNIX_EPOCH) {
             Ok(t) => LoxValue::Number(t.as_secs_f64()),
             Err(t) => {
@@ -67,17 +67,23 @@ impl Interpreter {
     }
 
     pub fn new() -> Interpreter {
-        let mut globals = Environment::new();
-        globals.define("clock", LoxValue::Callable(Rc::new(NativeClock {})));
+        let globals = Environment::new_sharable();
+        globals
+            .borrow_mut()
+            .define("clock", LoxValue::Callable(Rc::new(NativeClock {})));
         Interpreter {
             cur_environment: Environment::new_sharable(),
-            globals: globals,
+            globals,
         }
     }
 
     #[cfg(test)]
     pub fn get_environment(&self) -> Rc<RefCell<Environment>> {
         self.cur_environment.clone()
+    }
+
+    pub fn get_globals(&self) -> Rc<RefCell<Environment>> {
+        self.globals.clone()
     }
 
     fn execute(&mut self, stmt: &stmt::Stmt) -> Result<(), EvalError> {
@@ -294,7 +300,7 @@ impl expr::Visitor<Result<LoxValue, EvalError>> for Interpreter {
                 ),
             ));
         }
-        Ok(function.call(self, arguments))
+        Ok(function.call(self, &evaluated_args))
     }
 }
 
