@@ -1,7 +1,7 @@
 use crate::{
     environment::Environment,
     expr::Expr,
-    interpreter::{EvalError, Interpreter},
+    interpreter::{self, EvalError, Interpreter},
     stmt,
     token::Token,
 };
@@ -11,10 +11,14 @@ use std::rc::Rc;
 /// A callable lox object
 pub trait LoxCallable {
     fn arity(&self) -> usize;
-    fn call(&self, interpreter: &mut Interpreter, arguments: &[LoxValue]) -> LoxValue;
+    fn call(
+        &self,
+        interpreter: &mut Interpreter,
+        arguments: &[LoxValue],
+    ) -> Result<LoxValue, interpreter::EvalError>;
 }
 
-struct LoxFunction {
+pub struct LoxFunction {
     // Equivalent to stmt::Stmt::Function
     name: Token,
     params: Vec<Token>,
@@ -22,23 +26,35 @@ struct LoxFunction {
 }
 
 impl LoxFunction {
-    fn new(name: Token, params: Vec<Token>, body: Vec<stmt::Stmt>) -> LoxFunction {
+    pub fn new(name: Token, params: Vec<Token>, body: Vec<stmt::Stmt>) -> LoxFunction {
         LoxFunction { name, params, body }
     }
 }
+
 impl LoxCallable for LoxFunction {
     fn arity(&self) -> usize {
         self.params.len()
     }
-    fn call(&self, interpreter: &mut Interpreter, arguments: &[LoxValue]) -> LoxValue {
+    fn call(
+        &self,
+        interpreter: &mut Interpreter,
+        arguments: &[LoxValue],
+    ) -> Result<LoxValue, interpreter::EvalError> {
         let env = Environment::new_with_enclosing(interpreter.get_globals());
-        //
+        // copy the arguments into the current environment
         for i in 0..self.params.len() {
             let lexeme = &self.params[i].lexeme;
             let arg = arguments[i].clone();
             env.borrow_mut().define(lexeme, arg);
         }
-        todo!()
+        interpreter.execute_block(&self.body, env)?;
+        Ok(LoxValue::Nil)
+    }
+}
+
+impl fmt::Display for LoxFunction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "<fn {}>", &self.name.lexeme)
     }
 }
 

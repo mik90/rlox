@@ -257,4 +257,19 @@ while (a < 5) {
         assert!(value.is_some());
         assert_eq!(value.unwrap(), LoxValue::Number(5.0));
     }
+
+    /// This really just checks that this evaluates without error, it doesn't check stdout. I dont have return values yet
+    #[test]
+    fn eval_add_func() {
+        let mut interpreter = Interpreter::new();
+
+        let code = r#"
+fun add(a, b) {
+    print a + b;
+}
+add(1, 2);
+"#
+        .to_string();
+        assert!(run(code, &mut interpreter));
+    }
 }

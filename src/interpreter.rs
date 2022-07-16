@@ -1,16 +1,14 @@
-use crate::environment::Environment;
-use crate::error::ErrorMessage;
-use crate::expr::Expr;
-use crate::stmt;
-use crate::token::TokenKind;
-use crate::token::{LiteralKind, Token};
 use crate::{
-    expr,
-    lox_value::{LoxCallable, LoxValue},
+    environment::Environment,
+    error::ErrorMessage,
+    expr::{self, Expr},
+    lox_value::{LoxCallable, LoxFunction, LoxValue},
+    stmt,
+    token::{LiteralKind, Token, TokenKind},
 };
 use std::cell::RefCell;
 use std::error;
-use std::fmt;
+use std::fmt::{self, format};
 use std::rc::Rc;
 use std::time;
 
@@ -46,12 +44,13 @@ impl LoxCallable for NativeClock {
         0
     }
 
-    fn call(&self, _: &mut Interpreter, _: &[LoxValue]) -> LoxValue {
+    fn call(&self, _: &mut Interpreter, _: &[LoxValue]) -> Result<LoxValue, EvalError> {
         match time::SystemTime::now().duration_since(time::SystemTime::UNIX_EPOCH) {
-            Ok(t) => LoxValue::Number(t.as_secs_f64()),
-            Err(t) => {
-                panic!("System time {} is before unix epoch!", t)
-            }
+            Ok(t) => Ok(LoxValue::Number(t.as_secs_f64())),
+            Err(t) => Err(EvalError::UnreachableError(format!(
+                "System time {} is before unix epoch!",
+                t
+            ))),
         }
     }
 }
@@ -91,7 +90,7 @@ impl Interpreter {
     }
 
     /// Helper for the Stmt visitor
-    fn execute_block(
+    pub fn execute_block(
         &mut self,
         statements: &[stmt::Stmt],
         environment: Rc<RefCell<Environment>>,
@@ -300,7 +299,7 @@ impl expr::Visitor<Result<LoxValue, EvalError>> for Interpreter {
                 ),
             ));
         }
-        Ok(function.call(self, &evaluated_args))
+        function.call(self, &evaluated_args)
     }
 }
 
@@ -375,7 +374,11 @@ impl stmt::Visitor<EvalError> for Interpreter {
         params: &[Token],
         body: &[stmt::Stmt],
     ) -> Result<(), EvalError> {
-        todo!()
+        let function = LoxFunction::new(name.clone(), params.to_vec(), body.to_vec());
+        self.cur_environment
+            .borrow_mut()
+            .define(&name.lexeme, LoxValue::Callable(Rc::new(function)));
+        Ok(())
     }
 }
 
