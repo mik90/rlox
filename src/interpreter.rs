@@ -8,7 +8,7 @@ use crate::{
 };
 use std::cell::RefCell;
 use std::error;
-use std::fmt::{self, format};
+use std::fmt;
 use std::rc::Rc;
 use std::time;
 
@@ -18,6 +18,8 @@ pub enum EvalError {
     // Line number, error msg
     InvalidType(usize, ErrorMessage),
     UndefinedVariable(Token),
+    /// Hacky, but this is analgous to how jlox uses try/catch for control flow in return values
+    Return(LoxValue),
 }
 
 impl fmt::Display for EvalError {
@@ -26,6 +28,7 @@ impl fmt::Display for EvalError {
             EvalError::UnreachableError(e) => write!(f, "UnreachableError: {}", e),
             EvalError::InvalidType(l, e) => write!(f, "InvalidType: On line {}, message: {}", l, e),
             EvalError::UndefinedVariable(token) => write!(f, "Undefined variable: {}", token),
+            EvalError::Return(value) => write!(f, "Return value: {:?}", value),
         }
     }
 }
@@ -379,6 +382,18 @@ impl stmt::Visitor<EvalError> for Interpreter {
             .borrow_mut()
             .define(&name.lexeme, LoxValue::Callable(Rc::new(function)));
         Ok(())
+    }
+
+    fn visit_return_stmt(
+        &mut self,
+        _keyword: &Token,
+        value: &Option<Expr>,
+    ) -> Result<(), EvalError> {
+        let value: LoxValue = value
+            .as_ref()
+            .map_or_else(|| Ok(LoxValue::Nil), |expr| self.evaluate(&expr))?;
+        // Hacky, but we don't have exceptions here and I am NOT using a panic handler for this
+        Err(EvalError::Return(value.clone()))
     }
 }
 

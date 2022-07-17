@@ -232,7 +232,7 @@ impl Parser {
         }
     }
 
-    /// Grammar rule: statement -> exprStmt | forStmt | ifStmt | printStmt | whileStmt | block ;
+    /// Grammar rule: statement -> exprStmt | forStmt | ifStmt | printStmt | returnStmt | whileStmt | block ;
     fn statement(&mut self) -> Result<Stmt, LoxError> {
         if self.token_matches(&[&TokenKind::For])? {
             return self.for_statement();
@@ -242,6 +242,9 @@ impl Parser {
         }
         if self.token_matches(&[&TokenKind::Print])? {
             return self.print_statement();
+        }
+        if self.token_matches(&[&TokenKind::Return])? {
+            return self.return_statement();
         }
         if self.token_matches(&[&TokenKind::While])? {
             return self.while_statement();
@@ -361,6 +364,18 @@ impl Parser {
             &format!("expected ';' after expression {:?}", expr),
         )?;
         Ok(Stmt::Print(expr))
+    }
+
+    /// Grammar rule: returnStmt -> "return" expression? ";" ;
+    fn return_statement(&mut self) -> Result<Stmt, LoxError> {
+        let keyword = self.previous()?;
+        let value = if !self.check(&TokenKind::SemiColon)? {
+            Some(self.expression()?)
+        } else {
+            None
+        };
+        self.consume(&TokenKind::SemiColon, "Expect ';' after return value.")?;
+        Ok(Stmt::Return(keyword, value))
     }
 
     /// Grammar rule: expression -> assignment ;

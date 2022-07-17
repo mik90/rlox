@@ -21,3 +21,4 @@ the main binary can parse a script or work as a repl
 - The REPL should print out the result of expressions without requiring another `print` statement
   - So it'll just execute statements but for expressions it'll evaluate it and then print out the value
 - Support for `break` and `continue` statements. They may be nested inside other blocks.
+- Use something other than the `return_value` member of `Interpreter` to handle return values

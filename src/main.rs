@@ -251,8 +251,8 @@ while (a < 5) {
 "#
         .to_string();
         assert!(run(code, &mut interpreter));
-        let env = interpreter.get_environment();
 
+        let env = interpreter.get_environment();
         let value = env.borrow().get("a");
         assert!(value.is_some());
         assert_eq!(value.unwrap(), LoxValue::Number(5.0));
@@ -266,10 +266,37 @@ while (a < 5) {
         let code = r#"
 fun add(a, b) {
     print a + b;
+    return a + b;
 }
-add(1, 2);
+var c = add(1, 2);
 "#
         .to_string();
         assert!(run(code, &mut interpreter));
+
+        let env = interpreter.get_environment();
+        let value = env.borrow().get("c");
+        assert!(value.is_some());
+        assert_eq!(value.unwrap(), LoxValue::Number(3.0));
+    }
+
+    /// This really just checks that this evaluates without error, it doesn't check stdout. I dont have return values yet
+    #[test]
+    fn eval_fibinacci() {
+        let mut interpreter = Interpreter::new();
+
+        let code = r#"
+fun fib(n) {
+    if (n <= 1) return n;
+    return fib(n - 2) + fib(n - 1);
+}
+var c = fib(6);
+"#
+        .to_string();
+        assert!(run(code, &mut interpreter));
+
+        let env = interpreter.get_environment();
+        let value = env.borrow().get("c");
+        assert!(value.is_some());
+        assert_eq!(value.unwrap(), LoxValue::Number(8.0));
     }
 }

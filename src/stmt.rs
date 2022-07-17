@@ -11,9 +11,10 @@ pub enum Stmt {
     Function(Token, Vec<Token>, Vec<Stmt>),
     /// Print      : Expr expression
     Print(Expr),
+    /// Return     : Token keyword, [Expr value]
+    Return(Token, Option<Expr>),
     /// While      : Expr condition, Stmt body
     While(Expr, Box<Stmt>),
-    /// The initializer is optional
     /// Var        : Token name, [Expr initializer]
     Var(Token, Option<Expr>),
     /// Block      : Vec<Stmt> statements
@@ -38,6 +39,7 @@ pub trait Visitor<E> {
         then_branch: &Stmt,
         else_branch: &Option<Box<Stmt>>,
     ) -> Result<(), E>;
+    fn visit_return_stmt(&mut self, keyword: &Token, value: &Option<Expr>) -> Result<(), E>;
 }
 
 impl Stmt {
@@ -52,6 +54,7 @@ impl Stmt {
             }
             Stmt::While(condition, body) => visitor.visit_while_stmt(condition, body),
             Stmt::Function(name, params, body) => visitor.visit_function_stmt(name, params, body),
+            Stmt::Return(keyword, value) => visitor.visit_return_stmt(keyword, value),
         }
     }
 }

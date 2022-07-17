@@ -1,6 +1,5 @@
 use crate::{
     environment::Environment,
-    expr::Expr,
     interpreter::{self, EvalError, Interpreter},
     stmt,
     token::Token,
@@ -47,8 +46,17 @@ impl LoxCallable for LoxFunction {
             let arg = arguments[i].clone();
             env.borrow_mut().define(lexeme, arg);
         }
-        interpreter.execute_block(&self.body, env)?;
-        Ok(LoxValue::Nil)
+
+        // Super hacky, but return values are bubbling up the callstack as errors
+        if let Err(e) = interpreter.execute_block(&self.body, env) {
+            match e {
+                EvalError::Return(value) => Ok(value),
+                // Just forward the rest up
+                _ => Err(e),
+            }
+        } else {
+            Ok(LoxValue::Nil)
+        }
     }
 }
 
