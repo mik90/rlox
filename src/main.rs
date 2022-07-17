@@ -98,7 +98,7 @@ fn run_file(path: &Path) -> bool {
     }
 }
 
-// These are mostly front-end intergration tests
+// These are mostly intergration tests that pull in the scanner, parser, and interpreter
 #[cfg(test)]
 mod test {
     use super::*;

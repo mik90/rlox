@@ -39,10 +39,7 @@ impl LoxCallable for LoxFunction {
         interpreter: &mut Interpreter,
         arguments: &[LoxValue],
     ) -> Result<LoxValue, interpreter::EvalError> {
-        // The book said to use globals but it should be using the immediately enclosing environment, i'd imagine
-        // Globals won't include anything defined locally which would forbid recursive functions
-        // This could always be wrong though
-        let env = Environment::new_with_enclosing(interpreter.get_environment());
+        let env = Environment::new_with_enclosing(interpreter.get_globals());
         // copy the arguments into the current environment
         for i in 0..self.params.len() {
             let lexeme = &self.params[i].lexeme;

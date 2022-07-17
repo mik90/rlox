@@ -74,13 +74,18 @@ impl Interpreter {
             .borrow_mut()
             .define("clock", LoxValue::Callable(Rc::new(NativeClock {})));
         Interpreter {
-            cur_environment: Environment::new_sharable(),
+            cur_environment: globals.clone(),
             globals,
         }
     }
 
+    #[cfg(test)]
     pub fn get_environment(&self) -> Rc<RefCell<Environment>> {
         self.cur_environment.clone()
+    }
+
+    pub fn get_globals(&self) -> Rc<RefCell<Environment>> {
+        self.globals.clone()
     }
 
     fn execute(&mut self, stmt: &stmt::Stmt) -> Result<(), EvalError> {
@@ -515,6 +520,35 @@ mod test {
             let value = env.borrow().get("foo");
             assert!(value.is_some());
             assert_eq!(value.unwrap(), LoxValue::Number(10.0));
+        }
+    }
+
+    #[test]
+    fn native_call() {
+        let mut interpreter = Interpreter::new();
+
+        let env = interpreter.get_environment();
+        let clock_func = env.borrow().get("clock");
+        assert!(clock_func.is_some());
+        let clock_func = clock_func.unwrap();
+        if let LoxValue::Callable(callable) = clock_func {
+            assert_eq!(callable.arity(), 0);
+            let lox_value = callable.call(&mut interpreter, &[]);
+            assert!(
+                lox_value.is_ok(),
+                "Expected Ok but was {}",
+                lox_value.is_err()
+            );
+            if let LoxValue::Number(n) = lox_value.unwrap() {
+                // Time should be past the unix epoch
+                assert!(n > 0.0);
+            }
+        } else {
+            assert!(
+                false,
+                "Expected clock_func to be a callable but was {:?}",
+                clock_func
+            );
         }
     }
 }
