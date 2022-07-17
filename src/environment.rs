@@ -80,4 +80,25 @@ mod test {
         let value = value.unwrap();
         assert_eq!(value, LoxValue::Bool(true), "Value was {:?}", value);
     }
+
+    #[test]
+    fn get_from_enclosing() {
+        let global_env = Environment::new_sharable();
+
+        let token = Token::new(TokenKind::Identifier, "foo".to_string(), 1);
+        global_env
+            .borrow_mut()
+            .define(&token.lexeme, LoxValue::Bool(true));
+
+        // Create an env that is enclosed by the global env
+        let local_env = Environment::new_with_enclosing(global_env.clone());
+        let value = local_env.borrow().get(&token.lexeme);
+        assert!(
+            value.is_some(),
+            "A value in the local env should be able to access one from the base env"
+        );
+
+        let value = value.unwrap();
+        assert_eq!(value, LoxValue::Bool(true), "Value was {:?}", value);
+    }
 }
