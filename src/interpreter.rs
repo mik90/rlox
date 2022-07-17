@@ -79,13 +79,8 @@ impl Interpreter {
         }
     }
 
-    #[cfg(test)]
     pub fn get_environment(&self) -> Rc<RefCell<Environment>> {
         self.cur_environment.clone()
-    }
-
-    pub fn get_globals(&self) -> Rc<RefCell<Environment>> {
-        self.globals.clone()
     }
 
     fn execute(&mut self, stmt: &stmt::Stmt) -> Result<(), EvalError> {
