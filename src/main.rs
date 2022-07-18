@@ -279,9 +279,8 @@ var c = add(1, 2);
         assert_eq!(value.unwrap(), LoxValue::Number(3.0));
     }
 
-    /// This really just checks that this evaluates without error, it doesn't check stdout. I dont have return values yet
     #[test]
-    fn eval_fibinacci() {
+    fn eval_fibonacci() {
         let mut interpreter = Interpreter::new();
 
         let code = r#"
@@ -298,5 +297,29 @@ var c = fib(6);
         let value = env.borrow().get("c");
         assert!(value.is_some());
         assert_eq!(value.unwrap(), LoxValue::Number(8.0));
+    }
+
+    #[test]
+    fn eval_nested_func() {
+        let mut interpreter = Interpreter::new();
+
+        let code = r#"
+fun makeCounter() {
+    var i = 0;
+    fun count() {
+        i = i + 1;
+        return i;
+    }
+    return count();
+}
+var output = makeCounter();
+"#
+        .to_string();
+        assert!(run(code, &mut interpreter));
+
+        let env = interpreter.get_environment();
+        let value = env.borrow().get("output");
+        assert!(value.is_some());
+        assert_eq!(value.unwrap(), LoxValue::Number(1.0));
     }
 }

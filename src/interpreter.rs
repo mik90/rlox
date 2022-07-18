@@ -377,7 +377,12 @@ impl stmt::Visitor<EvalError> for Interpreter {
         params: &[Token],
         body: &[stmt::Stmt],
     ) -> Result<(), EvalError> {
-        let function = LoxFunction::new(name.clone(), params.to_vec(), body.to_vec());
+        let function = LoxFunction::new(
+            name.clone(),
+            params.to_vec(),
+            body.to_vec(),
+            self.cur_environment.clone(),
+        );
         self.cur_environment
             .borrow_mut()
             .define(&name.lexeme, LoxValue::Callable(Rc::new(function)));

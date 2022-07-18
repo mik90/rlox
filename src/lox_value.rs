@@ -4,8 +4,7 @@ use crate::{
     stmt,
     token::Token,
 };
-use std::fmt;
-use std::rc::Rc;
+use std::{cell::RefCell, fmt, rc::Rc};
 
 /// A callable lox object
 pub trait LoxCallable {
@@ -22,11 +21,22 @@ pub struct LoxFunction {
     name: Token,
     params: Vec<Token>,
     body: Vec<stmt::Stmt>,
+    closure: Rc<RefCell<Environment>>,
 }
 
 impl LoxFunction {
-    pub fn new(name: Token, params: Vec<Token>, body: Vec<stmt::Stmt>) -> LoxFunction {
-        LoxFunction { name, params, body }
+    pub fn new(
+        name: Token,
+        params: Vec<Token>,
+        body: Vec<stmt::Stmt>,
+        closure: Rc<RefCell<Environment>>,
+    ) -> LoxFunction {
+        LoxFunction {
+            name,
+            params,
+            body,
+            closure,
+        }
     }
 }
 
@@ -39,7 +49,7 @@ impl LoxCallable for LoxFunction {
         interpreter: &mut Interpreter,
         arguments: &[LoxValue],
     ) -> Result<LoxValue, interpreter::EvalError> {
-        let env = Environment::new_with_enclosing(interpreter.get_globals());
+        let env = Environment::new_with_enclosing(self.closure.clone());
         // copy the arguments into the current environment
         for i in 0..self.params.len() {
             let lexeme = &self.params[i].lexeme;
