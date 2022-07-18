@@ -340,7 +340,7 @@ impl stmt::Visitor<EvalError> for Interpreter {
         Ok(())
     }
 
-    fn visit_block(&mut self, statements: &[stmt::Stmt]) -> Result<(), EvalError> {
+    fn visit_block_stmt(&mut self, statements: &[stmt::Stmt]) -> Result<(), EvalError> {
         self.execute_block(
             statements,
             Environment::new_with_enclosing(self.cur_environment.clone()),

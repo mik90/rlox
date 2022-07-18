@@ -9,6 +9,7 @@ mod expr;
 mod interpreter;
 mod lox_value;
 mod parser;
+mod resolver;
 mod scanner;
 mod stmt;
 mod token;

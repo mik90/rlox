@@ -32,7 +32,7 @@ pub trait Visitor<E> {
     ) -> Result<(), E>;
     fn visit_while_stmt(&mut self, condition: &Expr, body: &Stmt) -> Result<(), E>;
     fn visit_var_stmt(&mut self, name: &Token, initializer: &Option<Expr>) -> Result<(), E>;
-    fn visit_block(&mut self, statements: &[Stmt]) -> Result<(), E>;
+    fn visit_block_stmt(&mut self, statements: &[Stmt]) -> Result<(), E>;
     fn visit_if_stmt(
         &mut self,
         condition: &Expr,
@@ -48,7 +48,7 @@ impl Stmt {
             Stmt::Expression(expr) => visitor.visit_expression_stmt(expr),
             Stmt::Print(expr) => visitor.visit_print_stmt(expr),
             Stmt::Var(name, initializer) => visitor.visit_var_stmt(name, initializer),
-            Stmt::Block(statements) => visitor.visit_block(statements),
+            Stmt::Block(statements) => visitor.visit_block_stmt(statements),
             Stmt::If(condition, then_branch, else_branch) => {
                 visitor.visit_if_stmt(condition, then_branch, else_branch)
             }
