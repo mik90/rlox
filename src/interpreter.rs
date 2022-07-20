@@ -88,6 +88,10 @@ impl Interpreter {
         self.globals.clone()
     }
 
+    pub fn resolve(&mut self, expr: &Expr, scope_distance: usize) -> Result<(), EvalError> {
+        todo!()
+    }
+
     fn execute(&mut self, stmt: &stmt::Stmt) -> Result<(), EvalError> {
         stmt.accept(self)
     }
