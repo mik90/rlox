@@ -86,6 +86,21 @@ impl Resolver<'_> {
         }
         Ok(())
     }
+
+    fn resolve_function(
+        &mut self,
+        _name: &Token, // the name is already defined in visit_function_stmt
+        params: &[Token],
+        body: &[stmt::Stmt],
+    ) -> Result<(), ResolverError> {
+        self.begin_scope()?;
+        for param in params {
+            self.declare(param)?;
+            self.define(param)?;
+        }
+        self.resolve_stmts(body)?;
+        self.end_scope()
+    }
 }
 
 #[derive(Debug)]
@@ -111,11 +126,11 @@ impl error::Error for ResolverError {}
 
 impl stmt::Visitor<ResolverError> for Resolver<'_> {
     fn visit_expression_stmt(&mut self, expr: &expr::Expr) -> Result<(), ResolverError> {
-        todo!()
+        self.resolve_expr(expr)
     }
 
     fn visit_print_stmt(&mut self, expr: &expr::Expr) -> Result<(), ResolverError> {
-        todo!()
+        self.resolve_expr(expr)
     }
 
     fn visit_function_stmt(
@@ -124,7 +139,10 @@ impl stmt::Visitor<ResolverError> for Resolver<'_> {
         params: &[Token],
         body: &[stmt::Stmt],
     ) -> Result<(), ResolverError> {
-        todo!()
+        // define name asap so the function can call itself
+        self.declare(name)?;
+        self.define(name)?;
+        self.resolve_function(name, params, body)
     }
 
     fn visit_while_stmt(
@@ -132,7 +150,8 @@ impl stmt::Visitor<ResolverError> for Resolver<'_> {
         condition: &expr::Expr,
         body: &stmt::Stmt,
     ) -> Result<(), ResolverError> {
-        todo!()
+        self.resolve_expr(condition)?;
+        self.resolve_stmt(body)
     }
 
     fn visit_var_stmt(
@@ -159,15 +178,23 @@ impl stmt::Visitor<ResolverError> for Resolver<'_> {
         then_branch: &stmt::Stmt,
         else_branch: &Option<Box<stmt::Stmt>>,
     ) -> Result<(), ResolverError> {
-        todo!()
+        self.resolve_expr(condition)?;
+        self.resolve_stmt(then_branch)?;
+        if let Some(else_branch) = else_branch {
+            self.resolve_stmt(else_branch)?;
+        }
+        Ok(())
     }
 
     fn visit_return_stmt(
         &mut self,
-        keyword: &Token,
+        _keyword: &Token,
         value: &Option<expr::Expr>,
     ) -> Result<(), ResolverError> {
-        todo!()
+        if let Some(expr) = value {
+            self.resolve_expr(expr)?;
+        }
+        Ok(())
     }
 }
 
@@ -175,40 +202,47 @@ impl expr::Visitor<Result<(), ResolverError>> for Resolver<'_> {
     fn visit_binary(
         &mut self,
         lhs: &expr::Expr,
-        op: &Token,
+        _op: &Token,
         rhs: &expr::Expr,
     ) -> Result<(), ResolverError> {
-        todo!()
+        self.resolve_expr(lhs)?;
+        self.resolve_expr(rhs)
     }
 
     fn visit_call(
         &mut self,
         callee: &expr::Expr,
-        paren: &Token,
+        _paren: &Token,
         arguments: &[expr::Expr],
     ) -> Result<(), ResolverError> {
-        todo!()
+        self.resolve_expr(callee)?;
+        for arg in arguments {
+            self.resolve_expr(arg)?;
+        }
+        Ok(())
     }
 
     fn visit_grouping(&mut self, expr: &expr::Expr) -> Result<(), ResolverError> {
-        todo!()
+        self.resolve_expr(expr)
     }
 
-    fn visit_literal(&mut self, value: &LiteralKind) -> Result<(), ResolverError> {
-        todo!()
+    // A literal doesn't actually contain any variables or subexpressions
+    fn visit_literal(&mut self, _value: &LiteralKind) -> Result<(), ResolverError> {
+        Ok(())
     }
 
     fn visit_logical(
         &mut self,
         lhs: &expr::Expr,
-        op: &Token,
+        _op: &Token,
         rhs: &expr::Expr,
     ) -> Result<(), ResolverError> {
-        todo!()
+        self.resolve_expr(lhs)?;
+        self.resolve_expr(rhs)
     }
 
-    fn visit_unary(&mut self, op: &Token, right: &expr::Expr) -> Result<(), ResolverError> {
-        todo!()
+    fn visit_unary(&mut self, _op: &Token, right: &expr::Expr) -> Result<(), ResolverError> {
+        self.resolve_expr(right)
     }
 
     fn visit_variable(&mut self, name: &Token) -> Result<(), ResolverError> {
