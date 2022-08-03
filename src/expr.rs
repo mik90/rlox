@@ -3,7 +3,7 @@ use crate::token::Token;
 
 // Expr is boxed in order to allow this enum to be recursive
 // Otherwise it wouldn't be able to figure out the size of Expr
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Hash)]
 pub enum Expr {
     /// Binary   : Expr left, Token operator, Expr right
     Binary(Box<Expr>, Token, Box<Expr>),

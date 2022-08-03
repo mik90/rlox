@@ -23,7 +23,22 @@ impl ToString for LiteralKind {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+impl std::hash::Hash for LiteralKind {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        match self {
+            LiteralKind::Identifier(v) => v.hash(state),
+            LiteralKind::String(v) => v.hash(state),
+            // just hash the raw bites for this
+            LiteralKind::Number(v) => v.to_bits().hash(state),
+            LiteralKind::Bool(v) => v.hash(state),
+            LiteralKind::Nil => "".hash(state),
+            LiteralKind::None => "".hash(state),
+        }
+    }
+}
+impl std::cmp::Eq for LiteralKind {}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum TokenKind {
     // Single-char tokenInto<String>s
     LeftParen,
@@ -74,7 +89,7 @@ pub enum TokenKind {
     Eof,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Eq, Clone, PartialEq, Hash)]
 pub struct Token {
     pub kind: TokenKind,
     pub lexeme: String,

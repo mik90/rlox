@@ -6,11 +6,11 @@ use crate::{
     stmt,
     token::{LiteralKind, Token, TokenKind},
 };
-use std::cell::RefCell;
 use std::error;
 use std::fmt;
 use std::rc::Rc;
 use std::time;
+use std::{cell::RefCell, collections::HashMap};
 
 #[derive(Debug)]
 pub enum EvalError {
@@ -38,6 +38,9 @@ impl error::Error for EvalError {}
 pub struct Interpreter {
     cur_environment: Rc<RefCell<Environment>>,
     globals: Rc<RefCell<Environment>>,
+    // Expression to 'depth' (scopes between current scope and the one where a variable is defined)
+    // TODO May need to have a way to uniquely identify expressions
+    locals: HashMap<expr::Expr, usize>,
 }
 
 /// Returns the time since the epoch in seconds as a double
@@ -76,6 +79,7 @@ impl Interpreter {
         Interpreter {
             cur_environment: globals.clone(),
             globals,
+            locals: HashMap::new(),
         }
     }
 
@@ -89,11 +93,21 @@ impl Interpreter {
     }
 
     pub fn resolve(&mut self, expr: &Expr, scope_distance: usize) -> Result<(), EvalError> {
-        todo!()
+        self.locals.insert(expr.clone(), scope_distance);
+        Ok(())
     }
 
     fn execute(&mut self, stmt: &stmt::Stmt) -> Result<(), EvalError> {
         stmt.accept(self)
+    }
+
+    fn look_up_variable(&self, name: &Token, expr: &expr::Expr) -> Option<LoxValue> {
+        if let Some(distance) = self.locals.get(expr) {
+            self.globals.borrow().get(&name.lexeme)
+        } else {
+            todo!()
+            //self.cur_environment.borrow().get_at(distance, name.lexeme)
+        }
     }
 
     /// Helper for the Stmt visitor

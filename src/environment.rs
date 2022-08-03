@@ -46,6 +46,26 @@ impl Environment {
         }
     }
 
+    /*
+    fn ancestor(&self, distance: usize) -> Option<Environment> {
+        let mut cur_env = self;
+
+        // hop up the enclosing chain for each 'distance'
+        for i in 0..=distance {
+            if let Some(enclosing) = cur_env.enclosing {
+                cur_env = enclosing.as_ref();
+            } else {
+                return None;
+            }
+        }
+        Some(cur_env)
+    } */
+
+    pub fn get_at(&self, distance: usize, name: &str) -> Option<LoxValue> {
+        todo!()
+        // self.ancestor
+    }
+
     /// returns true if assign completed, false if the variable was not found
     pub fn assign(&mut self, name: &str, value: LoxValue) -> bool {
         if let Some(v) = self.values.get_mut(name) {
