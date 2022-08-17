@@ -101,7 +101,7 @@ fn run_file(path: &Path) -> bool {
 
 // These are mostly intergration tests that pull in the scanner, parser, and interpreter
 #[cfg(test)]
-mod test {
+mod main_test {
     use super::*;
     use crate::lox_value::LoxValue;
 
