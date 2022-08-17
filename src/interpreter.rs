@@ -274,6 +274,18 @@ impl expr::Visitor<Result<LoxValue, EvalError>> for Interpreter {
 
     fn visit_assign(&mut self, name: &Token, value_expr: &Expr) -> Result<LoxValue, EvalError> {
         let value = self.evaluate(value_expr)?;
+
+        match self
+            .cur_environment
+            .borrow_mut()
+            .assign(&name.lexeme, value.clone())
+        {
+            true => Ok(value),
+            false => Err(EvalError::UndefinedVariable(name.clone())),
+        }
+        /*
+        TODO re-enable using the environment
+        let value = self.evaluate(value_expr)?;
         if let Some(distance) = self.locals.get(value_expr) {
             Environment::assign_at(
                 self.cur_environment.clone(),
@@ -286,7 +298,7 @@ impl expr::Visitor<Result<LoxValue, EvalError>> for Interpreter {
                 .borrow_mut()
                 .assign(&name.lexeme, value.clone());
         }
-        Ok(value)
+        Ok(value) */
     }
 
     fn visit_call(
