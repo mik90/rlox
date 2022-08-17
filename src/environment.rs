@@ -46,24 +46,35 @@ impl Environment {
         }
     }
 
-    /*
-    fn ancestor(&self, distance: usize) -> Option<Environment> {
-        let mut cur_env = self;
+    fn ancestor(
+        env: Rc<RefCell<Environment>>,
+        distance: usize,
+    ) -> Option<Rc<RefCell<Environment>>> {
+        let mut cur_env = env;
 
         // hop up the enclosing chain for each 'distance'
-        for i in 0..=distance {
-            if let Some(enclosing) = cur_env.enclosing {
-                cur_env = enclosing.as_ref();
-            } else {
-                return None;
+        for _ in 0..=distance {
+            // TODO holy fuck this is jank, all this Rc<RefCell> crap needs to go away
+            // Using rust instead of java verbatim does this
+            let enclosing = cur_env.borrow().enclosing.clone();
+            if let Some(enclosing) = enclosing {
+                cur_env = enclosing.clone();
             }
         }
         Some(cur_env)
-    } */
+    }
 
-    pub fn get_at(&self, distance: usize, name: &str) -> Option<LoxValue> {
-        todo!()
-        // self.ancestor
+    pub fn get_at(env: Rc<RefCell<Environment>>, distance: usize, name: &str) -> Option<LoxValue> {
+        match Environment::ancestor(env, distance) {
+            Some(ancestor) => ancestor.borrow().values.get(name).map(|v| v.clone()),
+            None => None,
+        }
+    }
+
+    pub fn assign_at(env: Rc<RefCell<Environment>>, distance: usize, name: &str, value: LoxValue) {
+        // TODO handle the case where there's no ancestor
+        Environment::ancestor(env, distance)
+            .and_then(|env| env.borrow_mut().values.insert(name.to_string(), value));
     }
 
     /// returns true if assign completed, false if the variable was not found

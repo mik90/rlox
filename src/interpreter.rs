@@ -103,10 +103,9 @@ impl Interpreter {
 
     fn look_up_variable(&self, name: &Token, expr: &expr::Expr) -> Option<LoxValue> {
         if let Some(distance) = self.locals.get(expr) {
-            self.globals.borrow().get(&name.lexeme)
+            Environment::get_at(self.cur_environment.clone(), *distance, &name.lexeme)
         } else {
-            todo!()
-            //self.cur_environment.borrow().get_at(distance, name.lexeme)
+            self.globals.borrow().get(&name.lexeme)
         }
     }
 
@@ -273,17 +272,21 @@ impl expr::Visitor<Result<LoxValue, EvalError>> for Interpreter {
             .ok_or_else(|| EvalError::UndefinedVariable(name.clone()))
     }
 
-    fn visit_assign(&mut self, name: &Token, value: &Expr) -> Result<LoxValue, EvalError> {
-        let value = self.evaluate(value)?;
-
-        match self
-            .cur_environment
-            .borrow_mut()
-            .assign(&name.lexeme, value.clone())
-        {
-            true => Ok(value),
-            false => Err(EvalError::UndefinedVariable(name.clone())),
+    fn visit_assign(&mut self, name: &Token, value_expr: &Expr) -> Result<LoxValue, EvalError> {
+        let value = self.evaluate(value_expr)?;
+        if let Some(distance) = self.locals.get(value_expr) {
+            Environment::assign_at(
+                self.cur_environment.clone(),
+                *distance,
+                &name.lexeme,
+                value.clone(),
+            );
+        } else {
+            self.globals
+                .borrow_mut()
+                .assign(&name.lexeme, value.clone());
         }
+        Ok(value)
     }
 
     fn visit_call(
