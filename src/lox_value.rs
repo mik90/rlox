@@ -58,6 +58,19 @@ impl LoxCallable for LoxFunction {
             env.define(lexeme, arg);
         }
 
+        // Also copy the function itself into the current environment
+        // This is necessary for recursion
+        // TODO also, this is fucked, unfuck this
+        let func = interpreter
+            .envs
+            .get_copy(&self.name.lexeme)
+            .ok_or_else(|| 
+                interpreter::EvalError::UnreachableError(
+                    format!("In LoxFunction::call, cannot copy function from current environment into closure")
+                )
+            )?;
+        env.define(&self.name.lexeme, func);
+
         // Super hacky, but return values are bubbling up the callstack as errors
         if let Err(e) = interpreter.execute_block_with_env(&self.body, &mut env) {
             match e {

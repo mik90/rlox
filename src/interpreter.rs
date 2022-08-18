@@ -402,6 +402,10 @@ impl stmt::Visitor<EvalError> for Interpreter {
         params: &[Token],
         body: &[stmt::Stmt],
     ) -> Result<(), EvalError> {
+        // Right here is where im kinda breaking recursion.
+        // Ideally the closure would be able to have the function itself included but
+        // creating a function requires copying the current environment stack and they
+        // do not share a common ancestry after a copy
         let function = LoxFunction::new(
             name.clone(),
             params.to_vec(),
