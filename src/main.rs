@@ -1,3 +1,4 @@
+use crate::resolver::Resolver;
 use crate::{interpreter::Interpreter, parser::Parser, scanner::Scanner, token::Token};
 use std::io::{BufRead, BufReader};
 use std::path::Path;
@@ -57,6 +58,11 @@ fn run(code: String, interpreter: &mut Interpreter) -> bool {
             return false;
         }
     };
+    let mut resolver = Resolver::new(interpreter);
+    if let Err(e) = resolver.resolve_stmts(&statements) {
+        eprintln!("{}", e);
+        return false;
+    }
     interpreter.interpret(statements)
 }
 

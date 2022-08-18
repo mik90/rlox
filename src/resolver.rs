@@ -6,7 +6,7 @@ use crate::{
 };
 use std::{collections::HashMap, error, fmt};
 
-struct Resolver<'a> {
+pub struct Resolver<'a> {
     interpreter: &'a mut Interpreter,
     /// Using the vec as a stack
     /// Per scope, maps varialbe names to whether or not they're visible
@@ -19,6 +19,13 @@ impl Resolver<'_> {
             interpreter,
             scopes: Vec::new(),
         }
+    }
+
+    pub fn resolve_stmts(&mut self, statements: &[stmt::Stmt]) -> Result<(), ResolverError> {
+        for stmt in statements {
+            self.resolve_stmt(stmt)?;
+        }
+        Ok(())
     }
 
     fn begin_scope(&mut self) -> Result<(), ResolverError> {
@@ -80,13 +87,6 @@ impl Resolver<'_> {
         statement.accept(self)
     }
 
-    fn resolve_stmts(&mut self, statements: &[stmt::Stmt]) -> Result<(), ResolverError> {
-        for stmt in statements {
-            self.resolve_stmt(stmt)?;
-        }
-        Ok(())
-    }
-
     fn resolve_function(
         &mut self,
         _name: &Token, // the name is already defined in visit_function_stmt
@@ -104,7 +104,7 @@ impl Resolver<'_> {
 }
 
 #[derive(Debug)]
-enum ResolverError {
+pub enum ResolverError {
     Semantic(String),
     UnknownVariable(Token),
 }

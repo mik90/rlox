@@ -3,6 +3,7 @@ use crate::{
     error::ErrorMessage,
     expr::{self, Expr},
     lox_value::{LoxCallable, LoxFunction, LoxValue},
+    resolver::Resolver,
     stmt,
     token::{LiteralKind, Token, TokenKind},
 };
@@ -280,13 +281,6 @@ impl expr::Visitor<Result<LoxValue, EvalError>> for Interpreter {
 
     fn visit_assign(&mut self, name: &Token, value_expr: &Expr) -> Result<LoxValue, EvalError> {
         let value = self.evaluate(value_expr)?;
-        match self.envs.assign(&name.lexeme, value.clone()) {
-            true => Ok(value),
-            false => Err(EvalError::UndefinedVariable(name.clone())),
-        }
-        /*
-        TODO re-enable with the resolver
-        let value = self.evaluate(value_expr)?;
         if let Some(distance) = self.locals.get(value_expr) {
             self.envs.assign_at(*distance, &name.lexeme, value.clone());
         } else {
@@ -294,7 +288,7 @@ impl expr::Visitor<Result<LoxValue, EvalError>> for Interpreter {
                 .get_global_env_mut()
                 .assign(&name.lexeme, value.clone());
         }
-        Ok(value)*/
+        Ok(value)
     }
 
     fn visit_call(
