@@ -2,12 +2,14 @@ use crate::lox_value::LoxValue;
 use std::collections::HashMap;
 
 /// This is where all the variables live
+#[derive(Clone)]
 pub struct Environment {
     /// variable names to values
     values: HashMap<String, LoxValue>,
 }
 
 /// Owns all of the different environments/scopes
+#[derive(Clone)]
 pub struct EnvironmentStack {
     /// The first element is the bottom of the stack, the last is the top
     envs: Vec<Environment>,
@@ -33,11 +35,14 @@ impl EnvironmentStack {
         // Just dont do anything if there's no envs, shouldnt happen though
     }
     /// add new empty env to the stack
-    pub fn push_empty_env(&mut self) {
+    pub fn push_empty(&mut self) {
         self.envs.push(Environment::new())
     }
-    pub fn push_env(&mut self, env: Environment) {
+    pub fn push(&mut self, env: Environment) {
         self.envs.push(env)
+    }
+    pub fn pop(&mut self) -> Option<Environment> {
+        self.envs.pop()
     }
 
     fn ancestor_mut(&mut self, distance: usize) -> Option<&mut Environment> {
@@ -82,6 +87,25 @@ impl EnvironmentStack {
         }
         None
     }
+    pub fn get_copy(&self, name: &str) -> Option<LoxValue> {
+        self.get(name).map(|v| v.clone())
+    }
+
+    /// Gets env at the closest scope
+    pub fn get_top_env(&self) -> &Environment {
+        debug_assert!(
+            !self.envs.is_empty(),
+            "There should always be globals in the EnvironmentStack"
+        );
+        self.envs.last().unwrap()
+    }
+    pub fn get_global_env(&self) -> &Environment {
+        debug_assert!(
+            !self.envs.is_empty(),
+            "There should always be globals in the EnvironmentStack"
+        );
+        self.envs.first().unwrap()
+    }
 }
 
 impl Environment {
@@ -97,6 +121,9 @@ impl Environment {
     }
     pub fn get(&self, name: &str) -> Option<&LoxValue> {
         self.values.get(name)
+    }
+    pub fn get_copy(&self, name: &str) -> Option<LoxValue> {
+        self.values.get(name).map(|v| v.clone())
     }
 
     /// return true if assignment suceeded, false if not
@@ -142,7 +169,7 @@ mod test {
         assert_eq!(*value, LoxValue::Bool(true), "Value was {:?}", value);
 
         // Create an env that is enclosed by the global env
-        env_stack.push_empty_env();
+        env_stack.push_empty();
 
         let value = env_stack.get(&token.lexeme);
         assert!(value.is_some());

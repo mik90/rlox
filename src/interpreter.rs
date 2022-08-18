@@ -72,23 +72,20 @@ impl Interpreter {
 
     pub fn new() -> Interpreter {
         let globals = Environment::new();
-        globals
-            .borrow_mut()
-            .define("clock", LoxValue::Callable(Rc::new(NativeClock {})));
+        globals.define("clock", LoxValue::Callable(Rc::new(NativeClock {})));
         Interpreter {
-            cur_environment: globals.clone(),
-            globals,
+            envs: EnvironmentStack::new(globals),
             locals: HashMap::new(),
         }
     }
 
     #[cfg(test)]
-    pub fn get_environment(&self) -> Rc<RefCell<Environment>> {
-        self.cur_environment.clone()
+    pub fn get_environment(&self) -> &Environment {
+        self.envs.get_top_env()
     }
 
-    pub fn get_globals(&self) -> Rc<RefCell<Environment>> {
-        self.globals.clone()
+    pub fn get_globals(&self) -> &Environment {
+        self.envs.get_global_env()
     }
 
     pub fn resolve(&mut self, expr: &Expr, scope_distance: usize) -> Result<(), EvalError> {
@@ -100,25 +97,19 @@ impl Interpreter {
         stmt.accept(self)
     }
 
-    fn look_up_variable(&self, name: &Token, expr: &expr::Expr) -> Option<LoxValue> {
+    fn look_up_variable(&self, name: &Token, expr: &expr::Expr) -> Option<&LoxValue> {
         if let Some(distance) = self.locals.get(expr) {
-            Environment::get_at(self.cur_environment.clone(), *distance, &name.lexeme)
+            self.envs.get_at(*distance, &name.lexeme)
         } else {
-            self.globals.borrow().get(&name.lexeme)
+            self.envs.get_global_env().get(&name.lexeme)
         }
     }
 
     /// Helper for the Stmt visitor
-    pub fn execute_block(
-        &mut self,
-        statements: &[stmt::Stmt],
-        environment: Rc<RefCell<Environment>>,
-    ) -> Result<(), EvalError> {
-        let prev_env = self.cur_environment.clone();
-
+    pub fn execute_block(&mut self, statements: &[stmt::Stmt]) -> Result<(), EvalError> {
         let execute_statements = || -> Result<(), EvalError> {
-            // pop the new env onto our current stack
-            self.cur_environment = environment;
+            // push a new env onto our current stack since we're in a new blcok
+            self.envs.push_empty();
             for stmt in statements {
                 self.execute(stmt)?;
             }
@@ -127,7 +118,7 @@ impl Interpreter {
 
         let res = execute_statements();
         // Reset the env in case any stmt couldnt be executed
-        self.cur_environment = prev_env;
+        self.envs.pop();
 
         res
     }
@@ -265,25 +256,20 @@ impl expr::Visitor<Result<LoxValue, EvalError>> for Interpreter {
     }
 
     fn visit_variable(&mut self, name: &Token) -> Result<LoxValue, EvalError> {
-        self.cur_environment
-            .borrow()
-            .get(&name.lexeme)
+        self.envs
+            .get_copy(&name.lexeme)
             .ok_or_else(|| EvalError::UndefinedVariable(name.clone()))
     }
 
     fn visit_assign(&mut self, name: &Token, value_expr: &Expr) -> Result<LoxValue, EvalError> {
         let value = self.evaluate(value_expr)?;
 
-        match self
-            .cur_environment
-            .borrow_mut()
-            .assign(&name.lexeme, value.clone())
-        {
+        match self.envs.assign(&name.lexeme, value.clone()) {
             true => Ok(value),
             false => Err(EvalError::UndefinedVariable(name.clone())),
         }
         /*
-        TODO re-enable using the environment
+        TODO re-enable using the resolver (assign_at)
         let value = self.evaluate(value_expr)?;
         if let Some(distance) = self.locals.get(value_expr) {
             Environment::assign_at(
@@ -366,17 +352,13 @@ impl stmt::Visitor<EvalError> for Interpreter {
             None
         };
 
-        self.cur_environment
-            .borrow_mut()
+        self.envs
             .define(&name.lexeme, value.unwrap_or(LoxValue::Nil));
         Ok(())
     }
 
     fn visit_block_stmt(&mut self, statements: &[stmt::Stmt]) -> Result<(), EvalError> {
-        self.execute_block(
-            statements,
-            Environment::new_with_enclosing(self.cur_environment.clone()),
-        )?;
+        self.execute_block(statements)?;
         Ok(())
     }
 
@@ -409,14 +391,8 @@ impl stmt::Visitor<EvalError> for Interpreter {
         params: &[Token],
         body: &[stmt::Stmt],
     ) -> Result<(), EvalError> {
-        let function = LoxFunction::new(
-            name.clone(),
-            params.to_vec(),
-            body.to_vec(),
-            self.cur_environment.clone(),
-        );
-        self.cur_environment
-            .borrow_mut()
+        let function = LoxFunction::new(name.clone(), params.to_vec(), body.to_vec(), &self.envs);
+        self.envs
             .define(&name.lexeme, LoxValue::Callable(Rc::new(function)));
         Ok(())
     }
@@ -543,7 +519,7 @@ mod test {
             let res = interpreter.execute(&stmt);
             assert!(res.is_ok(), "evaluate() failed with {:?}", res.err());
             let env = interpreter.get_environment();
-            let value = env.borrow().get("foo");
+            let value = env.get_copy("foo");
             assert!(value.is_some());
             assert_eq!(value.unwrap(), LoxValue::Number(5.0));
         }
@@ -554,7 +530,7 @@ mod test {
             let res = interpreter.execute(&stmt);
             assert!(res.is_ok(), "evaluate() failed with {:?}", res.err());
             let env = interpreter.get_environment();
-            let value = env.borrow().get("foo");
+            let value = env.get_copy("foo");
             assert!(value.is_some());
             assert_eq!(value.unwrap(), LoxValue::Number(10.0));
         }
@@ -565,7 +541,7 @@ mod test {
         let mut interpreter = Interpreter::new();
 
         let env = interpreter.get_environment();
-        let clock_func = env.borrow().get("clock");
+        let clock_func = env.get_copy("clock");
         assert!(clock_func.is_some());
         let clock_func = clock_func.unwrap();
         if let LoxValue::Callable(callable) = clock_func {

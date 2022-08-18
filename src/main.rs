@@ -162,7 +162,7 @@ var b = "global b";
         assert!(run(code, &mut interpreter));
         let env = interpreter.get_environment();
 
-        let value = env.borrow().get("a");
+        let value = env.get_copy("a");
         assert!(value.is_some());
         let value = value.unwrap();
         assert_eq!(
@@ -172,7 +172,7 @@ var b = "global b";
             value
         );
 
-        let value = env.borrow().get("b");
+        let value = env.get_copy("b");
         assert!(value.is_some());
         let value = value.unwrap();
         assert_eq!(
@@ -196,7 +196,7 @@ if (true)
         assert!(run(code, &mut interpreter));
         let env = interpreter.get_environment();
 
-        let value = env.borrow().get("a");
+        let value = env.get_copy("a");
         assert!(value.is_some());
         assert_eq!(value.unwrap(), LoxValue::String("bar".to_string()));
     }
@@ -216,7 +216,7 @@ else
         assert!(run(code, &mut interpreter));
         let env = interpreter.get_environment();
 
-        let value = env.borrow().get("a");
+        let value = env.get_copy("a");
         assert!(value.is_some());
         assert_eq!(value.unwrap(), LoxValue::String("bar".to_string()));
     }
@@ -235,7 +235,7 @@ for (var i = 0; i < 10; i = i + 1) {
         assert!(run(code, &mut interpreter));
         let env = interpreter.get_environment();
 
-        let value = env.borrow().get("a");
+        let value = env.get_copy("a");
         assert!(value.is_some());
         assert_eq!(value.unwrap(), LoxValue::Number(9.0));
     }
@@ -254,7 +254,7 @@ while (a < 5) {
         assert!(run(code, &mut interpreter));
 
         let env = interpreter.get_environment();
-        let value = env.borrow().get("a");
+        let value = env.get_copy("a");
         assert!(value.is_some());
         assert_eq!(value.unwrap(), LoxValue::Number(5.0));
     }
@@ -275,7 +275,7 @@ var c = add(1, 2);
         assert!(run(code, &mut interpreter));
 
         let env = interpreter.get_environment();
-        let value = env.borrow().get("c");
+        let value = env.get_copy("c");
         assert!(value.is_some());
         assert_eq!(value.unwrap(), LoxValue::Number(3.0));
     }
@@ -295,7 +295,7 @@ var c = fib(6);
         assert!(run(code, &mut interpreter));
 
         let env = interpreter.get_environment();
-        let value = env.borrow().get("c");
+        let value = env.get_copy("c");
         assert!(value.is_some());
         assert_eq!(value.unwrap(), LoxValue::Number(8.0));
     }
@@ -319,7 +319,7 @@ var output = makeCounter();
         assert!(run(code, &mut interpreter));
 
         let env = interpreter.get_environment();
-        let value = env.borrow().get("output");
+        let value = env.get_copy("output");
         assert!(value.is_some());
         assert_eq!(value.unwrap(), LoxValue::Number(1.0));
     }

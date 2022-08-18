@@ -19,7 +19,6 @@ the main binary can parse a script or work as a repl
 - Environment should return by ref instead of copy for `get()`
 - Replace `token_matches` with `token_matches_any` and add a new single tokenkind sig for `token_matches`
 - Use something other than the `return_value` member of `Interpreter` to handle return values
-- [ ] Instead  of a linked list of environments, make an EnvironmentStack that is a vector
 
 ## Features I want to add
 
