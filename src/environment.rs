@@ -100,6 +100,11 @@ impl EnvironmentStack {
             .expect("There should always be globals in the EnvironmentStack")
     }
 
+    pub fn get_global_env_mut(&mut self) -> &mut Environment {
+        self.envs
+            .first_mut()
+            .expect("There should always be globals in the EnvironmentStack")
+    }
     pub fn get_global_env(&self) -> &Environment {
         self.envs
             .first()

@@ -111,15 +111,22 @@ impl Interpreter {
         }
     }
 
-    /// Helper for the Stmt visitor
-    pub fn execute_block(
+    // Execute a block but swap the environment before execution
+    pub fn execute_block_with_env(
         &mut self,
         statements: &[stmt::Stmt],
         env_stack: &mut EnvironmentStack,
     ) -> Result<(), EvalError> {
+        std::mem::swap(env_stack, &mut self.envs);
+        let res = self.execute_block(statements);
+        std::mem::swap(env_stack, &mut self.envs);
+        res
+    }
+    /// Helper for the Stmt visitor
+    pub fn execute_block(&mut self, statements: &[stmt::Stmt]) -> Result<(), EvalError> {
         let mut execute_statements = || -> Result<(), EvalError> {
             // push a new env onto our current stack since we're in a new blcok
-            env_stack.push_empty();
+            self.envs.push_empty();
             for stmt in statements {
                 self.execute(stmt)?;
             }
@@ -128,7 +135,7 @@ impl Interpreter {
 
         let res = execute_statements();
         // Reset the env in case any stmt couldnt be executed
-        env_stack.pop();
+        self.envs.pop();
 
         res
     }
@@ -273,27 +280,21 @@ impl expr::Visitor<Result<LoxValue, EvalError>> for Interpreter {
 
     fn visit_assign(&mut self, name: &Token, value_expr: &Expr) -> Result<LoxValue, EvalError> {
         let value = self.evaluate(value_expr)?;
-
         match self.envs.assign(&name.lexeme, value.clone()) {
             true => Ok(value),
             false => Err(EvalError::UndefinedVariable(name.clone())),
         }
         /*
-        TODO re-enable using the resolver (assign_at)
+        TODO re-enable with the resolver
         let value = self.evaluate(value_expr)?;
         if let Some(distance) = self.locals.get(value_expr) {
-            Environment::assign_at(
-                self.cur_environment.clone(),
-                *distance,
-                &name.lexeme,
-                value.clone(),
-            );
+            self.envs.assign_at(*distance, &name.lexeme, value.clone());
         } else {
-            self.globals
-                .borrow_mut()
+            self.envs
+                .get_global_env_mut()
                 .assign(&name.lexeme, value.clone());
         }
-        Ok(value) */
+        Ok(value)*/
     }
 
     fn visit_call(
@@ -368,7 +369,7 @@ impl stmt::Visitor<EvalError> for Interpreter {
     }
 
     fn visit_block_stmt(&mut self, statements: &[stmt::Stmt]) -> Result<(), EvalError> {
-        self.execute_block(statements, &mut self.envs)?;
+        self.execute_block(statements)?;
         Ok(())
     }
 

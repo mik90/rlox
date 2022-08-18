@@ -59,7 +59,7 @@ impl LoxCallable for LoxFunction {
         }
 
         // Super hacky, but return values are bubbling up the callstack as errors
-        if let Err(e) = interpreter.execute_block(&self.body, &mut env) {
+        if let Err(e) = interpreter.execute_block_with_env(&self.body, &mut env) {
             match e {
                 EvalError::Return(value) => Ok(value),
                 // Just forward the rest up
