@@ -24,16 +24,12 @@ impl EnvironmentStack {
 
     /// Defines variable at top scope
     pub fn define(&mut self, name: &str, value: LoxValue) {
-        debug_assert!(
-            !self.envs.is_empty(),
-            "There should always be globals in the EnvironmentStack"
-        );
-
-        if let Some(env) = self.envs.last_mut() {
-            env.define(name, value);
-        }
-        // Just dont do anything if there's no envs, shouldnt happen though
+        self.envs
+            .last_mut()
+            .expect("There should always be globals in the EnvironmentStack")
+            .define(name, value);
     }
+
     /// add new empty env to the stack
     pub fn push_empty(&mut self) {
         self.envs.push(Environment::new())
@@ -72,8 +68,8 @@ impl EnvironmentStack {
     pub fn assign(&mut self, name: &str, value: LoxValue) -> bool {
         // Search from the top of the stack and try to assign in each env
         for env in self.envs.iter_mut().rev() {
-            if env.assign(name, value) {
-                return true;
+            if env.contains_key(name) {
+                return env.assign(name, value);
             }
         }
         false
@@ -93,18 +89,21 @@ impl EnvironmentStack {
 
     /// Gets env at the closest scope
     pub fn get_top_env(&self) -> &Environment {
-        debug_assert!(
-            !self.envs.is_empty(),
-            "There should always be globals in the EnvironmentStack"
-        );
-        self.envs.last().unwrap()
+        self.envs
+            .last()
+            .expect("There should always be globals in the EnvironmentStack")
     }
+
+    pub fn get_top_env_mut(&mut self) -> &mut Environment {
+        self.envs
+            .last_mut()
+            .expect("There should always be globals in the EnvironmentStack")
+    }
+
     pub fn get_global_env(&self) -> &Environment {
-        debug_assert!(
-            !self.envs.is_empty(),
-            "There should always be globals in the EnvironmentStack"
-        );
-        self.envs.first().unwrap()
+        self.envs
+            .first()
+            .expect("There should always be globals in the EnvironmentStack")
     }
 }
 
@@ -125,6 +124,9 @@ impl Environment {
     pub fn get_copy(&self, name: &str) -> Option<LoxValue> {
         self.values.get(name).map(|v| v.clone())
     }
+    pub fn contains_key(&self, name: &str) -> bool {
+        self.values.contains_key(name)
+    }
 
     /// return true if assignment suceeded, false if not
     pub fn assign(&mut self, name: &str, value: LoxValue) -> bool {
@@ -143,7 +145,7 @@ mod test {
 
     #[test]
     fn set_and_get() {
-        let env = Environment::new();
+        let mut env = Environment::new();
         let token = Token::new(TokenKind::Identifier, "foo".to_string(), 1);
 
         env.define(&token.lexeme, LoxValue::Bool(true));
@@ -158,10 +160,10 @@ mod test {
     #[test]
     fn get_from_enclosing() {
         let token = Token::new(TokenKind::Identifier, "foo".to_string(), 1);
-        let globals = Environment::new();
+        let mut globals = Environment::new();
         globals.define(&token.lexeme, LoxValue::Bool(true));
 
-        let env_stack = EnvironmentStack::new(globals);
+        let mut env_stack = EnvironmentStack::new(globals);
 
         let value = env_stack.get(&token.lexeme);
         assert!(value.is_some());

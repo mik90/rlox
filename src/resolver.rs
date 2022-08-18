@@ -280,8 +280,7 @@ mod test {
         let name = Token::new_literal(LiteralKind::Identifier("foo".to_string()), 0);
         let mut interpreter = Interpreter::new();
         interpreter
-            .get_environment()
-            .borrow_mut()
+            .get_environment_mut()
             .define(&name.lexeme, LoxValue::Bool(false));
         let mut resolver = Resolver::new(&mut interpreter);
 

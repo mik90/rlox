@@ -16,20 +16,21 @@ pub trait LoxCallable {
     ) -> Result<LoxValue, interpreter::EvalError>;
 }
 
-pub struct LoxFunction<'a> {
+pub struct LoxFunction {
     // Equivalent to stmt::Stmt::Function
     name: Token,
     params: Vec<Token>,
     body: Vec<stmt::Stmt>,
-    closure: &'a EnvironmentStack,
+    closure: EnvironmentStack,
 }
 
-impl LoxFunction<'_> {
-    pub fn new<'a>(
+impl LoxFunction {
+    pub fn new(
         name: Token,
         params: Vec<Token>,
         body: Vec<stmt::Stmt>,
-        closure: &EnvironmentStack,
+        // I guess the closure should own a copy of the env and not a refernce in case stuff is outllived
+        closure: EnvironmentStack,
     ) -> LoxFunction {
         LoxFunction {
             name,
@@ -40,7 +41,7 @@ impl LoxFunction<'_> {
     }
 }
 
-impl LoxCallable for LoxFunction<'_> {
+impl LoxCallable for LoxFunction {
     fn arity(&self) -> usize {
         self.params.len()
     }
@@ -49,16 +50,16 @@ impl LoxCallable for LoxFunction<'_> {
         interpreter: &mut Interpreter,
         arguments: &[LoxValue],
     ) -> Result<LoxValue, interpreter::EvalError> {
-        let env = Environment::new_with_enclosing(self.closure.clone());
+        let mut env = self.closure.clone();
         // copy the arguments into the current environment
         for i in 0..self.params.len() {
             let lexeme = &self.params[i].lexeme;
             let arg = arguments[i].clone();
-            env.borrow_mut().define(lexeme, arg);
+            env.define(lexeme, arg);
         }
 
         // Super hacky, but return values are bubbling up the callstack as errors
-        if let Err(e) = interpreter.execute_block(&self.body, env) {
+        if let Err(e) = interpreter.execute_block(&self.body, &mut env) {
             match e {
                 EvalError::Return(value) => Ok(value),
                 // Just forward the rest up
@@ -70,7 +71,7 @@ impl LoxCallable for LoxFunction<'_> {
     }
 }
 
-impl fmt::Display for LoxFunction<'_> {
+impl fmt::Display for LoxFunction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "<fn {}>", &self.name.lexeme)
     }

@@ -6,11 +6,11 @@ use crate::{
     stmt,
     token::{LiteralKind, Token, TokenKind},
 };
+use std::collections::HashMap;
 use std::error;
 use std::fmt;
 use std::rc::Rc;
 use std::time;
-use std::{cell::RefCell, collections::HashMap};
 
 #[derive(Debug)]
 pub enum EvalError {
@@ -36,7 +36,8 @@ impl fmt::Display for EvalError {
 impl error::Error for EvalError {}
 
 pub struct Interpreter {
-    envs: EnvironmentStack,
+    /// ew why does this have to be public? For exposure to LoxCallable but why cant this be an arg?
+    pub envs: EnvironmentStack,
     // Expression to 'depth' (scopes between current scope (top of envionment stack) and the one where a variable is defined)
     // TODO May need to have a way to uniquely identify expressions
     locals: HashMap<expr::Expr, usize>,
@@ -71,7 +72,7 @@ impl Interpreter {
     }
 
     pub fn new() -> Interpreter {
-        let globals = Environment::new();
+        let mut globals = Environment::new();
         globals.define("clock", LoxValue::Callable(Rc::new(NativeClock {})));
         Interpreter {
             envs: EnvironmentStack::new(globals),
@@ -82,6 +83,11 @@ impl Interpreter {
     #[cfg(test)]
     pub fn get_environment(&self) -> &Environment {
         self.envs.get_top_env()
+    }
+
+    #[cfg(test)]
+    pub fn get_environment_mut(&mut self) -> &mut Environment {
+        self.envs.get_top_env_mut()
     }
 
     pub fn get_globals(&self) -> &Environment {
@@ -106,10 +112,14 @@ impl Interpreter {
     }
 
     /// Helper for the Stmt visitor
-    pub fn execute_block(&mut self, statements: &[stmt::Stmt]) -> Result<(), EvalError> {
-        let execute_statements = || -> Result<(), EvalError> {
+    pub fn execute_block(
+        &mut self,
+        statements: &[stmt::Stmt],
+        env_stack: &mut EnvironmentStack,
+    ) -> Result<(), EvalError> {
+        let mut execute_statements = || -> Result<(), EvalError> {
             // push a new env onto our current stack since we're in a new blcok
-            self.envs.push_empty();
+            env_stack.push_empty();
             for stmt in statements {
                 self.execute(stmt)?;
             }
@@ -118,7 +128,7 @@ impl Interpreter {
 
         let res = execute_statements();
         // Reset the env in case any stmt couldnt be executed
-        self.envs.pop();
+        env_stack.pop();
 
         res
     }
@@ -358,7 +368,7 @@ impl stmt::Visitor<EvalError> for Interpreter {
     }
 
     fn visit_block_stmt(&mut self, statements: &[stmt::Stmt]) -> Result<(), EvalError> {
-        self.execute_block(statements)?;
+        self.execute_block(statements, &mut self.envs)?;
         Ok(())
     }
 
@@ -391,7 +401,12 @@ impl stmt::Visitor<EvalError> for Interpreter {
         params: &[Token],
         body: &[stmt::Stmt],
     ) -> Result<(), EvalError> {
-        let function = LoxFunction::new(name.clone(), params.to_vec(), body.to_vec(), &self.envs);
+        let function = LoxFunction::new(
+            name.clone(),
+            params.to_vec(),
+            body.to_vec(),
+            self.envs.clone(),
+        );
         self.envs
             .define(&name.lexeme, LoxValue::Callable(Rc::new(function)));
         Ok(())
