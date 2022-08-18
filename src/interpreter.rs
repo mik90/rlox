@@ -1,5 +1,5 @@
 use crate::{
-    environment::Environment,
+    environment::{Environment, EnvironmentStack},
     error::ErrorMessage,
     expr::{self, Expr},
     lox_value::{LoxCallable, LoxFunction, LoxValue},
@@ -36,9 +36,8 @@ impl fmt::Display for EvalError {
 impl error::Error for EvalError {}
 
 pub struct Interpreter {
-    cur_environment: Rc<RefCell<Environment>>,
-    globals: Rc<RefCell<Environment>>,
-    // Expression to 'depth' (scopes between current scope and the one where a variable is defined)
+    envs: EnvironmentStack,
+    // Expression to 'depth' (scopes between current scope (top of envionment stack) and the one where a variable is defined)
     // TODO May need to have a way to uniquely identify expressions
     locals: HashMap<expr::Expr, usize>,
 }
@@ -72,7 +71,7 @@ impl Interpreter {
     }
 
     pub fn new() -> Interpreter {
-        let globals = Environment::new_sharable();
+        let globals = Environment::new();
         globals
             .borrow_mut()
             .define("clock", LoxValue::Callable(Rc::new(NativeClock {})));

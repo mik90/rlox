@@ -1,10 +1,10 @@
 use crate::{
-    environment::Environment,
+    environment::EnvironmentStack,
     interpreter::{self, EvalError, Interpreter},
     stmt,
     token::Token,
 };
-use std::{cell::RefCell, fmt, rc::Rc};
+use std::{fmt, rc::Rc};
 
 /// A callable lox object
 pub trait LoxCallable {
@@ -16,20 +16,20 @@ pub trait LoxCallable {
     ) -> Result<LoxValue, interpreter::EvalError>;
 }
 
-pub struct LoxFunction {
+pub struct LoxFunction<'a> {
     // Equivalent to stmt::Stmt::Function
     name: Token,
     params: Vec<Token>,
     body: Vec<stmt::Stmt>,
-    closure: Rc<RefCell<Environment>>,
+    closure: &'a EnvironmentStack,
 }
 
-impl LoxFunction {
-    pub fn new(
+impl LoxFunction<'_> {
+    pub fn new<'a>(
         name: Token,
         params: Vec<Token>,
         body: Vec<stmt::Stmt>,
-        closure: Rc<RefCell<Environment>>,
+        closure: &EnvironmentStack,
     ) -> LoxFunction {
         LoxFunction {
             name,
@@ -40,7 +40,7 @@ impl LoxFunction {
     }
 }
 
-impl LoxCallable for LoxFunction {
+impl LoxCallable for LoxFunction<'_> {
     fn arity(&self) -> usize {
         self.params.len()
     }
@@ -70,7 +70,7 @@ impl LoxCallable for LoxFunction {
     }
 }
 
-impl fmt::Display for LoxFunction {
+impl fmt::Display for LoxFunction<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "<fn {}>", &self.name.lexeme)
     }
