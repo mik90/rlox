@@ -63,21 +63,19 @@ impl Resolver<'_> {
     }
 
     fn resolve_local(&mut self, expr: &expr::Expr, name: &Token) -> Result<(), ResolverError> {
+        if self.scopes.is_empty() {
+            // No scopes, just assume the variable is global
+            return Ok(());
+        }
         let scope_len = self.scopes.len();
         // Start at deepest scope in the stack and work outwards
         for i in scope_len..=0 {
             if self.scopes[i].contains_key(&name.lexeme) {
-                return self
-                    .interpreter
-                    // Pass in variable and distance between innermost scope and this scope
-                    .resolve(&expr, self.scopes.len() - 1 - i)
-                    .map_err(|e| {
-                        ResolverError::Semantic(format!(
-                            "Could not resolve variable '{}'. Error in interpreter: {}",
-                            name, e
-                        ))
-                    });
+                // Pass in variable and distance between innermost scope and this scope
+                let _ = self.interpreter.resolve(&expr, self.scopes.len() - 1 - i);
+                // If we cant resolve something, assume it's global
             }
+            return Ok(());
         }
         // If we aren't able to resolve the variable, just assume it's global
         Ok(())

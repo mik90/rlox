@@ -274,9 +274,10 @@ impl expr::Visitor<Result<LoxValue, EvalError>> for Interpreter {
     }
 
     fn visit_variable(&mut self, name: &Token) -> Result<LoxValue, EvalError> {
-        self.envs
-            .get_copy(&name.lexeme)
-            .ok_or_else(|| EvalError::UndefinedVariable(name.clone()))
+        match self.look_up_variable(name, &Expr::Variable(name.clone())) {
+            Some(v) => Ok(v.clone()),
+            None => Err(EvalError::UndefinedVariable(name.clone())),
+        }
     }
 
     fn visit_assign(&mut self, name: &Token, value_expr: &Expr) -> Result<LoxValue, EvalError> {
