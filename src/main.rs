@@ -233,7 +233,7 @@ else
 
         let code = r#"
 var a = 0; 
-for (var i = 0; i < 10; i = i + 1) {
+for (var i = 0; i < 2; i = i + 1) {
     a = i;
 }
 "#

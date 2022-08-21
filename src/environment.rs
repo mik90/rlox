@@ -12,6 +12,8 @@ pub struct Environment {
 #[derive(Clone)]
 pub struct EnvironmentStack {
     /// The first element is the bottom of the stack, the last is the top
+    /// TODO closures can copy an environment stack but both the caller and cloure need to share some of the environments.
+    /// I'll need some Arc<Mutex<Environment>> in order to handle this
     envs: Vec<Environment>,
 }
 

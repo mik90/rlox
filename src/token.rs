@@ -89,13 +89,22 @@ pub enum TokenKind {
     Eof,
 }
 
-#[derive(Debug, Eq, Clone, PartialEq, Hash)]
+#[derive(Debug, Eq, Clone, PartialEq)]
 pub struct Token {
     pub kind: TokenKind,
     pub lexeme: String,
     // TODO this duplicates 'lexeme', and LiteralToken should be an optional
     pub literal: LiteralKind,
     pub line: usize,
+}
+
+impl std::hash::Hash for Token {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.kind.hash(state);
+        self.lexeme.hash(state);
+        self.literal.hash(state);
+        // Don't include the line number in the hash since an Expr can be referring to the same thing on different lines
+    }
 }
 
 impl Token {

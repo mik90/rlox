@@ -82,13 +82,18 @@ impl Interpreter {
     }
 
     #[cfg(test)]
-    pub fn get_environment(&self) -> &Environment {
-        self.envs.get_top_env()
+    pub fn get_environment(&self) -> &EnvironmentStack {
+        &self.envs
     }
 
     #[cfg(test)]
-    pub fn get_environment_mut(&mut self) -> &mut Environment {
-        self.envs.get_top_env_mut()
+    pub fn get_environment_mut(&mut self) -> &mut EnvironmentStack {
+        &mut self.envs
+    }
+
+    #[cfg(test)]
+    pub fn get_locals(&self) -> &HashMap<expr::Expr, usize> {
+        &self.locals
     }
 
     pub fn get_globals(&self) -> &Environment {
@@ -427,6 +432,7 @@ impl stmt::Visitor<EvalError> for Interpreter {
 
 #[cfg(test)]
 mod test {
+
     use super::*;
     use crate::token::*;
     use crate::{expr::Expr, stmt::Stmt};

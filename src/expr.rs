@@ -48,3 +48,45 @@ impl Expr {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use std::collections::hash_map::DefaultHasher;
+    use std::collections::hash_map::HashMap;
+    use std::hash::{Hash, Hasher};
+
+    #[test]
+    fn expr_hash() {
+        let literal = LiteralKind::Identifier("i".to_string());
+
+        let i_3 = Expr::Variable(Token::new_literal(literal.clone(), 3));
+
+        let i_4 = Expr::Variable(Token::new_literal(literal.clone(), 4));
+
+        let mut hasher = DefaultHasher::new();
+        i_3.hash(&mut hasher);
+        let hash_i_3 = hasher.finish();
+
+        let mut hasher = DefaultHasher::new();
+        i_4.hash(&mut hasher);
+        let hash_i_4 = hasher.finish();
+        assert_eq!(hash_i_3, hash_i_4);
+    }
+
+    #[test]
+    fn expr_hash_map() {
+        let mut map = HashMap::<Expr, usize>::new();
+
+        let literal = LiteralKind::Identifier("i".to_string());
+        let i_3 = Expr::Variable(Token::new_literal(literal.clone(), 3));
+        let i_4 = Expr::Variable(Token::new_literal(literal.clone(), 4));
+
+        assert!(map.insert(i_3, 0).is_none());
+
+        assert!(
+            map.get(&i_4).is_some(),
+            "The same expr w/ diff line numbers should be interchangeable in the map"
+        );
+    }
+}

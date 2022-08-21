@@ -67,12 +67,12 @@ impl Resolver<'_> {
             // No scopes, just assume the variable is global
             return Ok(());
         }
-        let scope_len = self.scopes.len();
+        let scope_idx = self.scopes.len() - 1;
         // Start at deepest scope in the stack and work outwards
-        for i in scope_len..=0 {
+        for i in (0..=scope_idx).rev() {
             if self.scopes[i].contains_key(&name.lexeme) {
                 // Pass in variable and distance between innermost scope and this scope
-                let _ = self.interpreter.resolve(&expr, self.scopes.len() - 1 - i);
+                let _ = self.interpreter.resolve(&expr, scope_idx - i);
                 // If we cant resolve something, assume it's global
             }
             return Ok(());
