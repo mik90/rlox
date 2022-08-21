@@ -70,11 +70,17 @@ impl Environment {
         self.values.insert(name.to_string(), value);
     }
     pub fn get_copy(&self, name: &str) -> Option<LoxValue> {
-        self.values.get(name).map(|v| v.clone())
+        if let Some(v) = self.values.get(name) {
+            Some(v.clone())
+        } else {
+            if let Some(enc) = self.enclosing.as_ref() {
+                enc.lock().unwrap().get_copy(name)
+            } else {
+                None
+            }
+        }
     }
-    pub fn contains_key(&self, name: &str) -> bool {
-        self.values.contains_key(name)
-    }
+
     /// return true if assignment suceeded, false if not
     pub fn assign(&mut self, name: &str, value: LoxValue) -> bool {
         if let Some(v) = self.values.get_mut(name) {
@@ -98,7 +104,7 @@ mod test {
 
     #[test]
     fn set_and_get() {
-        let mut env = Environment::new_empty();
+        let env = Environment::new_empty();
         let token = Token::new(TokenKind::Identifier, "foo".to_string(), 1);
 
         env.lock()
@@ -115,13 +121,13 @@ mod test {
     #[test]
     fn get_from_enclosing() {
         let token = Token::new(TokenKind::Identifier, "foo".to_string(), 1);
-        let mut globals = Environment::new_empty();
+        let globals = Environment::new_empty();
         globals
             .lock()
             .unwrap()
             .define(&token.lexeme, LoxValue::Bool(true));
 
-        let mut env = Environment::new_enclosing(globals);
+        let env = Environment::new_enclosing(globals);
 
         let value = env.lock().unwrap().get_copy(&token.lexeme);
         assert!(value.is_some());
@@ -129,7 +135,7 @@ mod test {
         assert_eq!(value, LoxValue::Bool(true), "Value was {:?}", value);
 
         // Create an env that is enclosed by the global env
-        let mut env_2 = Environment::new_enclosing(env);
+        let env_2 = Environment::new_enclosing(env);
 
         let value = env_2.lock().unwrap().get_copy(&token.lexeme);
         assert!(value.is_some());

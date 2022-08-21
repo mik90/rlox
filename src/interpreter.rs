@@ -75,7 +75,7 @@ impl Interpreter {
     }
 
     pub fn new() -> Interpreter {
-        let mut globals = Environment::new_empty();
+        let globals = Environment::new_empty();
         globals
             .lock()
             .unwrap()
