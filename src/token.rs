@@ -89,13 +89,22 @@ pub enum TokenKind {
     Eof,
 }
 
-#[derive(Debug, Eq, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct Token {
     pub kind: TokenKind,
     pub lexeme: String,
     // TODO this duplicates 'lexeme', and LiteralToken should be an optional
     pub literal: LiteralKind,
     pub line: usize,
+}
+
+impl Eq for Token {}
+impl PartialEq for Token {
+    // Although tokens can technically be on different lines and be separate tokens, we only really care about their context
+    // This is needed in order to make the token hashable
+    fn eq(&self, other: &Self) -> bool {
+        self.kind == other.kind && self.lexeme == other.lexeme && self.literal == other.literal
+    }
 }
 
 impl std::hash::Hash for Token {
@@ -184,7 +193,6 @@ mod test {
         let literal = LiteralKind::Identifier("i".to_string());
 
         let i_3 = Token::new_literal(literal.clone(), 3);
-
         let i_4 = Token::new_literal(literal.clone(), 4);
 
         let mut hasher = DefaultHasher::new();
@@ -203,12 +211,13 @@ mod test {
 
         let literal = LiteralKind::Identifier("i".to_string());
         let i_3 = Token::new_literal(literal.clone(), 3);
-        let i_4 = Token::new_literal(literal.clone(), 4);
+        let i_4 = Token::new_literal(literal, 4);
 
-        assert!(map.insert(i_3, 0).is_none());
+        map.insert(i_3.clone(), 0);
+        assert!(map.contains_key(&i_3));
 
         assert!(
-            map.get(&i_4).is_some(),
+            map.contains_key(&i_4),
             "The same expr w/ diff line numbers should be interchangeable in the map"
         );
     }

@@ -20,6 +20,7 @@ the main binary can parse a script or work as a repl
 - Replace `token_matches` with `token_matches_any` and add a new single tokenkind sig for `token_matches`
 - Use something other than the `return_value` member of `Interpreter` to handle return values
 - EnvironmentStack copies do not share any common values so closures sharing globally mutated values are not going to work
+- Interpreter's locals should not hold Expr directly but a wrapper around Expr that is hashable/eq disregarding line number while the normal token hashable/eq takes into account line number
 
 ## Features I want to add
 
