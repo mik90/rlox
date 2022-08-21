@@ -1,10 +1,14 @@
 use crate::{
-    environment::EnvironmentStack,
+    environment::Environment,
     interpreter::{self, EvalError, Interpreter},
     stmt,
     token::Token,
 };
-use std::{fmt, rc::Rc};
+use std::{
+    fmt,
+    rc::Rc,
+    sync::{Arc, Mutex},
+};
 
 /// A callable lox object
 pub trait LoxCallable {
@@ -21,7 +25,7 @@ pub struct LoxFunction {
     name: Token,
     params: Vec<Token>,
     body: Vec<stmt::Stmt>,
-    closure: EnvironmentStack,
+    closure: Arc<Mutex<Environment>>,
 }
 
 impl LoxFunction {
@@ -30,7 +34,7 @@ impl LoxFunction {
         params: Vec<Token>,
         body: Vec<stmt::Stmt>,
         // I guess the closure should own a copy of the env and not a refernce in case stuff is outllived
-        closure: EnvironmentStack,
+        closure: Arc<Mutex<Environment>>,
     ) -> LoxFunction {
         LoxFunction {
             name,
@@ -55,24 +59,26 @@ impl LoxCallable for LoxFunction {
         for i in 0..self.params.len() {
             let lexeme = &self.params[i].lexeme;
             let arg = arguments[i].clone();
-            env.define(lexeme, arg);
+            env.lock().unwrap().define(lexeme, arg);
         }
 
         // Also copy the function itself into the current environment
         // This is necessary for recursion
         // TODO also, this is fucked, unfuck this
         let func = interpreter
-            .envs
+            .env
+            .lock()
+            .unwrap()
             .get_copy(&self.name.lexeme)
-            .ok_or_else(|| 
-                interpreter::EvalError::UnreachableError(
-                    format!("In LoxFunction::call, cannot copy function from current environment into closure")
-                )
-            )?;
-        env.define(&self.name.lexeme, func);
+            .ok_or_else(|| {
+                interpreter::EvalError::UnreachableError(format!(
+                "In LoxFunction::call, cannot copy function from current environment into closure"
+            ))
+            })?;
+        env.lock().unwrap().define(&self.name.lexeme, func);
 
         // Super hacky, but return values are bubbling up the callstack as errors
-        if let Err(e) = interpreter.execute_block_with_env(&self.body, &mut env) {
+        if let Err(e) = interpreter.execute_block(&self.body, Environment::new_enclosing(env)) {
             match e {
                 EvalError::Return(value) => Ok(value),
                 // Just forward the rest up

@@ -1,132 +1,73 @@
 use crate::lox_value::LoxValue;
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 
 /// This is where all the variables live
 #[derive(Clone)]
 pub struct Environment {
     /// variable names to values
     values: HashMap<String, LoxValue>,
+    pub enclosing: Option<Arc<Mutex<Environment>>>,
 }
 
-/// Owns all of the different environments/scopes
-#[derive(Clone)]
-pub struct EnvironmentStack {
-    /// The first element is the bottom of the stack, the last is the top
-    /// TODO closures can copy an environment stack but both the caller and cloure need to share some of the environments.
-    /// I'll need some Arc<Mutex<Environment>> in order to handle this
-    envs: Vec<Environment>,
+pub fn ancestor_of(
+    mut env: Arc<Mutex<Environment>>,
+    distance: usize,
+) -> Option<Arc<Mutex<Environment>>> {
+    if distance == 0 {
+        return Some(env);
+    }
+
+    for _ in 0..distance {
+        if env.lock().unwrap().enclosing.is_some() {
+            // Iterate through the enclosing environments
+            let enc = env.lock().unwrap().enclosing.as_ref().unwrap().clone();
+            env = enc;
+        } else {
+            return None;
+        };
+    }
+    Some(env)
 }
 
-impl EnvironmentStack {
-    pub fn new(globals: Environment) -> EnvironmentStack {
-        EnvironmentStack {
-            envs: vec![globals],
-        }
+pub fn get_copy_at(env: Arc<Mutex<Environment>>, distance: usize, name: &str) -> Option<LoxValue> {
+    match ancestor_of(env, distance) {
+        Some(env) => env.lock().unwrap().get_copy(name),
+        None => None,
     }
+}
 
-    /// Defines variable at top scope
-    pub fn define(&mut self, name: &str, value: LoxValue) {
-        self.envs
-            .last_mut()
-            .expect("There should always be globals in the EnvironmentStack")
-            .define(name, value);
-    }
-
-    /// add new empty env to the stack
-    pub fn push_empty(&mut self) {
-        self.envs.push(Environment::new())
-    }
-    pub fn push(&mut self, env: Environment) {
-        self.envs.push(env)
-    }
-    pub fn pop(&mut self) -> Option<Environment> {
-        self.envs.pop()
-    }
-
-    fn ancestor_mut(&mut self, distance: usize) -> Option<&mut Environment> {
-        self.envs.iter_mut().rev().nth(distance)
-    }
-
-    fn ancestor(&self, distance: usize) -> Option<&Environment> {
-        self.envs.iter().rev().nth(distance)
-    }
-
-    pub fn get_at(&self, distance: usize, name: &str) -> Option<&LoxValue> {
-        match self.ancestor(distance) {
-            Some(env) => env.values.get(name),
-            None => None,
-        }
-    }
-
-    pub fn assign_at(&mut self, distance: usize, name: &str, value: LoxValue) -> bool {
-        // TODO this coalesces the error of assignment failing and the ancestor not being able to be found
-        match self.ancestor_mut(distance) {
-            Some(env) => env.assign(name, value),
-            None => false,
-        }
-    }
-
-    /// returns true if assign completed on any env, false if the variable was not found
-    pub fn assign(&mut self, name: &str, value: LoxValue) -> bool {
-        // Search from the top of the stack and try to assign in each env
-        for env in self.envs.iter_mut().rev() {
-            if env.contains_key(name) {
-                return env.assign(name, value);
-            }
-        }
-        false
-    }
-    /// returns first value found in any environment
-    pub fn get(&self, name: &str) -> Option<&LoxValue> {
-        for env in self.envs.iter().rev() {
-            if let Some(v) = env.get(name) {
-                return Some(v);
-            }
-        }
-        None
-    }
-    pub fn get_copy(&self, name: &str) -> Option<LoxValue> {
-        self.get(name).map(|v| v.clone())
-    }
-
-    /// Gets env at the closest scope
-    pub fn get_top_env(&self) -> &Environment {
-        self.envs
-            .last()
-            .expect("There should always be globals in the EnvironmentStack")
-    }
-
-    pub fn get_top_env_mut(&mut self) -> &mut Environment {
-        self.envs
-            .last_mut()
-            .expect("There should always be globals in the EnvironmentStack")
-    }
-
-    pub fn get_global_env_mut(&mut self) -> &mut Environment {
-        self.envs
-            .first_mut()
-            .expect("There should always be globals in the EnvironmentStack")
-    }
-    pub fn get_global_env(&self) -> &Environment {
-        self.envs
-            .first()
-            .expect("There should always be globals in the EnvironmentStack")
+pub fn assign_at(
+    env: Arc<Mutex<Environment>>,
+    distance: usize,
+    name: &str,
+    value: LoxValue,
+) -> bool {
+    match ancestor_of(env, distance) {
+        Some(env) => env.lock().unwrap().assign(name, value),
+        None => false,
     }
 }
 
 impl Environment {
-    pub fn new() -> Environment {
-        Environment {
+    pub fn new_empty() -> Arc<Mutex<Environment>> {
+        Arc::new(Mutex::new(Environment {
             values: HashMap::new(),
-        }
+            enclosing: None,
+        }))
+    }
+    pub fn new_enclosing(enclosing: Arc<Mutex<Environment>>) -> Arc<Mutex<Environment>> {
+        Arc::new(Mutex::new(Environment {
+            values: HashMap::new(),
+            enclosing: Some(enclosing),
+        }))
     }
 
     // Allows redefinition of a variable in a single scope
     pub fn define(&mut self, name: &str, value: LoxValue) {
         self.values.insert(name.to_string(), value);
-    }
-    pub fn get(&self, name: &str) -> Option<&LoxValue> {
-        self.values.get(name)
     }
     pub fn get_copy(&self, name: &str) -> Option<LoxValue> {
         self.values.get(name).map(|v| v.clone())
@@ -134,14 +75,19 @@ impl Environment {
     pub fn contains_key(&self, name: &str) -> bool {
         self.values.contains_key(name)
     }
-
     /// return true if assignment suceeded, false if not
     pub fn assign(&mut self, name: &str, value: LoxValue) -> bool {
         if let Some(v) = self.values.get_mut(name) {
             *v = value;
             return true;
+        } else {
+            // try enclosing
+            if let Some(enc) = self.enclosing.as_ref() {
+                enc.lock().unwrap().assign(name, value)
+            } else {
+                false
+            }
         }
-        return false;
     }
 }
 
@@ -152,37 +98,42 @@ mod test {
 
     #[test]
     fn set_and_get() {
-        let mut env = Environment::new();
+        let mut env = Environment::new_empty();
         let token = Token::new(TokenKind::Identifier, "foo".to_string(), 1);
 
-        env.define(&token.lexeme, LoxValue::Bool(true));
+        env.lock()
+            .unwrap()
+            .define(&token.lexeme, LoxValue::Bool(true));
 
-        let value = env.get(&token.lexeme);
+        let value = env.lock().unwrap().get_copy(&token.lexeme);
         assert!(value.is_some());
 
         let value = value.unwrap();
-        assert_eq!(*value, LoxValue::Bool(true), "Value was {:?}", value);
+        assert_eq!(value, LoxValue::Bool(true), "Value was {:?}", value);
     }
 
     #[test]
     fn get_from_enclosing() {
         let token = Token::new(TokenKind::Identifier, "foo".to_string(), 1);
-        let mut globals = Environment::new();
-        globals.define(&token.lexeme, LoxValue::Bool(true));
+        let mut globals = Environment::new_empty();
+        globals
+            .lock()
+            .unwrap()
+            .define(&token.lexeme, LoxValue::Bool(true));
 
-        let mut env_stack = EnvironmentStack::new(globals);
+        let mut env = Environment::new_enclosing(globals);
 
-        let value = env_stack.get(&token.lexeme);
+        let value = env.lock().unwrap().get_copy(&token.lexeme);
         assert!(value.is_some());
         let value = value.unwrap();
-        assert_eq!(*value, LoxValue::Bool(true), "Value was {:?}", value);
+        assert_eq!(value, LoxValue::Bool(true), "Value was {:?}", value);
 
         // Create an env that is enclosed by the global env
-        env_stack.push_empty();
+        let mut env_2 = Environment::new_enclosing(env);
 
-        let value = env_stack.get(&token.lexeme);
+        let value = env_2.lock().unwrap().get_copy(&token.lexeme);
         assert!(value.is_some());
         let value = value.unwrap();
-        assert_eq!(*value, LoxValue::Bool(true), "Value was {:?}", value);
+        assert_eq!(value, LoxValue::Bool(true), "Value was {:?}", value);
     }
 }

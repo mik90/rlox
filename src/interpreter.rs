@@ -1,5 +1,6 @@
 use crate::{
-    environment::{Environment, EnvironmentStack},
+    environment,
+    environment::Environment,
     error::ErrorMessage,
     expr::{self, Expr},
     lox_value::{LoxCallable, LoxFunction, LoxValue},
@@ -7,11 +8,11 @@ use crate::{
     stmt,
     token::{LiteralKind, Token, TokenKind},
 };
-use std::collections::HashMap;
-use std::error;
 use std::fmt;
 use std::rc::Rc;
 use std::time;
+use std::{collections::HashMap, sync::Mutex};
+use std::{error, sync::Arc};
 
 #[derive(Debug)]
 pub enum EvalError {
@@ -38,7 +39,8 @@ impl error::Error for EvalError {}
 
 pub struct Interpreter {
     /// ew why does this have to be public? For exposure to LoxCallable but why cant this be an arg?
-    pub envs: EnvironmentStack,
+    pub env: Arc<Mutex<Environment>>,
+    pub globals: Arc<Mutex<Environment>>,
     // Expression to 'depth' (scopes between current scope (top of envionment stack) and the one where a variable is defined)
     // TODO May need to have a way to uniquely identify expressions
     locals: HashMap<expr::Expr, usize>,
@@ -73,31 +75,21 @@ impl Interpreter {
     }
 
     pub fn new() -> Interpreter {
-        let mut globals = Environment::new();
-        globals.define("clock", LoxValue::Callable(Rc::new(NativeClock {})));
+        let mut globals = Environment::new_empty();
+        globals
+            .lock()
+            .unwrap()
+            .define("clock", LoxValue::Callable(Rc::new(NativeClock {})));
         Interpreter {
-            envs: EnvironmentStack::new(globals),
+            env: Environment::new_enclosing(globals.clone()),
+            globals: globals,
             locals: HashMap::new(),
         }
     }
 
     #[cfg(test)]
-    pub fn get_environment(&self) -> &EnvironmentStack {
-        &self.envs
-    }
-
-    #[cfg(test)]
-    pub fn get_environment_mut(&mut self) -> &mut EnvironmentStack {
-        &mut self.envs
-    }
-
-    #[cfg(test)]
     pub fn get_locals(&self) -> &HashMap<expr::Expr, usize> {
         &self.locals
-    }
-
-    pub fn get_globals(&self) -> &Environment {
-        self.envs.get_global_env()
     }
 
     pub fn resolve(&mut self, expr: &Expr, scope_distance: usize) -> Result<(), EvalError> {
@@ -109,30 +101,25 @@ impl Interpreter {
         stmt.accept(self)
     }
 
-    fn look_up_variable(&self, name: &Token, expr: &expr::Expr) -> Option<&LoxValue> {
+    fn look_up_variable(&self, name: &Token, expr: &expr::Expr) -> Option<LoxValue> {
         if let Some(distance) = self.locals.get(expr) {
-            self.envs.get_at(*distance, &name.lexeme)
+            environment::get_copy_at(self.env.clone(), *distance, &name.lexeme)
         } else {
-            self.envs.get_global_env().get(&name.lexeme)
+            self.globals.lock().unwrap().get_copy(&name.lexeme)
         }
     }
 
-    // Execute a block but swap the environment before execution
-    pub fn execute_block_with_env(
+    /// Helper for the Stmt visitor
+    pub fn execute_block(
         &mut self,
         statements: &[stmt::Stmt],
-        env_stack: &mut EnvironmentStack,
+        new_env: Arc<Mutex<Environment>>,
     ) -> Result<(), EvalError> {
-        std::mem::swap(env_stack, &mut self.envs);
-        let res = self.execute_block(statements);
-        std::mem::swap(env_stack, &mut self.envs);
-        res
-    }
-    /// Helper for the Stmt visitor
-    pub fn execute_block(&mut self, statements: &[stmt::Stmt]) -> Result<(), EvalError> {
-        let mut execute_statements = || -> Result<(), EvalError> {
+        let prev = self.env.clone();
+
+        let execute_statements = || -> Result<(), EvalError> {
+            self.env = new_env;
             // push a new env onto our current stack since we're in a new blcok
-            self.envs.push_empty();
             for stmt in statements {
                 self.execute(stmt)?;
             }
@@ -141,7 +128,7 @@ impl Interpreter {
 
         let res = execute_statements();
         // Reset the env in case any stmt couldnt be executed
-        self.envs.pop();
+        self.env = prev;
 
         res
     }
@@ -288,10 +275,11 @@ impl expr::Visitor<Result<LoxValue, EvalError>> for Interpreter {
     fn visit_assign(&mut self, name: &Token, value_expr: &Expr) -> Result<LoxValue, EvalError> {
         let value = self.evaluate(value_expr)?;
         if let Some(distance) = self.locals.get(value_expr) {
-            self.envs.assign_at(*distance, &name.lexeme, value.clone());
+            environment::assign_at(self.env.clone(), *distance, &name.lexeme, value.clone());
         } else {
-            self.envs
-                .get_global_env_mut()
+            self.globals
+                .lock()
+                .unwrap()
                 .assign(&name.lexeme, value.clone());
         }
         Ok(value)
@@ -363,13 +351,15 @@ impl stmt::Visitor<EvalError> for Interpreter {
             None
         };
 
-        self.envs
+        self.env
+            .lock()
+            .unwrap()
             .define(&name.lexeme, value.unwrap_or(LoxValue::Nil));
         Ok(())
     }
 
     fn visit_block_stmt(&mut self, statements: &[stmt::Stmt]) -> Result<(), EvalError> {
-        self.execute_block(statements)?;
+        self.execute_block(statements, Environment::new_empty())?;
         Ok(())
     }
 
@@ -410,9 +400,11 @@ impl stmt::Visitor<EvalError> for Interpreter {
             name.clone(),
             params.to_vec(),
             body.to_vec(),
-            self.envs.clone(),
+            Environment::new_enclosing(self.env.clone()),
         );
-        self.envs
+        self.env
+            .lock()
+            .unwrap()
             .define(&name.lexeme, LoxValue::Callable(Rc::new(function)));
         Ok(())
     }
@@ -539,8 +531,7 @@ mod test {
         {
             let res = interpreter.execute(&stmt);
             assert!(res.is_ok(), "evaluate() failed with {:?}", res.err());
-            let env = interpreter.get_environment();
-            let value = env.get_copy("foo");
+            let value = interpreter.env.lock().unwrap().get_copy("foo");
             assert!(value.is_some());
             assert_eq!(value.unwrap(), LoxValue::Number(5.0));
         }
@@ -550,8 +541,7 @@ mod test {
 
             let res = interpreter.execute(&stmt);
             assert!(res.is_ok(), "evaluate() failed with {:?}", res.err());
-            let env = interpreter.get_environment();
-            let value = env.get_copy("foo");
+            let value = interpreter.env.lock().unwrap().get_copy("foo");
             assert!(value.is_some());
             assert_eq!(value.unwrap(), LoxValue::Number(10.0));
         }
@@ -561,8 +551,7 @@ mod test {
     fn native_call() {
         let mut interpreter = Interpreter::new();
 
-        let env = interpreter.get_environment();
-        let clock_func = env.get_copy("clock");
+        let clock_func = interpreter.env.lock().unwrap().get_copy("clock");
         assert!(clock_func.is_some());
         let clock_func = clock_func.unwrap();
         if let LoxValue::Callable(callable) = clock_func {

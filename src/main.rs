@@ -166,9 +166,9 @@ var b = "global b";
 "#
         .to_string();
         assert!(run(code, &mut interpreter));
-        let env = interpreter.get_environment();
+        let env = interpreter.env;
 
-        let value = env.get_copy("a");
+        let value = env.lock().unwrap().get_copy("a");
         assert!(value.is_some());
         let value = value.unwrap();
         assert_eq!(
@@ -178,7 +178,7 @@ var b = "global b";
             value
         );
 
-        let value = env.get_copy("b");
+        let value = env.lock().unwrap().get_copy("b");
         assert!(value.is_some());
         let value = value.unwrap();
         assert_eq!(
@@ -200,9 +200,9 @@ if (true)
 "#
         .to_string();
         assert!(run(code, &mut interpreter));
-        let env = interpreter.get_environment();
+        let env = interpreter.env;
 
-        let value = env.get_copy("a");
+        let value = env.lock().unwrap().get_copy("a");
         assert!(value.is_some());
         assert_eq!(value.unwrap(), LoxValue::String("bar".to_string()));
     }
@@ -220,9 +220,9 @@ else
 "#
         .to_string();
         assert!(run(code, &mut interpreter));
-        let env = interpreter.get_environment();
+        let env = interpreter.env;
 
-        let value = env.get_copy("a");
+        let value = env.lock().unwrap().get_copy("a");
         assert!(value.is_some());
         assert_eq!(value.unwrap(), LoxValue::String("bar".to_string()));
     }
@@ -239,9 +239,9 @@ for (var i = 0; i < 2; i = i + 1) {
 "#
         .to_string();
         assert!(run(code, &mut interpreter));
-        let env = interpreter.get_environment();
+        let env = interpreter.env;
 
-        let value = env.get_copy("a");
+        let value = env.lock().unwrap().get_copy("a");
         assert!(value.is_some());
         assert_eq!(value.unwrap(), LoxValue::Number(9.0));
     }
@@ -259,8 +259,8 @@ while (a < 5) {
         .to_string();
         assert!(run(code, &mut interpreter));
 
-        let env = interpreter.get_environment();
-        let value = env.get_copy("a");
+        let env = interpreter.env;
+        let value = env.lock().unwrap().get_copy("a");
         assert!(value.is_some());
         assert_eq!(value.unwrap(), LoxValue::Number(5.0));
     }
@@ -280,8 +280,8 @@ var c = add(1, 2);
         .to_string();
         assert!(run(code, &mut interpreter));
 
-        let env = interpreter.get_environment();
-        let value = env.get_copy("c");
+        let env = interpreter.env;
+        let value = env.lock().unwrap().get_copy("c");
         assert!(value.is_some());
         assert_eq!(value.unwrap(), LoxValue::Number(3.0));
     }
@@ -300,8 +300,8 @@ var c = fib(6);
         .to_string();
         assert!(run(code, &mut interpreter));
 
-        let env = interpreter.get_environment();
-        let value = env.get_copy("c");
+        let env = interpreter.env;
+        let value = env.lock().unwrap().get_copy("c");
         assert!(value.is_some());
         assert_eq!(value.unwrap(), LoxValue::Number(8.0));
     }
@@ -324,8 +324,8 @@ var output = makeCounter();
         .to_string();
         assert!(run(code, &mut interpreter));
 
-        let env = interpreter.get_environment();
-        let value = env.get_copy("output");
+        let env = interpreter.env;
+        let value = env.lock().unwrap().get_copy("output");
         assert!(value.is_some());
         assert_eq!(value.unwrap(), LoxValue::Number(1.0));
     }
