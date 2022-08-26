@@ -81,7 +81,7 @@ impl Resolver<'_> {
         Ok(())
     }
 
-    fn resolve_stmt(&mut self, statement: &stmt::Stmt) -> Result<(), ResolverError> {
+    pub fn resolve_stmt(&mut self, statement: &stmt::Stmt) -> Result<(), ResolverError> {
         statement.accept(self)
     }
 

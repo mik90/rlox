@@ -4,7 +4,6 @@ use crate::{
     error::ErrorMessage,
     expr::{self, Expr},
     lox_value::{LoxCallable, LoxFunction, LoxValue},
-    resolver::Resolver,
     stmt,
     token::{LiteralKind, Token, TokenKind},
 };
@@ -85,11 +84,6 @@ impl Interpreter {
             globals: globals,
             locals: HashMap::new(),
         }
-    }
-
-    #[cfg(test)]
-    pub fn get_locals(&self) -> &HashMap<expr::Expr, usize> {
-        &self.locals
     }
 
     pub fn resolve(&mut self, expr: &Expr, scope_distance: usize) -> Result<(), EvalError> {
@@ -426,6 +420,7 @@ impl stmt::Visitor<EvalError> for Interpreter {
 mod test {
 
     use super::*;
+    use crate::resolver::Resolver;
     use crate::token::*;
     use crate::{expr::Expr, stmt::Stmt};
 
@@ -462,6 +457,23 @@ mod test {
 
     fn string_expr(s: &str) -> Box<Expr> {
         Box::new(Expr::Literal(LiteralKind::String(s.to_owned())))
+    }
+
+    fn execute_and_resolve(
+        mut interpreter: &mut Interpreter,
+        stmt: &stmt::Stmt,
+    ) -> Result<(), String> {
+        let mut resolver = Resolver::new(&mut interpreter);
+        let res = resolver.resolve_stmt(&stmt);
+        if let Err(e) = res {
+            return Err(format!("resolve_stmt failed with: {}", e.to_string()));
+        }
+
+        let res = interpreter.execute(&stmt);
+        if let Err(e) = res {
+            return Err(format!("execute failed with: {}", e.to_string()));
+        }
+        return Ok(());
     }
 
     #[test]
@@ -514,12 +526,12 @@ mod test {
 
         let mut interpreter = Interpreter::new();
 
-        let res = interpreter.execute(&stmt);
-        assert!(res.is_ok(), "evaluate() failed with {:?}", res.err());
+        let res = execute_and_resolve(&mut interpreter, &stmt);
+        assert!(res.is_ok(), "{}", res.unwrap_err());
 
         let stmt = print_variable("foo");
-        let res = interpreter.execute(&stmt);
-        assert!(res.is_ok(), "evaluate() failed with {:?}", res.err());
+        let res = execute_and_resolve(&mut interpreter, &stmt);
+        assert!(res.is_ok(), "{}", res.unwrap_err());
     }
 
     #[test]
@@ -528,23 +540,21 @@ mod test {
 
         let stmt = declare_and_init_number("foo", 5.0);
 
-        {
-            let res = interpreter.execute(&stmt);
-            assert!(res.is_ok(), "evaluate() failed with {:?}", res.err());
-            let value = interpreter.env.lock().unwrap().get_copy("foo");
-            assert!(value.is_some());
-            assert_eq!(value.unwrap(), LoxValue::Number(5.0));
-        }
+        let res = execute_and_resolve(&mut interpreter, &stmt);
+        assert!(res.is_ok(), "{}", res.unwrap_err());
 
-        {
-            let stmt = assign_to_var("foo", 10.0);
+        let value = interpreter.env.lock().unwrap().get_copy("foo");
+        assert!(value.is_some());
+        assert_eq!(value.unwrap(), LoxValue::Number(5.0));
 
-            let res = interpreter.execute(&stmt);
-            assert!(res.is_ok(), "evaluate() failed with {:?}", res.err());
-            let value = interpreter.env.lock().unwrap().get_copy("foo");
-            assert!(value.is_some());
-            assert_eq!(value.unwrap(), LoxValue::Number(10.0));
-        }
+        let stmt = assign_to_var("foo", 10.0);
+
+        let res = execute_and_resolve(&mut interpreter, &stmt);
+        assert!(res.is_ok(), "{}", res.unwrap_err());
+
+        let value = interpreter.env.lock().unwrap().get_copy("foo");
+        assert!(value.is_some());
+        assert_eq!(value.unwrap(), LoxValue::Number(10.0));
     }
 
     #[test]
