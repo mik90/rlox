@@ -17,7 +17,7 @@ impl Resolver<'_> {
     pub fn new<'a>(interpreter: &'a mut Interpreter) -> Resolver<'a> {
         Resolver {
             interpreter,
-            scopes: Vec::new(),
+            scopes: vec![],
         }
     }
 
@@ -284,10 +284,13 @@ mod test {
             .define(&name.lexeme, LoxValue::Bool(false));
         let mut resolver = Resolver::new(&mut interpreter);
 
+        assert_eq!(resolver.scopes.len(), 0);
         resolver.begin_scope()?;
+        assert_eq!(resolver.scopes.len(), 1);
         resolver.declare(&name)?;
         resolver.define(&name)?;
         resolver.end_scope()?;
+        assert_eq!(resolver.scopes.len(), 0);
         Ok(())
     }
 }

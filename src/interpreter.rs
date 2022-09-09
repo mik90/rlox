@@ -80,7 +80,7 @@ impl Interpreter {
             .unwrap()
             .define("clock", LoxValue::Callable(Rc::new(NativeClock {})));
         Interpreter {
-            env: Environment::new_enclosing(globals.clone()),
+            env: globals.clone(),
             globals: globals,
             locals: HashMap::new(),
         }
@@ -583,5 +583,18 @@ mod test {
                 clock_func
             );
         }
+    }
+
+    #[test]
+    fn test_assignment() {
+        let mut interpreter = Interpreter::new();
+        let mut resolver = Resolver::new(&mut interpreter);
+
+        let name = Token::new_literal(LiteralKind::Identifier("foo".to_string()), 0);
+        let initializing_expr = Some(expr::Expr::Literal(LiteralKind::Number(5.0)));
+        let stmt = stmt::Stmt::Var(name, initializing_expr);
+        let res = resolver.resolve_stmt(&stmt);
+
+        assert!(res.is_ok(), "{}", res.unwrap_err());
     }
 }
