@@ -54,7 +54,7 @@ impl LoxCallable for LoxFunction {
         interpreter: &mut Interpreter,
         arguments: &[LoxValue],
     ) -> Result<LoxValue, interpreter::EvalError> {
-        let mut env = self.closure.clone();
+        let env = Environment::new_enclosing(self.closure.clone());
         // copy the arguments into the current environment
         for i in 0..self.params.len() {
             let lexeme = &self.params[i].lexeme;
@@ -62,23 +62,8 @@ impl LoxCallable for LoxFunction {
             env.lock().unwrap().define(lexeme, arg);
         }
 
-        // Also copy the function itself into the current environment
-        // This is necessary for recursion
-        // TODO also, this is fucked, unfuck this
-        let func = interpreter
-            .env
-            .lock()
-            .unwrap()
-            .get_copy(&self.name.lexeme)
-            .ok_or_else(|| {
-                interpreter::EvalError::UnreachableError(format!(
-                "In LoxFunction::call, cannot copy function from current environment into closure"
-            ))
-            })?;
-        env.lock().unwrap().define(&self.name.lexeme, func);
-
         // Super hacky, but return values are bubbling up the callstack as errors
-        if let Err(e) = interpreter.execute_block(&self.body, Environment::new_enclosing(env)) {
+        if let Err(e) = interpreter.execute_block(&self.body, env) {
             match e {
                 EvalError::Return(value) => Ok(value),
                 // Just forward the rest up
