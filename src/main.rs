@@ -190,6 +190,27 @@ var b = "global b";
     }
 
     #[test]
+    fn eval_nested_scope() {
+        let mut interpreter = Interpreter::new();
+
+        let code = r#"
+var i = 0;
+{
+    {
+        i = i + 1;
+    }
+}
+"#
+        .to_string();
+        assert!(run(code, &mut interpreter));
+
+        let env = interpreter.env;
+        let value = env.lock().unwrap().get_copy("i");
+        assert!(value.is_some());
+        assert_eq!(value.unwrap(), LoxValue::Number(1.0));
+    }
+
+    #[test]
     fn eval_if() {
         let mut interpreter = Interpreter::new();
 
