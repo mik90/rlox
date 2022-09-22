@@ -73,9 +73,8 @@ impl Resolver<'_> {
             if self.scopes[i].contains_key(&name.lexeme) {
                 // Pass in variable and distance between innermost scope and this scope
                 let _ = self.interpreter.resolve(&expr, scope_idx - i);
-                // If we cant resolve something, assume it's global
+                return Ok(());
             }
-            return Ok(());
         }
         // If we aren't able to resolve the variable, just assume it's global
         Ok(())

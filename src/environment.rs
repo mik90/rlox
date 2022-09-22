@@ -142,4 +142,34 @@ mod test {
         let value = value.unwrap();
         assert_eq!(value, LoxValue::Bool(true), "Value was {:?}", value);
     }
+
+    #[test]
+    fn assign_to_enclosing() {
+        let token = Token::new(TokenKind::Identifier, "foo".to_string(), 1);
+        let globals = Environment::new_empty();
+        globals
+            .lock()
+            .unwrap()
+            .define(&token.lexeme, LoxValue::Bool(true));
+
+        let env = Environment::new_enclosing(globals.clone());
+        env.lock()
+            .unwrap()
+            .assign(&token.lexeme, LoxValue::Bool(false));
+
+        let value = env.lock().unwrap().get_copy(&token.lexeme);
+        assert!(value.is_some());
+        let value = value.unwrap();
+        assert_eq!(value, LoxValue::Bool(false), "Value was {:?}", value);
+
+        // re-assign to the globals
+        globals
+            .lock()
+            .unwrap()
+            .assign(&token.lexeme, LoxValue::Bool(true));
+        let value = env.lock().unwrap().get_copy(&token.lexeme);
+        assert!(value.is_some());
+        let value = value.unwrap();
+        assert_eq!(value, LoxValue::Bool(true), "Value was {:?}", value);
+    }
 }

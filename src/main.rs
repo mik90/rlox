@@ -349,4 +349,26 @@ var output = makeCounter();
         assert!(value.is_some());
         assert_eq!(value.unwrap(), LoxValue::Number(1.0));
     }
+
+    /// Modifies a global variable from a function
+    #[test]
+    fn eval_func_modify_global() {
+        let mut interpreter = Interpreter::new();
+
+        let code = r#"
+var i = 0;
+fun count() {
+    i = i + 1;
+    return i;
+}
+var output = count();
+"#
+        .to_string();
+        assert!(run(code, &mut interpreter));
+
+        let env = interpreter.env;
+        let value = env.lock().unwrap().get_copy("output");
+        assert!(value.is_some());
+        assert_eq!(value.unwrap(), LoxValue::Number(1.0));
+    }
 }
