@@ -201,6 +201,51 @@ mod test {
     use std::collections::hash_map::{DefaultHasher, HashMap};
     use std::hash::{Hash, Hasher};
 
+    fn check_hash_and_value_equality(a: LiteralKind, b: LiteralKind) {
+        let mut hasher = DefaultHasher::new();
+        let hash_a = a.hash(&mut hasher);
+        hasher.finish();
+        let hash_b = b.hash(&mut hasher);
+        hasher.finish();
+        assert_eq!(hash_a, hash_b);
+    }
+
+    /// https://rust-lang.github.io/rust-clippy/master/index.html#derive_hash_xor_eq
+    /// Is there a way to fuzz over this or just define a type to use to test with?
+    #[test]
+    fn equality_hash_value() {
+        {
+            let val_0 = LiteralKind::Identifier("i".to_string());
+            let val_1 = LiteralKind::Identifier("i".to_string());
+            check_hash_and_value_equality(val_0, val_1);
+        }
+        {
+            let val_0 = LiteralKind::String("hello".to_string());
+            let val_1 = LiteralKind::String("hello".to_string());
+            check_hash_and_value_equality(val_0, val_1);
+        }
+        {
+            let val_0 = LiteralKind::Number(999.0);
+            let val_1 = LiteralKind::Number(999.0);
+            check_hash_and_value_equality(val_0, val_1);
+        }
+        {
+            let val_0 = LiteralKind::Bool(true);
+            let val_1 = LiteralKind::Bool(true);
+            check_hash_and_value_equality(val_0, val_1);
+        }
+        {
+            let val_0 = LiteralKind::Nil;
+            let val_1 = LiteralKind::Nil;
+            check_hash_and_value_equality(val_0, val_1);
+        }
+        {
+            let val_0 = LiteralKind::None;
+            let val_1 = LiteralKind::None;
+            check_hash_and_value_equality(val_0, val_1);
+        }
+    }
+
     #[test]
     fn token_hash() {
         let literal = LiteralKind::Identifier("i".to_string());
