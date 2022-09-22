@@ -14,7 +14,7 @@ pub struct Resolver<'a> {
 }
 
 impl Resolver<'_> {
-    pub fn new<'a>(interpreter: &'a mut Interpreter) -> Resolver<'a> {
+    pub fn new(interpreter: &'_ mut Interpreter) -> Resolver<'_> {
         Resolver {
             interpreter,
             scopes: vec![],
@@ -76,7 +76,7 @@ impl Resolver<'_> {
             if self.scopes[i].contains_key(&name.lexeme) {
                 // Pass in variable and distance between innermost scope and this scope
                 // If we cannot resolve the variable at this scope, we can try the next scope
-                let _ = self.interpreter.resolve(&expr, scope_idx - i);
+                let _ = self.interpreter.resolve(expr, scope_idx - i);
                 return Ok(());
             }
         }
@@ -160,11 +160,11 @@ impl stmt::Visitor<ResolverError> for Resolver<'_> {
         name: &Token,
         initializer: &Option<expr::Expr>,
     ) -> Result<(), ResolverError> {
-        self.declare(&name)?;
+        self.declare(name)?;
         if let Some(init) = initializer {
-            self.resolve_expr(&init)?;
+            self.resolve_expr(init)?;
         }
-        self.define(&name)
+        self.define(name)
     }
 
     fn visit_block_stmt(&mut self, statements: &[stmt::Stmt]) -> Result<(), ResolverError> {
@@ -251,7 +251,7 @@ impl expr::Visitor<Result<(), ResolverError>> for Resolver<'_> {
         if !self.scopes.is_empty() {
             if let Some(scope) = self.scopes.last() {
                 if let Some(var) = scope.get(&name.lexeme) {
-                    if *var == false {
+                    if !(*var) {
                         return Err(ResolverError::Semantic(format!(
                             "Can't read local variable '{}' in its own initializer",
                             name.lexeme
@@ -265,8 +265,8 @@ impl expr::Visitor<Result<(), ResolverError>> for Resolver<'_> {
     }
 
     fn visit_assign(&mut self, name: &Token, value: &expr::Expr) -> Result<(), ResolverError> {
-        self.resolve_expr(&value)?;
-        self.resolve_local(value, &name)
+        self.resolve_expr(value)?;
+        self.resolve_local(value, name)
     }
 }
 

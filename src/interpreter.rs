@@ -81,7 +81,7 @@ impl Interpreter {
             .define("clock", LoxValue::Callable(Rc::new(NativeClock {})));
         Interpreter {
             env: globals.clone(),
-            globals: globals,
+            globals,
             locals: HashMap::new(),
         }
     }
@@ -261,7 +261,7 @@ impl expr::Visitor<Result<LoxValue, EvalError>> for Interpreter {
 
     fn visit_variable(&mut self, name: &Token) -> Result<LoxValue, EvalError> {
         match self.look_up_variable(name, &Expr::Variable(name.clone())) {
-            Some(v) => Ok(v.clone()),
+            Some(v) => Ok(v),
             None => Err(EvalError::UndefinedVariable(name.clone())),
         }
     }
@@ -408,9 +408,9 @@ impl stmt::Visitor<EvalError> for Interpreter {
     ) -> Result<(), EvalError> {
         let value: LoxValue = value
             .as_ref()
-            .map_or_else(|| Ok(LoxValue::Nil), |expr| self.evaluate(&expr))?;
+            .map_or_else(|| Ok(LoxValue::Nil), |expr| self.evaluate(expr))?;
         // Hacky, but we don't have exceptions here and I am NOT using a panic handler for this
-        Err(EvalError::Return(value.clone()))
+        Err(EvalError::Return(value))
     }
 }
 

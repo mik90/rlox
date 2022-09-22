@@ -42,10 +42,10 @@ impl Scanner {
     }
 
     fn make_parser_error(&self, msg: String) -> LoxError {
-        return LoxError::Scanner(format!(
+        LoxError::Scanner(format!(
             "{} at line {}. cur_idx={}",
             msg, self.line, self.cur_idx
-        ));
+        ))
     }
 
     // allows us to handle two-character lexemes

@@ -56,10 +56,10 @@ impl LoxCallable for LoxFunction {
     ) -> Result<LoxValue, interpreter::EvalError> {
         let env = Environment::new_enclosing(self.closure.clone());
         // copy the arguments into the current environment
-        for i in 0..self.params.len() {
+        // this does make the assumption that the parameters are the same count as the args
+        for (i, arg) in arguments.iter().enumerate().take(self.params.len()) {
             let lexeme = &self.params[i].lexeme;
-            let arg = arguments[i].clone();
-            env.lock().unwrap().define(lexeme, arg);
+            env.lock().unwrap().define(lexeme, arg.clone());
         }
 
         // Super hacky, but return values are bubbling up the callstack as errors

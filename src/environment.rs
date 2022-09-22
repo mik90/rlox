@@ -72,12 +72,10 @@ impl Environment {
     pub fn get_copy(&self, name: &str) -> Option<LoxValue> {
         if let Some(v) = self.values.get(name) {
             Some(v.clone())
+        } else if let Some(enc) = self.enclosing.as_ref() {
+            enc.lock().unwrap().get_copy(name)
         } else {
-            if let Some(enc) = self.enclosing.as_ref() {
-                enc.lock().unwrap().get_copy(name)
-            } else {
-                None
-            }
+            None
         }
     }
 
@@ -85,7 +83,7 @@ impl Environment {
     pub fn assign(&mut self, name: &str, value: LoxValue) -> bool {
         if let Some(v) = self.values.get_mut(name) {
             *v = value;
-            return true;
+            true
         } else {
             // try enclosing
             if let Some(enc) = self.enclosing.as_ref() {
