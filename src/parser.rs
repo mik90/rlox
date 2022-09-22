@@ -288,9 +288,9 @@ impl Parser {
 
         let mut body = self.statement()?;
 
-        if let Some(i) = increment {
+        if let Some(inc) = increment {
             // Execute increment at the end of the body for each iteration
-            body = Stmt::Block(vec![body, Stmt::Expression(i)]);
+            body = Stmt::Block(vec![body, Stmt::Expression(inc)]);
         }
 
         // If there's no condition, make it into an infinite loop
@@ -302,8 +302,8 @@ impl Parser {
 
         // add the initializer at the front of the block
         // Runs once before the loop
-        if let Some(i) = initializer {
-            body = Stmt::Block(vec![i, body]);
+        if let Some(init) = initializer {
+            body = Stmt::Block(vec![init, body]);
         }
 
         Ok(body)

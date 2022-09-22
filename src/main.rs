@@ -252,7 +252,8 @@ else
     fn eval_for() {
         let mut interpreter = Interpreter::new();
 
-        let code = r#"var a = 0; 
+        let code = r#"
+var a = 0; 
 for (var i = 0; i < 2; i = i + 1) {
     a = i;
 }

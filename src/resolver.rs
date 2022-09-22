@@ -41,21 +41,24 @@ impl Resolver<'_> {
     /// Adds variable to innermost scope
     fn declare(&mut self, name: &Token) -> Result<(), ResolverError> {
         if let Some(scope) = self.scopes.last_mut() {
+            if scope.contains_key(&name.lexeme) {
+                return Err(ResolverError::Semantic(format!(
+                    "Variable {} already exists in this scope",
+                    name.lexeme
+                )));
+            }
             scope.insert(name.lexeme.clone(), false);
-            Ok(())
-        } else {
-            // No scopes are there, which is fine
-            Ok(())
         }
+        // If no scopes are there, that's fine
+        Ok(())
     }
 
     fn define(&mut self, name: &Token) -> Result<(), ResolverError> {
         if let Some(scope) = self.scopes.last_mut() {
             scope.insert(name.lexeme.clone(), true);
-            Ok(())
-        } else {
-            Ok(())
         }
+        // If no scopes are there, that's fine
+        Ok(())
     }
 
     fn resolve_expr(&mut self, expr: &expr::Expr) -> Result<(), ResolverError> {
@@ -72,6 +75,7 @@ impl Resolver<'_> {
         for i in (0..=scope_idx).rev() {
             if self.scopes[i].contains_key(&name.lexeme) {
                 // Pass in variable and distance between innermost scope and this scope
+                // If we cannot resolve the variable at this scope, we can try the next scope
                 let _ = self.interpreter.resolve(&expr, scope_idx - i);
                 return Ok(());
             }
@@ -262,8 +266,7 @@ impl expr::Visitor<Result<(), ResolverError>> for Resolver<'_> {
 
     fn visit_assign(&mut self, name: &Token, value: &expr::Expr) -> Result<(), ResolverError> {
         self.resolve_expr(&value)?;
-        self.resolve_local(value, &name)?;
-        Ok(())
+        self.resolve_local(value, &name)
     }
 }
 
