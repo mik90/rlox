@@ -1,6 +1,6 @@
 use std::fmt;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum LiteralKind {
     Identifier(String),
     String(String),
@@ -33,6 +33,19 @@ impl std::hash::Hash for LiteralKind {
             LiteralKind::Bool(v) => v.hash(state),
             LiteralKind::Nil => "".hash(state),
             LiteralKind::None => "".hash(state),
+        }
+    }
+}
+
+// This may need more elaboration
+impl std::cmp::PartialEq for LiteralKind {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Identifier(l0), Self::Identifier(r0)) => l0 == r0,
+            (Self::String(l0), Self::String(r0)) => l0 == r0,
+            (Self::Number(l0), Self::Number(r0)) => l0 == r0,
+            (Self::Bool(l0), Self::Bool(r0)) => l0 == r0,
+            _ => core::mem::discriminant(self) == core::mem::discriminant(other),
         }
     }
 }
