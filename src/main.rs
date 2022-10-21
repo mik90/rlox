@@ -14,6 +14,7 @@ mod resolver;
 mod scanner;
 mod stmt;
 mod token;
+mod util;
 
 fn main() {
     let args: Vec<_> = std::env::args().collect();

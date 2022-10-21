@@ -1,4 +1,6 @@
 use crate::lox_value::LoxValue;
+use crate::trace;
+
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
@@ -67,6 +69,7 @@ impl Environment {
 
     // Allows redefinition of a variable in a single scope
     pub fn define(&mut self, name: &str, value: LoxValue) {
+        trace!("defining {}", name);
         self.values.insert(name.to_string(), value);
     }
     pub fn get_copy(&self, name: &str) -> Option<LoxValue> {
