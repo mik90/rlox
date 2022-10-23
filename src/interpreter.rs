@@ -6,6 +6,7 @@ use crate::{
     lox_value::{LoxCallable, LoxFunction, LoxValue},
     stmt,
     token::{LiteralKind, Token, TokenKind},
+    trace,
 };
 use std::fmt;
 use std::rc::Rc;
@@ -87,6 +88,7 @@ impl Interpreter {
     }
 
     pub fn resolve(&mut self, expr: &Expr, scope_distance: usize) -> Result<(), EvalError> {
+        trace!("resolved {:?} at distance {}", expr, scope_distance);
         self.locals.insert(expr.clone(), scope_distance);
         Ok(())
     }
@@ -97,8 +99,14 @@ impl Interpreter {
 
     fn look_up_variable(&self, name: &Token, expr: &expr::Expr) -> Option<LoxValue> {
         if let Some(distance) = self.locals.get(expr) {
+            trace!(
+                "looking up {} with distance from the top of the env stack {}",
+                name.lexeme,
+                distance
+            );
             environment::get_copy_at(self.env.clone(), *distance, &name.lexeme)
         } else {
+            trace!("looking up {} from globals", name.lexeme);
             self.globals.lock().unwrap().get_copy(&name.lexeme)
         }
     }
@@ -354,6 +362,7 @@ impl stmt::Visitor<EvalError> for Interpreter {
 
     fn visit_block_stmt(&mut self, statements: &[stmt::Stmt]) -> Result<(), EvalError> {
         // environment per block
+        trace!("creating new environment at block");
         self.execute_block(statements, Environment::new_enclosing(self.env.clone()))?;
         Ok(())
     }
@@ -594,5 +603,53 @@ mod test {
         let res = resolver.resolve_stmt(&stmt);
 
         assert!(res.is_ok(), "{}", res.unwrap_err());
+    }
+
+    /// Equivalent to
+    ///        for (var i = 0; i < 2; i = i + 1) {
+    ///        }
+    #[test]
+    fn test_for() {
+        let mut interpreter = Interpreter::new();
+        let mut resolver = Resolver::new(&mut interpreter);
+
+        let var_assign_stmt = {
+            let i_identifier = Token::new_literal(LiteralKind::Identifier("i".to_string()), 0);
+            let initializing_expr = Some(expr::Expr::Literal(LiteralKind::Number(0.0)));
+            stmt::Stmt::Var(i_identifier, initializing_expr)
+        };
+        let condition = {
+            let i_identifier = Expr::Variable(Token::new_literal(
+                LiteralKind::Identifier("i".to_string()),
+                0,
+            ));
+            let less_than = Token::new(TokenKind::Less, "<".to_string(), 0);
+            let limit = Expr::Literal(LiteralKind::Number(1.0));
+            let condition = Expr::Binary(Box::new(i_identifier), less_than, Box::new(limit));
+            condition
+        };
+
+        let increment = {
+            let i_identifier = Expr::Variable(Token::new_literal(
+                LiteralKind::Identifier("i".to_string()),
+                0,
+            ));
+            let plus = Token::new(TokenKind::Plus, "+".to_string(), 0);
+            let increment = Expr::Literal(LiteralKind::Number(1.0));
+            let increment_stmt = Expr::Binary(Box::new(i_identifier), plus, Box::new(increment));
+
+            Stmt::Expression(increment_stmt)
+        };
+
+        let empty_body = Stmt::Block(vec![]);
+        let mut body = Stmt::Block(vec![empty_body, increment]);
+        body = Stmt::While(condition, Box::new(body));
+        body = Stmt::Block(vec![var_assign_stmt, body]);
+
+        let res = resolver.resolve_stmt(&body);
+        assert!(res.is_ok(), "{}", res.unwrap_err());
+
+        assert!(interpreter.interpret(vec![body]));
+        // TODO whittle down to min test case
     }
 }

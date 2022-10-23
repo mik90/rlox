@@ -18,18 +18,12 @@ pub fn ancestor_of(
     mut env: Arc<Mutex<Environment>>,
     distance: usize,
 ) -> Option<Arc<Mutex<Environment>>> {
-    if distance == 0 {
-        return Some(env);
-    }
-
     for _ in 0..distance {
         if env.lock().unwrap().enclosing.is_some() {
             // Iterate through the enclosing environments
             let enc = env.lock().unwrap().enclosing.as_ref().unwrap().clone();
             env = enc;
-        } else {
-            return None;
-        };
+        }
     }
     Some(env)
 }
@@ -67,11 +61,23 @@ impl Environment {
         }))
     }
 
+    pub fn trace_values(&self) {
+        trace!("tracing values for environment {:p}", &self);
+        for (name, value) in self.values.iter() {
+            trace!("{} = {}", name, value.to_string());
+        }
+    }
+
     // Allows redefinition of a variable in a single scope
     pub fn define(&mut self, name: &str, value: LoxValue) {
-        trace!("defining {}", name);
+        trace!(
+            "defining variable '{}' with value {}",
+            name,
+            value.to_string()
+        );
         self.values.insert(name.to_string(), value);
     }
+
     pub fn get_copy(&self, name: &str) -> Option<LoxValue> {
         if let Some(v) = self.values.get(name) {
             Some(v.clone())

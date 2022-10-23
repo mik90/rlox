@@ -3,6 +3,7 @@ use crate::{
     interpreter::{self, EvalError, Interpreter},
     stmt,
     token::Token,
+    trace,
 };
 use std::{
     fmt,
@@ -54,6 +55,7 @@ impl LoxCallable for LoxFunction {
         interpreter: &mut Interpreter,
         arguments: &[LoxValue],
     ) -> Result<LoxValue, interpreter::EvalError> {
+        trace!("creating new environment with closure");
         let env = Environment::new_enclosing(self.closure.clone());
         // copy the arguments into the current environment
         // this does make the assumption that the parameters are the same count as the args

@@ -269,6 +269,18 @@ for (var i = 0; i < 2; i = i + 1) {
     }
 
     #[test]
+    fn eval_empty_for() {
+        let mut interpreter = Interpreter::new();
+
+        let code = r#"
+for (var i = 0; i < 2; i = i + 1) {
+}
+"#
+        .to_string();
+        assert!(run(code, &mut interpreter));
+    }
+
+    #[test]
     fn eval_while() {
         let mut interpreter = Interpreter::new();
 
