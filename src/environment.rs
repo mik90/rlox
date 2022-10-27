@@ -18,10 +18,12 @@ pub fn ancestor_of(
     mut env: Arc<Mutex<Environment>>,
     distance: usize,
 ) -> Option<Arc<Mutex<Environment>>> {
-    for _ in 0..distance {
+    for i in 0..distance {
         if env.lock().unwrap().enclosing.is_some() {
             // Iterate through the enclosing environments
             let enc = env.lock().unwrap().enclosing.as_ref().unwrap().clone();
+            trace!("Tracing values at distance {}", i);
+            env.lock().unwrap().trace_values();
             env = enc;
         }
     }

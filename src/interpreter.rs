@@ -98,6 +98,9 @@ impl Interpreter {
     }
 
     fn look_up_variable(&self, name: &Token, expr: &expr::Expr) -> Option<LoxValue> {
+        for (value, dist) in self.locals.iter() {
+            trace!("local value '{:?}' has dist={}", value, dist);
+        }
         if let Some(distance) = self.locals.get(expr) {
             trace!(
                 "looking up {} with distance from the top of the env stack {}",
@@ -609,13 +612,13 @@ mod test {
     ///        for (var i = 0; i < 2; i = i + 1) {
     ///        }
     #[test]
-    fn test_for() {
+    fn test_desugared_for() {
         let mut interpreter = Interpreter::new();
         let mut resolver = Resolver::new(&mut interpreter);
 
         let var_assign_stmt = {
             let i_identifier = Token::new_literal(LiteralKind::Identifier("i".to_string()), 0);
-            let initializing_expr = Some(expr::Expr::Literal(LiteralKind::Number(0.0)));
+            let initializing_expr = Some(expr::Expr::Literal(LiteralKind::Number(1.0)));
             stmt::Stmt::Var(i_identifier, initializing_expr)
         };
         let condition = {
@@ -630,18 +633,20 @@ mod test {
         };
 
         let increment = {
-            let i_identifier = Expr::Variable(Token::new_literal(
-                LiteralKind::Identifier("i".to_string()),
-                0,
-            ));
+            let i_token = Token::new_literal(LiteralKind::Identifier("i".to_string()), 0);
+            let i_identifier = Expr::Variable(i_token.clone());
+
             let plus = Token::new(TokenKind::Plus, "+".to_string(), 0);
             let increment = Expr::Literal(LiteralKind::Number(1.0));
-            let increment_stmt = Expr::Binary(Box::new(i_identifier), plus, Box::new(increment));
+            let increment_expr = Expr::Binary(Box::new(i_identifier), plus, Box::new(increment));
 
-            Stmt::Expression(increment_stmt)
+            let assign_expr = Expr::Assign(i_token, Box::new(increment_expr));
+
+            Stmt::Expression(assign_expr)
         };
 
         let empty_body = Stmt::Block(vec![]);
+
         let mut body = Stmt::Block(vec![empty_body, increment]);
         body = Stmt::While(condition, Box::new(body));
         body = Stmt::Block(vec![var_assign_stmt, body]);
@@ -651,5 +656,78 @@ mod test {
 
         assert!(interpreter.interpret(vec![body]));
         // TODO whittle down to min test case
+    }
+
+    #[test]
+    fn test_increment() {
+        let mut interpreter = Interpreter::new();
+        let mut resolver = Resolver::new(&mut interpreter);
+
+        let var_assign_stmt = {
+            let i_identifier = Token::new_literal(LiteralKind::Identifier("i".to_string()), 0);
+            let initializing_expr = Some(expr::Expr::Literal(LiteralKind::Number(1.0)));
+            stmt::Stmt::Var(i_identifier, initializing_expr)
+        };
+
+        let condition = {
+            let i_identifier = Expr::Variable(Token::new_literal(
+                LiteralKind::Identifier("i".to_string()),
+                0,
+            ));
+            let less_than = Token::new(TokenKind::Less, "<".to_string(), 0);
+            let limit = Expr::Literal(LiteralKind::Number(1.0));
+            let condition = Expr::Binary(Box::new(i_identifier), less_than, Box::new(limit));
+            condition
+        };
+
+        let increment = {
+            let i_token = Token::new_literal(LiteralKind::Identifier("i".to_string()), 0);
+            let i_identifier = Expr::Variable(i_token.clone());
+
+            let plus = Token::new(TokenKind::Plus, "+".to_string(), 0);
+            let increment = Expr::Literal(LiteralKind::Number(1.0));
+            let increment_expr = Expr::Binary(Box::new(i_identifier), plus, Box::new(increment));
+
+            let assign_expr = Expr::Assign(i_token, Box::new(increment_expr));
+
+            Stmt::Expression(assign_expr)
+        };
+
+        //let empty_body = Stmt::Block(vec![]);
+
+        let mut body = Stmt::Block(vec![increment]);
+        //let mut body = Stmt::Block(vec![empty_body, increment]);
+        //let mut body = Stmt::Block(vec![empty_body]);
+        body = Stmt::While(condition, Box::new(body));
+        body = Stmt::Block(vec![var_assign_stmt, body]);
+
+        /*
+           for (var i = 0; i < 2; i = i + 1) {
+           }
+
+           ----------
+
+
+           {
+           var-assign;
+            {
+
+                While(
+                condition,
+                    {
+                        {
+                            empty body
+                        };
+                        increment;
+                    }
+                );
+            };
+           };
+        */
+
+        let res = resolver.resolve_stmt(&body);
+        assert!(res.is_ok(), "{}", res.unwrap_err());
+
+        assert!(interpreter.interpret(vec![body]));
     }
 }
