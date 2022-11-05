@@ -693,14 +693,58 @@ mod test {
             Stmt::Expression(assign_expr)
         };
 
-        //let empty_body = Stmt::Block(vec![]);
+        /*
+        Also breaks
+        let body = Stmt::Block(vec![
+            var_assign_stmt,
+            Stmt::Block(vec![Stmt::While(
+                condition,
+                Box::new(Stmt::Block(vec![Stmt::Block(vec![]), increment])),
+            )]),
+        ]);
+         */
 
-        let mut body = Stmt::Block(vec![increment]);
+        /*
+        // Works
+        let body = Stmt::Block(vec![
+            var_assign_stmt,
+            Stmt::Block(vec![Stmt::While(condition, Box::new(increment))]),
+        ]);
+        */
+        let body = Stmt::Block(vec![
+            var_assign_stmt,
+            Stmt::Block(vec![Stmt::While(
+                condition,
+                Box::new(Stmt::Block(vec![Stmt::Block(vec![]), increment])),
+            )]),
+        ]);
+
+        /*
+        So something here is breaking
+
+            This doesn't work
+
+            Stmt::Block(vec![Stmt::While(
+                condition,
+                Box::new(Stmt::Block(vec![Stmt::Block(vec![]), increment])),
+            )]),
+
+            -----------------------------------------
+
+            But this does
+
+            Stmt::Block(vec![Stmt::While(
+                condition,
+                Box::new(increment)
+            )]),
+
+        */
+
+        //let empty_body = Stmt::Block(vec![]);
+        //let mut body = Stmt::Block(vec![increment]);
         //let mut body = Stmt::Block(vec![empty_body, increment]);
         //let mut body = Stmt::Block(vec![empty_body]);
-        body = Stmt::While(condition, Box::new(body));
-        body = Stmt::Block(vec![var_assign_stmt, body]);
-
+        //body = Stmt::Block(vec![var_assign_stmt, body]);
         /*
            for (var i = 0; i < 2; i = i + 1) {
            }
