@@ -711,22 +711,30 @@ mod test {
             Stmt::Block(vec![Stmt::While(condition, Box::new(increment))]),
         ]);
         */
+        // should be the simplest case that fails
         let body = Stmt::Block(vec![
             var_assign_stmt,
             Stmt::Block(vec![Stmt::While(
                 condition,
-                Box::new(Stmt::Block(vec![Stmt::Block(vec![]), increment])),
+                Box::new(Stmt::Block(vec![increment])),
             )]),
         ]);
 
         /*
         So something here is breaking
 
-            This doesn't work
+            This subset doesn't work
 
             Stmt::Block(vec![Stmt::While(
                 condition,
                 Box::new(Stmt::Block(vec![Stmt::Block(vec![]), increment])),
+            )]),
+
+            nor does
+
+            Stmt::Block(vec![Stmt::While(
+                condition,
+                Box::new(Stmt::Block(vec![increment])),
             )]),
 
             -----------------------------------------

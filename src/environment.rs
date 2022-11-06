@@ -22,9 +22,12 @@ pub fn ancestor_of(
         if env.lock().unwrap().enclosing.is_some() {
             // Iterate through the enclosing environments
             let enc = env.lock().unwrap().enclosing.as_ref().unwrap().clone();
-            trace!("Tracing values at distance {}", i);
+            trace!("ancestor_of {} out of {}", i, distance);
             env.lock().unwrap().trace_values();
+            trace!("");
             env = enc;
+        } else {
+            trace!("Reached end of envs at i={} out of {}", i, distance);
         }
     }
     Some(env)

@@ -86,7 +86,6 @@ impl Resolver<'_> {
     }
 
     pub fn resolve_stmt(&mut self, statement: &stmt::Stmt) -> Result<(), ResolverError> {
-        trace!("scope height={}", self.scopes.len());
         statement.accept(self)
     }
 
