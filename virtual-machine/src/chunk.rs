@@ -1,5 +1,6 @@
 use crate::value::{Value, ValueArray};
 
+#[derive(Debug)]
 pub enum OpCode {
     Constant = 0, // Loads constant for use. (OpCode, ConstantIdx)
     Return = 1,   // Return from current function. (OpCode)
@@ -32,6 +33,9 @@ impl Chunk {
             constants: ValueArray::new(),
             lines: vec![],
         }
+    }
+    pub fn code_iter<'a>(&'a self) -> std::slice::Iter<'a, u8> {
+        self.code.iter()
     }
 
     pub fn len(&self) -> usize {
