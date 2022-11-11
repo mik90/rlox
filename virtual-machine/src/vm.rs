@@ -1,4 +1,7 @@
-use crate::chunk::{Chunk, OpCode};
+use crate::{
+    chunk::{Chunk, OpCode},
+    value::Value,
+};
 use std::fmt;
 
 pub struct Vm<'a> {
@@ -10,20 +13,32 @@ pub struct Vm<'a> {
 pub type ErrorMessage = String;
 
 #[derive(Debug, Clone)]
-pub enum InterpretError {
+pub enum InterpretError<'a> {
     Compile,
     Runtime(ErrorMessage),
-    EndOfProgram, // No more chunks to read
+    InstructionOutOfRange(usize),  // Position in instruction iterator
+    ConstantOutOfRange(usize, u8), // Chunk position, constant position
 }
 
-impl std::error::Error for InterpretError {}
+impl std::error::Error for InterpretError<'_> {}
 
-impl fmt::Display for InterpretError {
+impl fmt::Display for InterpretError<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &self {
             InterpretError::Compile => write!(f, "Compile error during interpret"),
             InterpretError::Runtime(err) => write!(f, "Runtime error during interpret: {}", err),
-            InterpretError::EndOfProgram => write!(f, "Hit end of program"),
+            InterpretError::InstructionOutOfRange(chunk_pos) => {
+                write!(
+                    f,
+                    "Instruction pointer out of range with index {}",
+                    chunk_pos
+                )
+            }
+            InterpretError::ConstantOutOfRange(chunk_pos, constant_pos) => write!(
+                f,
+                "Constant offset out of range with index {} in chunk index {}",
+                constant_pos, chunk_pos
+            ),
         }
     }
 }
@@ -39,29 +54,48 @@ impl<'a> Vm<'a> {
         }
     }
 
+    fn read_byte(&mut self) -> Result<u8, InterpretError> {
+        match self.instruction_iter.nth(0) {
+            Some(v) => Ok(*v),
+            None => Err(InterpretError::InstructionOutOfRange(
+                self.instruction_iter.clone(),
+            )),
+        }
+    }
+
+    /// Reads another byte from the bytecode input and uses it as an index into the constants table for the current chunk
+    fn read_constant(&mut self) -> Result<Value, InterpretError> {
+        let constant_index = self.read_byte()?;
+
+        match self.chunk_iter.nth(0) {
+            Some(chunk) => Ok(chunk.get_constant_value(constant_index as usize)),
+            None => Err(InterpretError::ConstantOutOfRange(
+                self.chunk_iter.clone().count(),
+                constant_index,
+            )),
+        }
+    }
+
     fn run(&mut self) -> Result<(), InterpretError> {
         loop {
-            match self.instruction_iter.nth(0) {
-                Some(instruction) => match OpCode::try_from(*instruction) {
-                    Ok(opcode) => match opcode {
-                        OpCode::Return => {
-                            return Ok(());
-                        }
-                        OpCode::Constant => {
-                            todo!();
-                        }
-                    },
-                    Err(_) => {
-                        return Err(InterpretError::Runtime(format!(
-                            "Could not convert upcode from instruction {}",
-                            instruction
-                        )));
+            let byte = self.read_byte()?;
+            match OpCode::try_from(byte) {
+                Ok(opcode) => match opcode {
+                    OpCode::Return => {
+                        return Ok(());
+                    }
+                    OpCode::Constant => {
+                        let constant = self.read_constant()?;
+                        println!("{}", constant);
                     }
                 },
-                None => {
-                    return Err(InterpretError::EndOfProgram);
+                Err(_) => {
+                    return Err(InterpretError::Runtime(format!(
+                        "Could not convert upcode from instruction {}",
+                        byte
+                    )));
                 }
-            }
+            };
         }
     }
 

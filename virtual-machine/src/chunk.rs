@@ -19,6 +19,7 @@ impl TryFrom<u8> for OpCode {
 }
 
 // Chunks are sequences of bytecodes
+#[derive(Debug, Clone)]
 pub struct Chunk {
     // The book has this as a dynamic array of uint8_t. I could use a rust enum but ill just stick with this for now i guess
     code: Vec<u8>,
