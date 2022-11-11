@@ -13,19 +13,19 @@ pub struct Vm<'a> {
 pub type ErrorMessage = String;
 
 #[derive(Debug, Clone)]
-pub enum InterpretError<'a> {
-    Compile,
+pub enum InterpretError {
+    Compile(ErrorMessage),
     Runtime(ErrorMessage),
     InstructionOutOfRange(usize),  // Position in instruction iterator
     ConstantOutOfRange(usize, u8), // Chunk position, constant position
 }
 
-impl std::error::Error for InterpretError<'_> {}
+impl std::error::Error for InterpretError {}
 
-impl fmt::Display for InterpretError<'_> {
+impl fmt::Display for InterpretError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &self {
-            InterpretError::Compile => write!(f, "Compile error during interpret"),
+            InterpretError::Compile(err) => write!(f, "Compile error during interpret: {}", err),
             InterpretError::Runtime(err) => write!(f, "Runtime error during interpret: {}", err),
             InterpretError::InstructionOutOfRange(chunk_pos) => {
                 write!(
@@ -58,7 +58,7 @@ impl<'a> Vm<'a> {
         match self.instruction_iter.nth(0) {
             Some(v) => Ok(*v),
             None => Err(InterpretError::InstructionOutOfRange(
-                self.instruction_iter.clone(),
+                self.instruction_iter.clone().count(),
             )),
         }
     }
