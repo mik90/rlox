@@ -1,5 +1,6 @@
 use crate::{
     chunk::{Chunk, OpCode},
+    debug,
     value::Value,
 };
 use std::fmt;
@@ -76,8 +77,29 @@ impl<'a> Vm<'a> {
         }
     }
 
+    /// instruction pointer index - current code index
+    fn cur_instruction_offset(&self) -> usize {
+        self.instruction_iter.clone().count() - self.chunk_iter.clone().count()
+    }
+
+    fn latest_chunk(&self) -> Option<&Chunk> {
+        self.chunk_iter.clone().take(1).next()
+    }
+
+    fn disassemble_latest_instruction(&self) -> String {
+        if let Some(chunk) = self.latest_chunk() {
+            let (debug_instruction, _) =
+                debug::dissassemble_instruction(chunk, self.cur_instruction_offset());
+            debug_instruction
+        } else {
+            String::from("End of chunks")
+        }
+    }
+
     fn run(&mut self) -> Result<(), InterpretError> {
         loop {
+            debug!("{}", self.disassemble_latest_instruction());
+
             let byte = self.read_byte()?;
             match OpCode::try_from(byte) {
                 Ok(opcode) => match opcode {

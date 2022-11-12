@@ -111,7 +111,7 @@ pub mod debug {
         }
     }
 
-    fn dissassemble_instruction(chunk: &Chunk, offset: usize) -> (String, usize) {
+    pub fn dissassemble_instruction(chunk: &Chunk, offset: usize) -> (String, usize) {
         // Left pad with 0s, 4 digits
         let instruction_meta = format!("{:04} {}", offset, print_line_number(chunk, offset));
 
