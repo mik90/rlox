@@ -75,53 +75,61 @@ impl Chunk {
 pub mod debug {
     use crate::chunk::{Chunk, OpCode};
 
-    pub fn dissassemble_chunk(chunk: &Chunk, name: &str) {
-        println!("== {} ==", name);
+    /// Returns debug string
+    pub fn dissassemble_chunk(chunk: &Chunk, name: &str) -> String {
+        let mut debug_string = format!("== {} ==\n", name);
 
         let mut offset: usize = 0;
         while offset < chunk.len() {
-            offset = dissassemble_instruction(chunk, offset);
+            let (instruction_string, new_offset) = dissassemble_instruction(chunk, offset);
+            debug_string.push_str(instruction_string.as_str());
+            offset = new_offset;
         }
+        debug_string
     }
 
-    fn constant_instruction(name: &str, chunk: &Chunk, offset: usize) -> usize {
+    fn constant_instruction(name: &str, chunk: &Chunk, offset: usize) -> (String, usize) {
         let constant_idx = chunk.byte_at(offset + 1);
         let constant_value = chunk.get_constant_value(constant_idx as usize);
-        println!("{:<16} {:04} '{}'", name, constant_idx, constant_value);
-        offset + 2
+        (
+            format!("{:<16} {:04} '{}'\n", name, constant_idx, constant_value),
+            offset + 2,
+        )
     }
 
-    fn simple_instruction(name: &str, offset: usize) -> usize {
-        println!("{}", name);
-        offset + 1
+    fn simple_instruction(name: &str, offset: usize) -> (String, usize) {
+        (format!("{}\n", name), offset + 1)
     }
 
-    fn print_line_number(chunk: &Chunk, offset: usize) {
+    fn print_line_number(chunk: &Chunk, offset: usize) -> String {
         if offset > 0 && chunk.line_at(offset) == chunk.line_at(offset - 1) {
             // Line number is same as the previous line, don't print the number twice
-            print!("   | ");
+            String::from("   | ")
         } else {
-            // Print hte line number for the instruction
-            print!("{:>4} ", chunk.line_at(offset));
+            // Write line number for the instruction
+            format!("{:>4} ", chunk.line_at(offset))
         }
     }
 
-    fn dissassemble_instruction(chunk: &Chunk, offset: usize) -> usize {
+    fn dissassemble_instruction(chunk: &Chunk, offset: usize) -> (String, usize) {
         // Left pad with 0s, 4 digits
-        print!("{:04} ", offset);
-        print_line_number(chunk, offset);
+        let instruction_meta = format!("{:04} {}", offset, print_line_number(chunk, offset));
 
         let instruction = chunk.byte_at(offset);
-        match OpCode::try_from(instruction) {
+        let (instruction_string, offset) = match OpCode::try_from(instruction) {
             Ok(op) => match op {
                 OpCode::Constant => constant_instruction("OP_CONSTANT", chunk, offset),
                 OpCode::Return => simple_instruction("OP_RETURN", offset),
             },
-            Err(()) => {
-                eprintln!("Could not create opcode from '{}'", instruction);
-                offset + 1
-            }
-        }
+            Err(()) => (
+                format!("Could not create opcode from '{}'", instruction),
+                offset + 1,
+            ),
+        };
+        (
+            format!("{}{}", instruction_meta, instruction_string),
+            offset,
+        )
     }
 }
 

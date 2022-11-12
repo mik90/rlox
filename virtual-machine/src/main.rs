@@ -1,4 +1,5 @@
 mod chunk;
+mod macros;
 mod value;
 mod vm;
 
@@ -14,7 +15,7 @@ fn make_test_chunk() -> Chunk {
 
     chunk.write_opcode(OpCode::Return, 123);
 
-    debug::dissassemble_chunk(&chunk, "test chunk");
+    print!("{}", debug::dissassemble_chunk(&chunk, "test chunk"));
     chunk
 }
 
