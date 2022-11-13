@@ -136,12 +136,6 @@ pub mod debug {
 #[cfg(test)]
 mod test {
     use super::*;
-    #[test]
-    fn test_left_pad_formatting() {
-        let offset: usize = 1;
-        let text = format!("{:04}", offset);
-        assert_eq!(text, "0001");
-    }
 
     #[test]
     fn test_example_chunks() {

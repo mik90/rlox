@@ -1,14 +1,14 @@
 use crate::{
     chunk::{Chunk, OpCode},
     debug,
-    value::Value,
+    value::{Value, ValueArray},
 };
 use std::fmt;
 
 pub struct Vm<'a> {
-    // TODO Use generics to store these iterators
     chunk_iter: std::slice::Iter<'a, Chunk>,
     instruction_iter: std::slice::Iter<'a, u8>,
+    stack: ValueArray,
 }
 
 pub type ErrorMessage = String;
@@ -52,6 +52,7 @@ impl<'a> Vm<'a> {
         Self {
             chunk_iter,
             instruction_iter,
+            stack: Vec::new(),
         }
     }
 
@@ -86,29 +87,42 @@ impl<'a> Vm<'a> {
         self.chunk_iter.clone().take(1).next()
     }
 
+    fn dump_stack(&self) -> String {
+        let mut out = String::from("        | ");
+        for value in &self.stack {
+            out.push_str(format!("[ {} ]", *value).as_str());
+        }
+        out.push('\n');
+        out
+    }
+
     fn disassemble_latest_instruction(&self) -> String {
         if let Some(chunk) = self.latest_chunk() {
             let (debug_instruction, _) =
                 debug::dissassemble_instruction(chunk, self.cur_instruction_offset());
             debug_instruction
         } else {
-            String::from("End of chunks")
+            String::from("End of chunks\n")
         }
     }
 
     fn run(&mut self) -> Result<(), InterpretError> {
         loop {
+            debug!("{}", self.dump_stack());
             debug!("{}", self.disassemble_latest_instruction());
 
             let byte = self.read_byte()?;
             match OpCode::try_from(byte) {
                 Ok(opcode) => match opcode {
                     OpCode::Return => {
+                        if let Some(v) = self.stack.pop() {
+                            println!("{}", v);
+                        }
                         return Ok(());
                     }
                     OpCode::Constant => {
                         let constant = self.read_constant()?;
-                        println!("{}", constant);
+                        self.stack.push(constant);
                     }
                 },
                 Err(_) => {

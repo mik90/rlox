@@ -3,6 +3,6 @@
 #[macro_export]
 macro_rules! debug {
     ($($arg: tt)*) => {
-        println!("[{}:{}] {}", file!(), line!(), format!($($arg)*));
+        print!("[{}:{}] {}", file!(), line!(), format!($($arg)*));
     }
 }
