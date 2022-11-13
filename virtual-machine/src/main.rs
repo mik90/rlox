@@ -12,6 +12,7 @@ fn make_test_chunk() -> Chunk {
     let constant = chunk.add_constant(1.2);
     chunk.write_opcode(OpCode::Constant, 123);
     chunk.write_byte(constant as u8, 123);
+    chunk.write_opcode(OpCode::Negate, 123);
 
     chunk.write_opcode(OpCode::Return, 123);
 

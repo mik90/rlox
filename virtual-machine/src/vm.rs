@@ -87,6 +87,21 @@ impl<'a> Vm<'a> {
         self.chunk_iter.clone().take(1).next()
     }
 
+    fn pop_from_stack(&mut self) -> Result<Value, InterpretError> {
+        self.stack.pop().ok_or_else(|| {
+            InterpretError::Runtime(format!(
+                "Could not pop value off stack since there were no values there. Chunk index: {}",
+                self.chunk_iter.clone().count()
+            ))
+        })
+    }
+
+    fn pop_pair_from_stack(&mut self) -> Result<(Value, Value), InterpretError> {
+        let rhs = self.pop_from_stack()?;
+        let lhs = self.pop_from_stack()?;
+        Ok((lhs, rhs))
+    }
+
     fn dump_stack(&self) -> String {
         let mut out = String::from("        | ");
         for value in &self.stack {
@@ -108,8 +123,8 @@ impl<'a> Vm<'a> {
 
     fn run(&mut self) -> Result<(), InterpretError> {
         loop {
-            debug!("{}", self.dump_stack());
-            debug!("{}", self.disassemble_latest_instruction());
+            debug!("stack: {}", self.dump_stack());
+            debug!("instr: {}", self.disassemble_latest_instruction());
 
             let byte = self.read_byte()?;
             match OpCode::try_from(byte) {
@@ -119,6 +134,26 @@ impl<'a> Vm<'a> {
                             println!("{}", v);
                         }
                         return Ok(());
+                    }
+                    OpCode::Add => {
+                        let (lhs, rhs) = self.pop_pair_from_stack()?;
+                        self.stack.push(lhs + rhs);
+                    }
+                    OpCode::Subtract => {
+                        let (lhs, rhs) = self.pop_pair_from_stack()?;
+                        self.stack.push(lhs - rhs);
+                    }
+                    OpCode::Multiply => {
+                        let (lhs, rhs) = self.pop_pair_from_stack()?;
+                        self.stack.push(lhs * rhs);
+                    }
+                    OpCode::Divide => {
+                        let (lhs, rhs) = self.pop_pair_from_stack()?;
+                        self.stack.push(lhs / rhs);
+                    }
+                    OpCode::Negate => {
+                        let value = self.pop_from_stack()?;
+                        self.stack.push(-value);
                     }
                     OpCode::Constant => {
                         let constant = self.read_constant()?;
@@ -145,4 +180,80 @@ impl<'a> Vm<'a> {
 }
 
 #[cfg(test)]
-mod test {}
+mod test {
+    use super::*;
+    #[test]
+    fn test_example_eval() {
+        let mut chunks = vec![];
+        {
+            let mut chunk = Chunk::new();
+            let constant = chunk.add_constant(1.2);
+            chunk.write_opcode(OpCode::Constant, 123);
+            chunk.write_byte(constant as u8, 123);
+            chunk.write_opcode(OpCode::Negate, 123);
+
+            chunk.write_opcode(OpCode::Return, 123);
+            chunks.push(chunk);
+        }
+        let mut vm = Vm::new(chunks.iter(), chunks[0].code_iter());
+        let res = vm.interpret(chunks.iter());
+        assert!(res.is_ok(), "{}", res.unwrap_err());
+    }
+
+    #[test]
+    fn test_negation_eval() {
+        let mut chunks = vec![];
+        {
+            let mut chunk = Chunk::new();
+            let constant = chunk.add_constant(1.2);
+            chunk.write_opcode(OpCode::Constant, 123);
+            chunk.write_byte(constant as u8, 123);
+            chunk.write_opcode(OpCode::Negate, 123);
+
+            chunks.push(chunk);
+        }
+        let mut vm = Vm::new(chunks.iter(), chunks[0].code_iter());
+        let res = vm.interpret(chunks.iter());
+
+        match res.unwrap_err() {
+            // Without a return, we expect to hit the end of execution ungracefully and without cleaning up the stack
+            InterpretError::InstructionOutOfRange(_) => (),
+            err => assert!(false, "{}", err),
+        }
+
+        let value = vm.stack.last();
+        assert!(value.is_some());
+        assert_eq!(*value.unwrap(), -1.2);
+    }
+
+    #[test]
+    fn test_subtraction_eval() {
+        let mut chunks = vec![];
+        {
+            let mut chunk = Chunk::new();
+            let constant = chunk.add_constant(3.0);
+            chunk.write_opcode(OpCode::Constant, 123);
+            chunk.write_byte(constant as u8, 123);
+
+            let constant = chunk.add_constant(1.0);
+            chunk.write_opcode(OpCode::Constant, 123);
+            chunk.write_byte(constant as u8, 123);
+
+            chunk.write_opcode(OpCode::Subtract, 123);
+
+            chunks.push(chunk);
+        }
+        let mut vm = Vm::new(chunks.iter(), chunks[0].code_iter());
+        let res = vm.interpret(chunks.iter());
+
+        match res.unwrap_err() {
+            // Without a return, we expect to hit the end of execution ungracefully and without cleaning up the stack
+            InterpretError::InstructionOutOfRange(_) => (),
+            err => assert!(false, "{}", err),
+        }
+
+        let value = vm.stack.last();
+        assert!(value.is_some());
+        assert_eq!(*value.unwrap(), 2.0);
+    }
+}

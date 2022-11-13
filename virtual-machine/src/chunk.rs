@@ -2,8 +2,13 @@ use crate::value::{Value, ValueArray};
 
 #[derive(Debug)]
 pub enum OpCode {
-    Constant = 0, // Loads constant for use. (OpCode, ConstantIdx)
-    Return = 1,   // Return from current function. (OpCode)
+    Constant, // Loads constant for use.
+    Add,      // Binary operation
+    Subtract, // Binary operation
+    Multiply, // Binary operation
+    Divide,   // Binary operation
+    Negate,   // Unary negation
+    Return,   // Return from current function.
 }
 
 impl TryFrom<u8> for OpCode {
@@ -12,7 +17,12 @@ impl TryFrom<u8> for OpCode {
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
             0 => Ok(OpCode::Constant),
-            1 => Ok(OpCode::Return),
+            1 => Ok(OpCode::Add),
+            2 => Ok(OpCode::Subtract),
+            3 => Ok(OpCode::Multiply),
+            4 => Ok(OpCode::Divide),
+            5 => Ok(OpCode::Negate),
+            6 => Ok(OpCode::Return),
             _ => Err(()),
         }
     }
@@ -119,6 +129,11 @@ pub mod debug {
         let (instruction_string, offset) = match OpCode::try_from(instruction) {
             Ok(op) => match op {
                 OpCode::Constant => constant_instruction("OP_CONSTANT", chunk, offset),
+                OpCode::Add => simple_instruction("OP_ADD", offset),
+                OpCode::Subtract => simple_instruction("OP_SUBTRACT", offset),
+                OpCode::Multiply => simple_instruction("OP_MULTIPLY", offset),
+                OpCode::Divide => simple_instruction("OP_DIVIDE", offset),
+                OpCode::Negate => simple_instruction("OP_NEGATE", offset),
                 OpCode::Return => simple_instruction("OP_RETURN", offset),
             },
             Err(()) => (
