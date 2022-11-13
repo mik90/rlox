@@ -7,25 +7,16 @@
     {
       "type": "lldb",
       "request": "launch",
-      "name": "Debug rlox",
-      "cargo": {
-        "args": ["build", "--bin=rlox", "--package=rlox"],
-        "filter": {
-          "name": "rlox",
-          "kind": "bin"
-        }
-      },
-      "args": [],
-      "cwd": "${workspaceFolder}"
-    },
-    {
-      "type": "lldb",
-      "request": "launch",
       "name": "Debug unit tests",
       "cargo": {
-        "args": ["test", "--no-run", "--bin=rlox", "--package=rlox"],
+        "args": [
+          "test",
+          "--no-run",
+          "--bin=virtual-machine",
+          "--package=virtual-machine"
+        ],
         "filter": {
-          "name": "rlox",
+          "name": "virtual-machine",
           "kind": "bin"
         }
       },

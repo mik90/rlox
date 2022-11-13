@@ -153,6 +153,17 @@ mod test {
     use super::*;
 
     #[test]
+    fn test_opcode_translation() {
+        let raw: u8 = 2;
+        let op = OpCode::try_from(raw);
+        assert!(op.is_ok());
+        match op.unwrap() {
+            OpCode::Subtract => (),
+            op => assert!(false, "Unexpected opcode {:?}", op),
+        }
+    }
+
+    #[test]
     fn test_example_chunks() {
         let mut chunk = Chunk::new();
         let constant = chunk.add_constant(1.2);

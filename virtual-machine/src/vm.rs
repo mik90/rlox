@@ -69,7 +69,7 @@ impl<'a> Vm<'a> {
     fn read_constant(&mut self) -> Result<Value, InterpretError> {
         let constant_index = self.read_byte()?;
 
-        match self.chunk_iter.nth(0) {
+        match self.latest_chunk() {
             Some(chunk) => Ok(chunk.get_constant_value(constant_index as usize)),
             None => Err(InterpretError::ConstantOutOfRange(
                 self.chunk_iter.clone().count(),
@@ -129,11 +129,10 @@ impl<'a> Vm<'a> {
             let byte = self.read_byte()?;
             match OpCode::try_from(byte) {
                 Ok(opcode) => match opcode {
-                    OpCode::Return => {
-                        if let Some(v) = self.stack.pop() {
-                            println!("{}", v);
-                        }
-                        return Ok(());
+                    OpCode::Constant => {
+                        let constant = self.read_constant()?;
+                        debug!("Read constant {}\n", constant);
+                        self.stack.push(constant);
                     }
                     OpCode::Add => {
                         let (lhs, rhs) = self.pop_pair_from_stack()?;
@@ -155,9 +154,11 @@ impl<'a> Vm<'a> {
                         let value = self.pop_from_stack()?;
                         self.stack.push(-value);
                     }
-                    OpCode::Constant => {
-                        let constant = self.read_constant()?;
-                        self.stack.push(constant);
+                    OpCode::Return => {
+                        if let Some(v) = self.stack.pop() {
+                            println!("{}", v);
+                        }
+                        return Ok(());
                     }
                 },
                 Err(_) => {
@@ -231,13 +232,19 @@ mod test {
         let mut chunks = vec![];
         {
             let mut chunk = Chunk::new();
-            let constant = chunk.add_constant(3.0);
-            chunk.write_opcode(OpCode::Constant, 123);
-            chunk.write_byte(constant as u8, 123);
+            {
+                let constant = chunk.add_constant(3.0);
+                chunk.write_opcode(OpCode::Constant, 123);
+                chunk.write_byte(constant as u8, 123);
+                assert_eq!(constant, 0);
+            }
 
-            let constant = chunk.add_constant(1.0);
-            chunk.write_opcode(OpCode::Constant, 123);
-            chunk.write_byte(constant as u8, 123);
+            {
+                let constant = chunk.add_constant(1.0);
+                chunk.write_opcode(OpCode::Constant, 123);
+                chunk.write_byte(constant as u8, 123);
+                assert_eq!(constant, 1);
+            }
 
             chunk.write_opcode(OpCode::Subtract, 123);
 
