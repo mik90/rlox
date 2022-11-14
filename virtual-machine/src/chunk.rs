@@ -1,4 +1,7 @@
-use crate::value::{Value, ValueArray};
+use crate::{
+    value::{Value, ValueArray},
+    vm::InterpretError,
+};
 
 #[derive(Debug)]
 pub enum OpCode {
@@ -71,8 +74,8 @@ impl Chunk {
         self.lines.push(source_line);
     }
 
-    pub fn get_constant_value(&self, offset: usize) -> Value {
-        self.constants[offset]
+    pub fn get_constant_value(&self, offset: usize) -> Option<&Value> {
+        self.constants.get(offset)
     }
 
     /// Returns index of the constant that was added
@@ -100,7 +103,9 @@ pub mod debug {
 
     fn constant_instruction(name: &str, chunk: &Chunk, offset: usize) -> (String, usize) {
         let constant_idx = chunk.byte_at(offset + 1);
-        let constant_value = chunk.get_constant_value(constant_idx as usize);
+        let constant_value = chunk
+            .get_constant_value(constant_idx as usize)
+            .expect("Constant value out of range");
         (
             format!("{:<16} {:04} '{}'\n", name, constant_idx, constant_value),
             offset + 2,
@@ -175,7 +180,9 @@ mod test {
         let constant_idx = chunk.byte_at(1);
         assert_eq!(constant_idx, 0);
 
-        assert_eq!(chunk.get_constant_value(constant_idx as usize), 1.2);
+        let value = chunk.get_constant_value(constant_idx as usize);
+        assert!(value.is_some());
+        assert_eq!(*value.unwrap(), 1.2);
         assert_eq!(chunk.line_at(0), 123);
         assert_eq!(chunk.line_at(1), 123);
 

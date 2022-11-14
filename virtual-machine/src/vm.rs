@@ -1,6 +1,6 @@
 use crate::{
     chunk::{Chunk, OpCode},
-    debug,
+    debug, debugln,
     value::{Value, ValueArray},
 };
 use std::fmt;
@@ -60,7 +60,7 @@ impl<'a> Vm<'a> {
         match self.instruction_iter.nth(0) {
             Some(v) => Ok(*v),
             None => Err(InterpretError::InstructionOutOfRange(
-                self.instruction_iter.clone().count(),
+                self.instruction_index(),
             )),
         }
     }
@@ -69,29 +69,52 @@ impl<'a> Vm<'a> {
     fn read_constant(&mut self) -> Result<Value, InterpretError> {
         let constant_index = self.read_byte()?;
 
-        match self.latest_chunk() {
-            Some(chunk) => Ok(chunk.get_constant_value(constant_index as usize)),
+        match self.peek_latest_chunk() {
+            Some(chunk) => match chunk.get_constant_value(constant_index as usize) {
+                Some(v) => Ok(*v),
+                None => Err(InterpretError::ConstantOutOfRange(
+                    self.chunk_index(),
+                    constant_index,
+                )),
+            },
             None => Err(InterpretError::ConstantOutOfRange(
-                self.chunk_iter.clone().count(),
+                self.chunk_index(),
                 constant_index,
             )),
         }
     }
 
     /// instruction pointer index - current code index
-    fn cur_instruction_offset(&self) -> usize {
-        self.instruction_iter.clone().count() - self.chunk_iter.clone().count()
+    fn cur_instruction_offset(&self) -> Result<usize, InterpretError> {
+        let instruction_count = self.instruction_iter.clone().count();
+        let chunk_count = self.chunk_iter.clone().count();
+        if instruction_count > chunk_count {
+            Ok(instruction_count - chunk_count)
+        } else {
+            Err(InterpretError::Runtime(format!(
+                "instruction_count={}, chunk_count={}",
+                instruction_count, chunk_count
+            )))
+        }
     }
 
-    fn latest_chunk(&self) -> Option<&Chunk> {
-        self.chunk_iter.clone().take(1).next()
+    fn peek_latest_chunk(&self) -> Option<&Chunk> {
+        self.chunk_iter.clone().peekable().peek().map(|c| *c)
+    }
+
+    fn chunk_index(&self) -> usize {
+        self.chunk_iter.clone().count() - 1
+    }
+
+    fn instruction_index(&self) -> usize {
+        self.instruction_iter.clone().count() - 1
     }
 
     fn pop_from_stack(&mut self) -> Result<Value, InterpretError> {
         self.stack.pop().ok_or_else(|| {
             InterpretError::Runtime(format!(
                 "Could not pop value off stack since there were no values there. Chunk index: {}",
-                self.chunk_iter.clone().count()
+                self.chunk_index()
             ))
         })
     }
@@ -111,27 +134,30 @@ impl<'a> Vm<'a> {
         out
     }
 
-    fn disassemble_latest_instruction(&self) -> String {
-        if let Some(chunk) = self.latest_chunk() {
+    fn disassemble_latest_instruction(&self) -> Result<String, InterpretError> {
+        if let Some(chunk) = self.peek_latest_chunk() {
             let (debug_instruction, _) =
-                debug::dissassemble_instruction(chunk, self.cur_instruction_offset());
-            debug_instruction
+                debug::dissassemble_instruction(chunk, self.cur_instruction_offset()?);
+            Ok(debug_instruction)
         } else {
-            String::from("End of chunks\n")
+            Ok(String::from("No chunks left\n"))
         }
     }
 
     fn run(&mut self) -> Result<(), InterpretError> {
         loop {
             debug!("stack: {}", self.dump_stack());
-            debug!("instr: {}", self.disassemble_latest_instruction());
+            debug!("instr: {}", self.disassemble_latest_instruction()?);
 
+            debugln!("reading byte");
             let byte = self.read_byte()?;
+            debugln!("read byte");
             match OpCode::try_from(byte) {
                 Ok(opcode) => match opcode {
                     OpCode::Constant => {
+                        debugln!("Storing constant");
                         let constant = self.read_constant()?;
-                        debug!("Read constant {}\n", constant);
+                        debugln!("Read constant {}", constant);
                         self.stack.push(constant);
                     }
                     OpCode::Add => {
