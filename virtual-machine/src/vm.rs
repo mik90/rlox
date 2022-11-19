@@ -329,20 +329,8 @@ mod test {
         let mut chunks = vec![];
         {
             let mut chunk = Chunk::new();
-            {
-                let constant = chunk.add_constant(3.0);
-                chunk.write_opcode(OpCode::Constant, 123);
-                chunk.write_byte(constant as u8, 123);
-                assert_eq!(constant, 0);
-            }
-
-            {
-                let constant = chunk.add_constant(1.0);
-                chunk.write_opcode(OpCode::Constant, 123);
-                chunk.write_byte(constant as u8, 123);
-                assert_eq!(constant, 1);
-            }
-
+            chunk.write_constant(3.0, 123);
+            chunk.write_constant(1.0, 123);
             chunks.push(chunk);
         }
         let mut vm = Vm::new(chunks.iter().enumerate(), chunks[0].code_iter().enumerate());

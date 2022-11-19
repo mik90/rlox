@@ -72,6 +72,12 @@ impl Chunk {
         self.lines.push(source_line);
     }
 
+    pub fn write_constant(&mut self, value: Value, source_line: usize) {
+        let constant_index = self.add_constant(value);
+        self.write_opcode(OpCode::Constant, source_line);
+        self.write_byte(constant_index as u8, source_line);
+    }
+
     pub fn write_byte(&mut self, byte: u8, source_line: usize) {
         self.code.push(byte);
         self.lines.push(source_line);
