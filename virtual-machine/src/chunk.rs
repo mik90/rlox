@@ -1,17 +1,15 @@
-use crate::{
-    value::{Value, ValueArray},
-    vm::InterpretError,
-};
+use crate::value::{Value, ValueArray};
 
+#[repr(u8)]
 #[derive(Debug)]
 pub enum OpCode {
-    Constant, // Loads constant for use.
-    Add,      // Binary operation
-    Subtract, // Binary operation
-    Multiply, // Binary operation
-    Divide,   // Binary operation
-    Negate,   // Unary negation
-    Return,   // Return from current function.
+    Constant = 0, // Loads constant for use.
+    Add = 1,      // Binary operation
+    Subtract = 2, // Binary operation
+    Multiply = 3, // Binary operation
+    Divide = 4,   // Binary operation
+    Negate = 5,   // Unary negation
+    Return = 6,   // Return from current function.
 }
 
 impl TryFrom<u8> for OpCode {
@@ -19,13 +17,14 @@ impl TryFrom<u8> for OpCode {
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
-            0 => Ok(OpCode::Constant),
-            1 => Ok(OpCode::Add),
-            2 => Ok(OpCode::Subtract),
-            3 => Ok(OpCode::Multiply),
-            4 => Ok(OpCode::Divide),
-            5 => Ok(OpCode::Negate),
-            6 => Ok(OpCode::Return),
+            // TODO ew
+            x if x == OpCode::Constant as u8 => Ok(OpCode::Constant),
+            x if x == OpCode::Add as u8 => Ok(OpCode::Add),
+            x if x == OpCode::Subtract as u8 => Ok(OpCode::Subtract),
+            x if x == OpCode::Multiply as u8 => Ok(OpCode::Multiply),
+            x if x == OpCode::Divide as u8 => Ok(OpCode::Divide),
+            x if x == OpCode::Negate as u8 => Ok(OpCode::Negate),
+            x if x == OpCode::Return as u8 => Ok(OpCode::Return),
             _ => Err(()),
         }
     }
@@ -50,6 +49,10 @@ impl Chunk {
     }
     pub fn code_iter<'a>(&'a self) -> std::slice::Iter<'a, u8> {
         self.code.iter()
+    }
+
+    pub fn constant_iter<'a>(&'a self) -> std::slice::Iter<'a, Value> {
+        self.constants.iter()
     }
 
     pub fn len(&self) -> usize {

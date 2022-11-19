@@ -24,8 +24,8 @@ fn main() {
     let chunks = vec![make_test_chunk()];
     println!("================");
     println!("Running vm...");
-    let mut vm = Vm::new(chunks.iter(), chunks[0].code_iter());
-    if let Err(e) = vm.interpret(chunks.iter()) {
+    let mut vm = Vm::new(chunks.iter().enumerate(), chunks[0].code_iter().enumerate());
+    if let Err(e) = vm.interpret(chunks.iter().enumerate()) {
         eprintln!("{}", e);
     }
 }
