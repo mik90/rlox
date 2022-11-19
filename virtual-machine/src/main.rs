@@ -16,7 +16,6 @@ fn make_test_chunk() -> Chunk {
 
     chunk.write_opcode(OpCode::Return, 123);
 
-    print!("{}", debug::dissassemble_chunk(&chunk, "test chunk"));
     chunk
 }
 

@@ -110,7 +110,10 @@ pub mod debug {
             .get_constant_value(constant_idx as usize)
             .expect("Constant value out of range");
         (
-            format!("{:<16} {:04} '{}'\n", name, constant_idx, constant_value),
+            format!(
+                "{:<14} constant offset: {:04} val='{}'\n",
+                name, constant_idx, constant_value
+            ),
             offset + 2,
         )
     }
@@ -122,16 +125,20 @@ pub mod debug {
     fn print_line_number(chunk: &Chunk, offset: usize) -> String {
         if offset > 0 && chunk.line_at(offset) == chunk.line_at(offset - 1) {
             // Line number is same as the previous line, don't print the number twice
-            String::from("   | ")
+            String::from("        | ")
         } else {
             // Write line number for the instruction
-            format!("{:>4} ", chunk.line_at(offset))
+            format!("line:{:>4} ", chunk.line_at(offset))
         }
     }
 
     pub fn dissassemble_instruction(chunk: &Chunk, offset: usize) -> (String, usize) {
         // Left pad with 0s, 4 digits
-        let instruction_meta = format!("{:04} {}", offset, print_line_number(chunk, offset));
+        let instruction_meta = format!(
+            "instr offset: {:04} {}",
+            offset,
+            print_line_number(chunk, offset)
+        );
 
         let instruction = chunk.byte_at(offset);
         let (instruction_string, offset) = match OpCode::try_from(instruction) {

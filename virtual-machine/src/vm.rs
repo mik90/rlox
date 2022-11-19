@@ -125,11 +125,10 @@ impl<'a> Vm<'a> {
     }
 
     fn dump_stack(&self) -> String {
-        let mut out = String::from("        | ");
+        let mut out = String::from(" ");
         for value in &self.stack {
             out.push_str(format!("[ {} ]", *value).as_str());
         }
-        out.push('\n');
         out
     }
 
@@ -145,18 +144,15 @@ impl<'a> Vm<'a> {
 
     /// Disassembles a single instructions and returns whether or not it should continue running
     fn run_once(&mut self) -> Result<bool, InterpretError> {
-        debug!("stack data  : {}", self.dump_stack());
-        debug!("instr offset: {}", self.disassemble_latest_instruction()?);
+        debugln!("---------------------------------");
+        //debugln!("stack data  : {}", self.dump_stack());
+        debug!("{}", self.disassemble_latest_instruction()?);
 
-        debugln!("reading byte");
         let byte = self.read_byte()?;
-        debugln!("read byte");
         match OpCode::try_from(byte) {
             Ok(opcode) => match opcode {
                 OpCode::Constant => {
-                    debugln!("Storing constant");
                     let constant = self.read_constant()?;
-                    debugln!("Read constant offset {}", constant);
                     self.stack.push(constant);
                 }
                 OpCode::Add => {
