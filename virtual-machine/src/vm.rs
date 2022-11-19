@@ -1,5 +1,5 @@
 use crate::{
-    chunk::{Chunk, OpCode},
+    chunk::{debug, Chunk, OpCode},
     debug, debugln,
     value::{Value, ValueArray},
 };
