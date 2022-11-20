@@ -9,12 +9,28 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use vm::Vm;
 
-fn run_file(file: &Path) {
-    todo!("run_file")
+fn run_file(path: &Path) -> ExitCode {
+    //let mut vm = Vm::new(chunk_iter, instruction_iter);
+    match std::fs::read_to_string(path) {
+        //vm.interpret(buffer);
+        Ok(code) => {
+            //vm.interpret(buffer)
+            todo!("interpret({})", code)
+        }
+        Err(e) => {
+            eprintln!(
+                "Could not open file '{}', hit error {}",
+                path.to_string_lossy(),
+                e
+            );
+            ExitCode::FAILURE
+        }
+    }
 }
 
 fn repl() -> ExitCode {
     let mut input = BufReader::new(std::io::stdin());
+    //let mut vm = Vm::new(chunk_iter, instruction_iter);
     loop {
         print!("> ");
         let mut buffer = String::new();
@@ -25,7 +41,8 @@ fn repl() -> ExitCode {
                 return ExitCode::SUCCESS;
             }
             Ok(_) => {
-                todo!("pass in source code to interpret()")
+                //vm.interpret(buffer);
+                todo!("pass in source code to interpret({})", buffer)
             }
             Err(e) => {
                 eprintln!("Could not process input, error: {}", e);

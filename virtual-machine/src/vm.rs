@@ -45,13 +45,14 @@ impl fmt::Display for InterpretError {
 }
 
 impl<'a> Vm<'a> {
-    pub fn new(
-        chunk_iter: Enumerate<std::slice::Iter<'a, Chunk>>,
-        instruction_iter: Enumerate<std::slice::Iter<'a, u8>>,
-    ) -> Self {
+    // Only used to allow the Vm to init. Easier than having an optional iterator
+    const DEFAULT_INSTRUCTION_SLICE: &'static [u8] = &[];
+    const DEFAULT_CHUNK_SLICE: &'static [Chunk] = &[];
+
+    pub fn new() -> Self {
         Self {
-            chunk_iter,
-            instruction_iter,
+            chunk_iter: Vm::DEFAULT_CHUNK_SLICE.iter().enumerate(),
+            instruction_iter: Vm::DEFAULT_INSTRUCTION_SLICE.iter().enumerate(),
             stack: Vec::new(),
         }
     }
@@ -200,18 +201,26 @@ impl<'a> Vm<'a> {
         Ok(())
     }
 
-    pub fn interpret(
-        &mut self,
-        chunk_iter: Enumerate<std::slice::Iter<'a, Chunk>>,
-    ) -> Result<(), InterpretError> {
-        self.chunk_iter = chunk_iter;
-        self.run()
+    pub fn interpret(&mut self, source: &str) -> Result<(), InterpretError> {
+        todo!("run compile()")
+    }
+
+    #[cfg(test)]
+    fn set_iters_to_chunk(&mut self, chunks: &'a [Chunk]) -> Result<(), InterpretError> {
+        self.chunk_iter = chunks.iter().enumerate();
+        self.instruction_iter = chunks
+            .first()
+            .ok_or_else(|| InterpretError::Compile(format!("No chunks were available in slice")))?
+            .code_iter()
+            .enumerate();
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
+
     #[test]
     fn test_example_eval() {
         let mut chunks = vec![];
@@ -234,21 +243,24 @@ mod test {
             "Constants : {:?}",
             chunks[0].constant_iter().collect::<Vec<&Value>>()
         );
-        let mut vm = Vm::new(chunks.iter().enumerate(), chunks[0].code_iter().enumerate());
+        let mut vm = Vm::new();
+        if let Err(e) = vm.set_iters_to_chunk(&chunks) {
+            assert!(false, "{}", e);
+        }
 
         // Interprets add constant
         let res = vm.run_once();
-        assert!(res.is_ok());
+        assert!(res.is_ok(), "{}", res.unwrap_err());
         assert!(res.unwrap());
 
         // Interprets negate
         let res = vm.run_once();
-        assert!(res.is_ok());
+        assert!(res.is_ok(), "{}", res.unwrap_err());
         assert!(res.unwrap());
 
         // Interprets return
         let res = vm.run_once();
-        assert!(res.is_ok());
+        assert!(res.is_ok(), "{}", res.unwrap_err());
         assert_eq!(res.unwrap(), false);
     }
 
@@ -265,9 +277,23 @@ mod test {
 
             chunks.push(chunk);
         }
-        let mut vm = Vm::new(chunks.iter().enumerate(), chunks[0].code_iter().enumerate());
-        let res = vm.interpret(chunks.iter().enumerate());
+        let mut vm = Vm::new();
+        if let Err(e) = vm.set_iters_to_chunk(&chunks) {
+            assert!(false, "{}", e);
+        }
 
+        // Interprets add constant
+        let res = vm.run_once();
+        assert!(res.is_ok(), "{}", res.unwrap_err());
+        assert!(res.unwrap());
+
+        // Interprets negate
+        let res = vm.run_once();
+        assert!(res.is_ok(), "{}", res.unwrap_err());
+        assert!(res.unwrap());
+
+        // Interprets negate
+        let res = vm.run_once();
         match res.unwrap_err() {
             // Without a return, we expect to hit the end of execution ungracefully and without cleaning up the stack
             InterpretError::InstructionOutOfRange(_) => (),
@@ -302,21 +328,24 @@ mod test {
 
             chunks.push(chunk);
         }
-        let mut vm = Vm::new(chunks.iter().enumerate(), chunks[0].code_iter().enumerate());
+        let mut vm = Vm::new();
+        if let Err(e) = vm.set_iters_to_chunk(&chunks) {
+            assert!(false, "{}", e);
+        }
 
         // Interprets add constant
         let res = vm.run_once();
-        assert!(res.is_ok());
+        assert!(res.is_ok(), "{}", res.unwrap_err());
         assert!(res.unwrap());
 
         // Interprets add constant
         let res = vm.run_once();
-        assert!(res.is_ok());
+        assert!(res.is_ok(), "{}", res.unwrap_err());
         assert!(res.unwrap());
 
         // Interprets substract
         let res = vm.run_once();
-        assert!(res.is_ok());
+        assert!(res.is_ok(), "{}", res.unwrap_err());
         assert!(res.unwrap());
 
         let value = vm.stack.last();
@@ -333,13 +362,19 @@ mod test {
             chunk.write_constant(1.0, 123);
             chunks.push(chunk);
         }
-        let mut vm = Vm::new(chunks.iter().enumerate(), chunks[0].code_iter().enumerate());
+        let mut vm = Vm::new();
+        if let Err(e) = vm.set_iters_to_chunk(&chunks) {
+            assert!(false, "{}", e);
+        }
 
+        // add constant
         let res = vm.run_once();
-        assert!(res.is_ok());
+        assert!(res.is_ok(), "{}", res.unwrap_err());
         assert!(res.unwrap());
+
+        // add constant
         let res = vm.run_once();
-        assert!(res.is_ok());
+        assert!(res.is_ok(), "{}", res.unwrap_err());
         assert!(res.unwrap());
 
         let chunk = vm.peek_latest_chunk();
