@@ -1,5 +1,7 @@
 mod chunk;
+mod compiler;
 mod macros;
+mod scanner;
 mod value;
 mod vm;
 

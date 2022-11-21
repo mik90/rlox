@@ -1,6 +1,6 @@
 use crate::{
     chunk::{debug, Chunk, OpCode},
-    debug, debugln,
+    compiler, debug, debugln,
     value::{Value, ValueArray},
 };
 use std::{fmt, iter::Enumerate};
@@ -202,7 +202,8 @@ impl<'a> Vm<'a> {
     }
 
     pub fn interpret(&mut self, source: &str) -> Result<(), InterpretError> {
-        todo!("run compile()")
+        compiler::compile(source);
+        Ok(())
     }
 
     #[cfg(test)]
