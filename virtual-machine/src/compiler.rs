@@ -6,10 +6,10 @@ pub fn compile(source: &str) {
     loop {
         let token = scanner.scan_token();
         if token.line != line || line == 0 {
-            println!("line:{:>4} ", token.line);
+            print!("line:{:>4} ", token.line);
             line = token.line;
         } else {
-            println!("        | ");
+            print!("        | ");
         }
         let text: String = token
             .start
@@ -18,7 +18,7 @@ pub fn compile(source: &str) {
             .take(token.length)
             .map(|(_, c)| c)
             .collect();
-        println!("{:?} {}", token.kind, text);
+        println!("{:>8?} {}", token.kind, text);
 
         if let TokenKind::Eof = token.kind {
             break;
