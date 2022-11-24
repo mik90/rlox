@@ -55,16 +55,40 @@ pub enum TokenKind {
     Var,
     While,
 
-    Error,
+    Error(String), // Description of error
     Eof,
 }
 
 pub struct Token<'a> {
     pub line: usize,
     pub start: Enumerate<Chars<'a>>,
-    pub current: Enumerate<Chars<'a>>,
     pub length: usize,
     pub kind: TokenKind,
+}
+
+const EMPTY_STR: &str = "";
+
+impl<'a> Token<'_> {
+    pub fn new(line: usize, start: Enumerate<Chars<'a>>, length: usize, kind: TokenKind) -> Token {
+        Token {
+            line,
+            start,
+            length,
+            kind,
+        }
+    }
+
+    /// Creates an error token which is different in that it doesn't iterator over the source input
+    /// and instead is a string whose lifetime it owns on its own
+    pub fn new_error(line: usize, description: String) -> Token<'a> {
+        Token {
+            line,
+            // Eugh, this is hacky
+            start: EMPTY_STR.chars().enumerate(),
+            length: 0,
+            kind: TokenKind::Error(description),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -95,24 +119,114 @@ impl<'a> Scanner<'a> {
     pub fn scan_token(&mut self) -> Result<Token, ScannerError> {
         self.start = self.current.clone();
         if self.is_at_end()? {
-            return Ok(self.make_token(TokenKind::Eof));
+            return self.make_token(TokenKind::Eof);
         }
-        Ok(self.error_token("Unexpected character".to_owned()))
+        let (_, c) = self
+            .current
+            .next()
+            .ok_or(ScannerError::UnexpectedEndOfInput(self.line))?;
+
+        // TODO dedup
+        match c {
+            // Single char tokens
+            '(' => self.make_token(TokenKind::LeftParen),
+            ')' => self.make_token(TokenKind::RightParen),
+            '{' => self.make_token(TokenKind::LeftBrace),
+            '}' => self.make_token(TokenKind::RightBrace),
+            ';' => self.make_token(TokenKind::SemiColon),
+            ',' => self.make_token(TokenKind::Comma),
+            '.' => self.make_token(TokenKind::Dot),
+            '-' => self.make_token(TokenKind::Minus),
+            '+' => self.make_token(TokenKind::Plus),
+            '/' => self.make_token(TokenKind::Slash),
+            '*' => self.make_token(TokenKind::Star),
+            // Double char tokens
+            '!' => {
+                let next_char_matches = self.consume_char_if_eq('=')?;
+                self.make_token(if next_char_matches {
+                    TokenKind::BangEqual
+                } else {
+                    TokenKind::Bang
+                })
+            }
+            '=' => {
+                let next_char_matches = self.consume_char_if_eq('=')?;
+                self.make_token(if next_char_matches {
+                    TokenKind::EqualEqual
+                } else {
+                    TokenKind::Equal
+                })
+            }
+            '<' => {
+                let next_char_matches = self.consume_char_if_eq('=')?;
+                self.make_token(if next_char_matches {
+                    TokenKind::LessEqual
+                } else {
+                    TokenKind::Less
+                })
+            }
+            '>' => {
+                let next_char_matches = self.consume_char_if_eq('=')?;
+                self.make_token(if next_char_matches {
+                    TokenKind::GreaterEqual
+                } else {
+                    TokenKind::Greater
+                })
+            }
+            // Unknown
+            _ => Ok(self.error_token(format!("Unexpected character: {}", c))),
+        }
+    }
+
+    fn consume_char_if_eq(&mut self, expected: char) -> Result<bool, ScannerError> {
+        if self.is_at_end()? {
+            return Ok(false);
+        }
+        let matches = self
+            .current
+            .clone()
+            .peekable()
+            .peek()
+            .map(|(_, c)| *c == expected)
+            .ok_or(ScannerError::UnexpectedEndOfInput(self.line))?;
+        if matches {
+            self.current.next();
+        };
+        Ok(matches)
     }
 
     pub fn is_at_end(&self) -> Result<bool, ScannerError> {
-        if let Some((_, c)) = self.current.nth(0) {
-            Ok(c == '\0')
+        if let Some((_, c)) = self.current.clone().peekable().peek() {
+            Ok(*c == '\0')
         } else {
             Err(ScannerError::UnexpectedEndOfInput(self.line))
         }
     }
 
-    pub fn make_token(&self, kind: TokenKind) -> Token {
-        todo!()
+    fn length_of_current_token(&self) -> Result<usize, ScannerError> {
+        let (start_idx, _) = self
+            .start
+            .clone()
+            .nth(0)
+            .ok_or_else(|| ScannerError::UnexpectedEndOfInput(self.line))?;
+        let (current_idx, _) = self
+            .current
+            .clone()
+            .nth(0)
+            .ok_or_else(|| ScannerError::UnexpectedEndOfInput(self.line))?;
+        Ok(current_idx - start_idx)
+    }
+
+    pub fn make_token(&self, kind: TokenKind) -> Result<Token, ScannerError> {
+        Ok(Token::new(
+            self.line,
+            self.start.clone(),
+            self.length_of_current_token()?,
+            kind,
+        ))
     }
 
     pub fn error_token(&self, description: String) -> Token {
-        todo!()
+        Token::new_error(self.line, description)
     }
 }
