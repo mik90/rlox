@@ -59,6 +59,7 @@ pub enum TokenKind {
     Eof,
 }
 
+#[derive(Debug)]
 pub struct Token<'a> {
     pub line: usize,
     pub start: Enumerate<Chars<'a>>,
@@ -228,5 +229,34 @@ impl<'a> Scanner<'a> {
 
     pub fn error_token(&self, description: String) -> Token {
         Token::new_error(self.line, description)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    #[test]
+    fn scan_until_end() -> Result<(), ScannerError> {
+        let mut scanner = Scanner::new("(!=}\0");
+
+        let token = scanner.scan_token();
+        assert!(token.is_ok(), "{}", token.unwrap_err());
+        let token = token.unwrap();
+        assert_eq!(token.kind, TokenKind::LeftParen, "Expected (");
+
+        let token = scanner.scan_token();
+        assert!(token.is_ok(), "{}", token.unwrap_err());
+        let token = token.unwrap();
+        assert_eq!(token.kind, TokenKind::BangEqual, "Expected !=");
+
+        let token = scanner.scan_token();
+        assert!(token.is_ok(), "{}", token.unwrap_err());
+        let token = token.unwrap();
+        assert_eq!(token.kind, TokenKind::RightBrace, "Expected }}");
+
+        let is_at_end = scanner.is_at_end();
+        assert!(is_at_end.is_ok(), "{}", is_at_end.unwrap_err());
+        assert!(is_at_end.unwrap());
+        Ok(())
     }
 }
