@@ -1,4 +1,5 @@
 use core::iter::Enumerate;
+use std::borrow::BorrowMut;
 use std::fmt;
 use std::str::Chars;
 
@@ -118,6 +119,7 @@ impl<'a> Scanner<'a> {
     }
 
     pub fn scan_token(&mut self) -> Result<Token, ScannerError> {
+        self.skip_whitespace()?;
         self.start = self.current.clone();
         if self.is_at_end()? {
             return self.make_token(TokenKind::Eof);
@@ -179,6 +181,31 @@ impl<'a> Scanner<'a> {
         }
     }
 
+    fn peek_current_char(&self) -> Result<char, ScannerError> {
+        self.current
+            .clone()
+            .peekable()
+            .peek()
+            .map(|(_, c)| *c)
+            .ok_or(ScannerError::UnexpectedEndOfInput(self.line))
+    }
+
+    fn skip_whitespace(&mut self) -> Result<(), ScannerError> {
+        loop {
+            match self.peek_current_char()? {
+                ' ' | '\t' | '\r' => {
+                    self.current.next();
+                }
+                '\n' => {
+                    self.line = self.line + 1;
+                    self.current.next();
+                }
+                _ => break,
+            }
+        }
+        Ok(())
+    }
+
     fn consume_char_if_eq(&mut self, expected: char) -> Result<bool, ScannerError> {
         if self.is_at_end()? {
             return Ok(false);
@@ -236,7 +263,7 @@ impl<'a> Scanner<'a> {
 mod test {
     use super::*;
     #[test]
-    fn scan_until_end() -> Result<(), ScannerError> {
+    fn scan_until_end() {
         let mut scanner = Scanner::new("(!=}\0");
 
         let token = scanner.scan_token();
@@ -257,6 +284,23 @@ mod test {
         let is_at_end = scanner.is_at_end();
         assert!(is_at_end.is_ok(), "{}", is_at_end.unwrap_err());
         assert!(is_at_end.unwrap());
+    }
+
+    #[test]
+    fn skip_whitespace() -> Result<(), ScannerError> {
+        let mut scanner = Scanner::new("(\n ) \0");
+
+        let token = scanner.scan_token();
+        assert!(token.is_ok(), "{}", token.unwrap_err());
+        let token = token.unwrap();
+        assert_eq!(token.kind, TokenKind::LeftParen, "Expected (");
+        assert_eq!(token.line, 1);
+
+        let token = scanner.scan_token();
+        assert!(token.is_ok(), "{}", token.unwrap_err());
+        let token = token.unwrap();
+        assert_eq!(token.kind, TokenKind::RightParen, "Expected )");
+        assert_eq!(token.line, 2);
         Ok(())
     }
 }
