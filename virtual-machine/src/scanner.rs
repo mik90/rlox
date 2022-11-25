@@ -190,6 +190,14 @@ impl<'a> Scanner<'a> {
             .ok_or(ScannerError::UnexpectedEndOfInput(self.line))
     }
 
+    fn peek_next_char(&self) -> Result<char, ScannerError> {
+        self.current
+            .clone()
+            .next()
+            .map(|(_, c)| c)
+            .ok_or(ScannerError::UnexpectedEndOfInput(self.line))
+    }
+
     fn skip_whitespace(&mut self) -> Result<(), ScannerError> {
         loop {
             match self.peek_current_char()? {
@@ -199,6 +207,17 @@ impl<'a> Scanner<'a> {
                 '\n' => {
                     self.line = self.line + 1;
                     self.current.next();
+                }
+                '/' => {
+                    if self.peek_next_char()? == '/' {
+                        // Consume comment
+                        while self.peek_current_char()? != '\n' && !self.is_at_end()? {
+                            self.current.next();
+                        }
+                    } else {
+                        // This is a non-whitespace character, we're done skipping
+                        return Ok(());
+                    }
                 }
                 _ => break,
             }
@@ -281,6 +300,10 @@ mod test {
         let token = token.unwrap();
         assert_eq!(token.kind, TokenKind::RightBrace, "Expected }}");
 
+        let token = scanner.scan_token();
+        assert!(token.is_ok(), "{}", token.unwrap_err());
+        let token = token.unwrap();
+        assert_eq!(token.kind, TokenKind::Eof, "Expected Eof");
         let is_at_end = scanner.is_at_end();
         assert!(is_at_end.is_ok(), "{}", is_at_end.unwrap_err());
         assert!(is_at_end.unwrap());
@@ -301,6 +324,31 @@ mod test {
         let token = token.unwrap();
         assert_eq!(token.kind, TokenKind::RightParen, "Expected )");
         assert_eq!(token.line, 2);
+
+        let token = scanner.scan_token();
+        assert!(token.is_ok(), "{}", token.unwrap_err());
+        let token = token.unwrap();
+        assert_eq!(token.kind, TokenKind::Eof, "Expected Eof");
+        Ok(())
+    }
+
+    #[test]
+    fn start_with_whitespace() -> Result<(), ScannerError> {
+        let mut scanner = Scanner::new(" (\0");
+
+        let token = scanner.scan_token();
+        assert!(token.is_ok(), "{}", token.unwrap_err());
+        let token = token.unwrap();
+        assert_eq!(token.kind, TokenKind::LeftParen, "Expected (");
+
+        let token = scanner.scan_token();
+        assert!(token.is_ok(), "{}", token.unwrap_err());
+        let token = token.unwrap();
+        assert_eq!(token.kind, TokenKind::Eof, "Expected Eof");
+
+        let is_at_end = scanner.is_at_end();
+        assert!(is_at_end.is_ok(), "{}", is_at_end.unwrap_err());
+        assert!(is_at_end.unwrap());
         Ok(())
     }
 }
