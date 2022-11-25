@@ -142,6 +142,8 @@ impl<'a> Scanner<'a> {
 
         if c.is_ascii_digit() {
             return self.make_number_token();
+        } else if c.is_alphabetic() || c == '_' {
+            return self.make_identifier_token();
         }
 
         // TODO dedup
@@ -296,7 +298,7 @@ impl<'a> Scanner<'a> {
     }
 
     fn make_string_token(&mut self) -> Result<Token, ScannerError> {
-        while self.peek_current_char()? != '"' && self.is_at_end()? {
+        while self.peek_current_char()? != '"' && !self.is_at_end()? {
             if self.peek_current_char()? == '\n' {
                 self.line = self.line + 1;
             }
@@ -335,6 +337,18 @@ impl<'a> Scanner<'a> {
         }
 
         self.make_token(TokenKind::Number)
+    }
+
+    fn make_identifier_token(&mut self) -> Result<Token, ScannerError> {
+        while self.peek_current_char()?.is_alphanumeric() || self.peek_current_char()? == '_' {
+            self.current.next();
+        }
+        let token_kind = self.identifier_type();
+        self.make_token(token_kind)
+    }
+
+    fn identifier_type(&self) -> TokenKind {
+        TokenKind::Identifier
     }
 }
 
@@ -430,5 +444,42 @@ mod test {
         let token = token.unwrap();
         assert_eq!(token.kind, TokenKind::Number, "Expected number");
         assert_eq!(token.to_string(), "42.123", "{:?}", token);
+    }
+
+    #[test]
+    fn scan_string_literal() {
+        let mut scanner = Scanner::new("\"hello world\"\0");
+
+        let token = scanner.scan_token();
+        assert!(token.is_ok(), "{}", token.unwrap_err());
+        let token = token.unwrap();
+        assert_eq!(token.kind, TokenKind::String, "Expected string");
+        assert_eq!(token.to_string(), "\"hello world\"", "{:?}", token);
+    }
+
+    #[test]
+    fn scan_string_literal_multi_line() {
+        let mut scanner = Scanner::new("\"hello \n world\"\0");
+
+        let token = scanner.scan_token();
+        assert!(token.is_ok(), "{}", token.unwrap_err());
+        let token = token.unwrap();
+        assert_eq!(token.kind, TokenKind::String, "Expected string");
+        assert_eq!(token.to_string(), "\"hello \n world\"", "{:?}", token);
+        assert_eq!(token.line, 2);
+    }
+
+    #[test]
+    fn scan_unterminated_string_literal() {
+        let mut scanner = Scanner::new("\"hello\0");
+
+        let token = scanner.scan_token();
+        assert!(token.is_ok(), "{}", token.unwrap_err());
+        let token = token.unwrap();
+        if let TokenKind::Error(msg) = token.kind {
+            assert!(msg.contains("Unterminated string"));
+        } else {
+            assert!(false, "Expected kind to be Error");
+        }
     }
 }
