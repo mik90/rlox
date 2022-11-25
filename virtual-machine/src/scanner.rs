@@ -1,3 +1,4 @@
+use crate::debugln;
 use core::iter::Enumerate;
 use std::borrow::BorrowMut;
 use std::fmt;
@@ -90,6 +91,16 @@ impl<'a> Token<'_> {
             length: 0,
             kind: TokenKind::Error(description),
         }
+    }
+}
+
+impl ToString for Token<'_> {
+    fn to_string(&self) -> String {
+        self.start
+            .clone()
+            .map(|(_, c)| c)
+            .take(self.length)
+            .collect::<String>()
     }
 }
 
@@ -189,16 +200,15 @@ impl<'a> Scanner<'a> {
     fn peek_current_char(&self) -> Result<char, ScannerError> {
         self.current
             .clone()
-            .peekable()
-            .peek()
-            .map(|(_, c)| *c)
+            .nth(0)
+            .map(|(_, c)| c)
             .ok_or(ScannerError::UnexpectedEndOfInput(self.line))
     }
 
     fn peek_next_char(&self) -> Result<char, ScannerError> {
         self.current
             .clone()
-            .next()
+            .nth(1)
             .map(|(_, c)| c)
             .ok_or(ScannerError::UnexpectedEndOfInput(self.line))
     }
@@ -304,7 +314,12 @@ impl<'a> Scanner<'a> {
     fn make_number_token(&mut self) -> Result<Token, ScannerError> {
         while self.peek_current_char()?.is_ascii_digit() {
             self.current.next();
+            debugln!(
+                "Consumed char. Current token len={}",
+                self.length_of_current_token()?
+            );
         }
+
         // Check for fractions
         if self.peek_current_char()? == '.' && self.peek_next_char()?.is_ascii_digit() {
             // consume dot
@@ -312,6 +327,10 @@ impl<'a> Scanner<'a> {
 
             while self.peek_current_char()?.is_ascii_digit() {
                 self.current.next();
+                debugln!(
+                    "Consumed post-decimal digit. Current token len={}",
+                    self.length_of_current_token()?
+                );
             }
         }
 
@@ -351,7 +370,7 @@ mod test {
     }
 
     #[test]
-    fn skip_whitespace() -> Result<(), ScannerError> {
+    fn skip_whitespace() {
         let mut scanner = Scanner::new("(\n ) \0");
 
         let token = scanner.scan_token();
@@ -370,11 +389,10 @@ mod test {
         assert!(token.is_ok(), "{}", token.unwrap_err());
         let token = token.unwrap();
         assert_eq!(token.kind, TokenKind::Eof, "Expected Eof");
-        Ok(())
     }
 
     #[test]
-    fn start_with_whitespace() -> Result<(), ScannerError> {
+    fn start_with_whitespace() {
         let mut scanner = Scanner::new(" (\0");
 
         let token = scanner.scan_token();
@@ -390,6 +408,27 @@ mod test {
         let is_at_end = scanner.is_at_end();
         assert!(is_at_end.is_ok(), "{}", is_at_end.unwrap_err());
         assert!(is_at_end.unwrap());
-        Ok(())
+    }
+
+    #[test]
+    fn scan_integral() {
+        let mut scanner = Scanner::new("123\0");
+
+        let token = scanner.scan_token();
+        assert!(token.is_ok(), "{}", token.unwrap_err());
+        let token = token.unwrap();
+        assert_eq!(token.kind, TokenKind::Number, "Expected number");
+        assert_eq!(token.to_string(), "123");
+    }
+
+    #[test]
+    fn scan_float() {
+        let mut scanner = Scanner::new("42.123\0");
+
+        let token = scanner.scan_token();
+        assert!(token.is_ok(), "{}", token.unwrap_err());
+        let token = token.unwrap();
+        assert_eq!(token.kind, TokenKind::Number, "Expected number");
+        assert_eq!(token.to_string(), "42.123", "{:?}", token);
     }
 }
