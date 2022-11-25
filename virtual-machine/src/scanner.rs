@@ -198,6 +198,14 @@ impl<'a> Scanner<'a> {
         }
     }
 
+    fn peek_char_after_start(&self) -> Result<char, ScannerError> {
+        self.start
+            .clone()
+            .nth(1)
+            .map(|(_, c)| c)
+            .ok_or(ScannerError::UnexpectedEndOfInput(self.line))
+    }
+
     fn peek_starting_char(&self) -> Result<char, ScannerError> {
         self.start
             .clone()
@@ -273,6 +281,21 @@ impl<'a> Scanner<'a> {
         } else {
             Err(ScannerError::UnexpectedEndOfInput(self.line))
         }
+    }
+
+    fn string_from_start_idx(
+        &self,
+        start_idx: usize,
+        length: usize,
+    ) -> Result<String, ScannerError> {
+        let token_str = self
+            .start
+            .clone()
+            .skip(start_idx)
+            .take(length)
+            .map(|(_, c)| c)
+            .collect::<String>();
+        Ok(token_str)
     }
 
     // TODO can i have a &str that is made from Enumerate<Char>?
@@ -371,8 +394,10 @@ impl<'a> Scanner<'a> {
     ) -> Result<TokenKind, ScannerError> {
         let tokens_are_same_length =
             self.length_of_current_token()? == start_idx + rest_of_keyword.len();
-        let proposed_token = format!("{}{}", self.peek_starting_char()?, rest_of_keyword);
-        if tokens_are_same_length && proposed_token == self.current_token_as_string()? {
+        let suspected_keyword_substr =
+            self.string_from_start_idx(start_idx, rest_of_keyword.len())?;
+
+        if tokens_are_same_length && suspected_keyword_substr == rest_of_keyword {
             return Ok(proposed_kind);
         }
 
@@ -391,12 +416,35 @@ impl<'a> Scanner<'a> {
             'a' => self.check_keyword(1, "nd", TokenKind::And),
             'c' => self.check_keyword(1, "lass", TokenKind::Class),
             'e' => self.check_keyword(1, "lse", TokenKind::Else),
+            'f' => {
+                if self.length_of_current_token()? > 1 {
+                    match self.peek_char_after_start()? {
+                        'a' => self.check_keyword(2, "lse", TokenKind::False),
+                        'o' => self.check_keyword(2, "r", TokenKind::For),
+                        'u' => self.check_keyword(2, "n", TokenKind::Fun),
+                        _ => Ok(TokenKind::Identifier),
+                    }
+                } else {
+                    Ok(TokenKind::Identifier)
+                }
+            }
             'i' => self.check_keyword(1, "f", TokenKind::If),
             'n' => self.check_keyword(1, "il", TokenKind::Nil),
             'o' => self.check_keyword(1, "r", TokenKind::Or),
             'p' => self.check_keyword(1, "rint", TokenKind::Print),
             'r' => self.check_keyword(1, "eturn", TokenKind::Return),
             's' => self.check_keyword(1, "uper", TokenKind::Super),
+            't' => {
+                if self.length_of_current_token()? > 1 {
+                    match self.peek_char_after_start()? {
+                        'h' => self.check_keyword(2, "is", TokenKind::This),
+                        'r' => self.check_keyword(2, "ue", TokenKind::True),
+                        _ => Ok(TokenKind::Identifier),
+                    }
+                } else {
+                    Ok(TokenKind::Identifier)
+                }
+            }
             'v' => self.check_keyword(1, "ar", TokenKind::Var),
             'w' => self.check_keyword(1, "hile", TokenKind::While),
             // Default to identifier since it's definitely not a keyword
@@ -537,12 +585,32 @@ mod test {
     }
 
     #[test]
-    fn scan_if() {
+    fn scan_one_layer_trie() {
         let mut scanner = Scanner::new("if\0");
 
         let token = scanner.scan_token();
         assert!(token.is_ok(), "{}", token.unwrap_err());
         let token = token.unwrap();
         assert_eq!(token.kind, TokenKind::If, "{:?}", token);
+    }
+
+    #[test]
+    fn scan_two_layer_trie() {
+        let mut scanner = Scanner::new("this\0");
+
+        let token = scanner.scan_token();
+        assert!(token.is_ok(), "{}", token.unwrap_err());
+        let token = token.unwrap();
+        assert_eq!(token.kind, TokenKind::This, "{:?}", token);
+    }
+
+    #[test]
+    fn scan_two_layer_trie_identifier() {
+        let mut scanner = Scanner::new("thisnt\0");
+
+        let token = scanner.scan_token();
+        assert!(token.is_ok(), "{}", token.unwrap_err());
+        let token = token.unwrap();
+        assert_eq!(token.kind, TokenKind::Identifier, "{:?}", token);
     }
 }
