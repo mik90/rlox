@@ -129,6 +129,10 @@ impl<'a> Scanner<'a> {
             .next()
             .ok_or(ScannerError::UnexpectedEndOfInput(self.line))?;
 
+        if c.is_ascii_digit() {
+            return self.make_number_token();
+        }
+
         // TODO dedup
         match c {
             // Single char tokens
@@ -176,6 +180,7 @@ impl<'a> Scanner<'a> {
                     TokenKind::Greater
                 })
             }
+            '"' => self.make_string_token(),
             // Unknown
             _ => Ok(self.error_token(format!("Unexpected character: {}", c))),
         }
@@ -242,6 +247,7 @@ impl<'a> Scanner<'a> {
         Ok(matches)
     }
 
+    /// Returns whether or not we're at the end of the file
     pub fn is_at_end(&self) -> Result<bool, ScannerError> {
         if let Some((_, c)) = self.current.clone().peekable().peek() {
             Ok(*c == '\0')
@@ -264,7 +270,9 @@ impl<'a> Scanner<'a> {
         Ok(current_idx - start_idx)
     }
 
-    pub fn make_token(&self, kind: TokenKind) -> Result<Token, ScannerError> {
+    /// Token builders
+
+    fn make_token(&self, kind: TokenKind) -> Result<Token, ScannerError> {
         Ok(Token::new(
             self.line,
             self.start.clone(),
@@ -273,8 +281,41 @@ impl<'a> Scanner<'a> {
         ))
     }
 
-    pub fn error_token(&self, description: String) -> Token {
+    fn error_token(&self, description: String) -> Token {
         Token::new_error(self.line, description)
+    }
+
+    fn make_string_token(&mut self) -> Result<Token, ScannerError> {
+        while self.peek_current_char()? != '"' && self.is_at_end()? {
+            if self.peek_current_char()? == '\n' {
+                self.line = self.line + 1;
+            }
+            self.current.next();
+        }
+        if self.is_at_end()? {
+            return Ok(self.error_token(format!("Unterminated string on line {}", self.line)));
+        }
+        // Consume closing quote
+        self.current.next();
+
+        self.make_token(TokenKind::String)
+    }
+
+    fn make_number_token(&mut self) -> Result<Token, ScannerError> {
+        while self.peek_current_char()?.is_ascii_digit() {
+            self.current.next();
+        }
+        // Check for fractions
+        if self.peek_current_char()? == '.' && self.peek_next_char()?.is_ascii_digit() {
+            // consume dot
+            self.current.next();
+
+            while self.peek_current_char()?.is_ascii_digit() {
+                self.current.next();
+            }
+        }
+
+        self.make_token(TokenKind::Number)
     }
 }
 
