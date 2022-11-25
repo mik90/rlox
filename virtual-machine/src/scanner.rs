@@ -1,7 +1,6 @@
 use crate::debugln;
 use core::iter::Enumerate;
-use std::borrow::BorrowMut;
-use std::fmt;
+use std::fmt::{self, format};
 use std::str::Chars;
 
 pub struct Scanner<'a> {
@@ -199,6 +198,14 @@ impl<'a> Scanner<'a> {
         }
     }
 
+    fn peek_starting_char(&self) -> Result<char, ScannerError> {
+        self.start
+            .clone()
+            .nth(0)
+            .map(|(_, c)| c)
+            .ok_or(ScannerError::UnexpectedEndOfInput(self.line))
+    }
+
     fn peek_current_char(&self) -> Result<char, ScannerError> {
         self.current
             .clone()
@@ -268,6 +275,22 @@ impl<'a> Scanner<'a> {
         }
     }
 
+    // TODO can i have a &str that is made from Enumerate<Char>?
+    fn current_token_as_string(&self) -> Result<String, ScannerError> {
+        let (current_idx, _) = self
+            .current
+            .clone()
+            .nth(0)
+            .ok_or_else(|| ScannerError::UnexpectedEndOfInput(self.line))?;
+        let token_str = self
+            .start
+            .clone()
+            .take_while(|(idx, _)| *idx < current_idx)
+            .map(|(_, c)| c)
+            .collect::<String>();
+        Ok(token_str)
+    }
+
     fn length_of_current_token(&self) -> Result<usize, ScannerError> {
         let (start_idx, _) = self
             .start
@@ -316,10 +339,6 @@ impl<'a> Scanner<'a> {
     fn make_number_token(&mut self) -> Result<Token, ScannerError> {
         while self.peek_current_char()?.is_ascii_digit() {
             self.current.next();
-            debugln!(
-                "Consumed char. Current token len={}",
-                self.length_of_current_token()?
-            );
         }
 
         // Check for fractions
@@ -329,10 +348,6 @@ impl<'a> Scanner<'a> {
 
             while self.peek_current_char()?.is_ascii_digit() {
                 self.current.next();
-                debugln!(
-                    "Consumed post-decimal digit. Current token len={}",
-                    self.length_of_current_token()?
-                );
             }
         }
 
@@ -343,12 +358,50 @@ impl<'a> Scanner<'a> {
         while self.peek_current_char()?.is_alphanumeric() || self.peek_current_char()? == '_' {
             self.current.next();
         }
-        let token_kind = self.identifier_type();
+        let token_kind = self.identifier_type()?;
         self.make_token(token_kind)
     }
 
-    fn identifier_type(&self) -> TokenKind {
-        TokenKind::Identifier
+    // Returns the TokenKind for the proposed keyword or a general identifier TokenKind
+    fn check_keyword(
+        &self,
+        start_idx: usize,
+        rest_of_keyword: &str,
+        proposed_kind: TokenKind,
+    ) -> Result<TokenKind, ScannerError> {
+        let tokens_are_same_length =
+            self.length_of_current_token()? == start_idx + rest_of_keyword.len();
+        let proposed_token = format!("{}{}", self.peek_starting_char()?, rest_of_keyword);
+        if tokens_are_same_length && proposed_token == self.current_token_as_string()? {
+            return Ok(proposed_kind);
+        }
+
+        return Ok(TokenKind::Identifier);
+    }
+
+    fn identifier_type(&self) -> Result<TokenKind, ScannerError> {
+        let c = self
+            .start
+            .clone()
+            .peekable()
+            .peek()
+            .map(|(_, c)| *c)
+            .ok_or_else(|| ScannerError::UnexpectedEndOfInput(self.line))?;
+        match c {
+            'a' => self.check_keyword(1, "nd", TokenKind::And),
+            'c' => self.check_keyword(1, "lass", TokenKind::Class),
+            'e' => self.check_keyword(1, "lse", TokenKind::Else),
+            'i' => self.check_keyword(1, "f", TokenKind::If),
+            'n' => self.check_keyword(1, "il", TokenKind::Nil),
+            'o' => self.check_keyword(1, "r", TokenKind::Or),
+            'p' => self.check_keyword(1, "rint", TokenKind::Print),
+            'r' => self.check_keyword(1, "eturn", TokenKind::Return),
+            's' => self.check_keyword(1, "uper", TokenKind::Super),
+            'v' => self.check_keyword(1, "ar", TokenKind::Var),
+            'w' => self.check_keyword(1, "hile", TokenKind::While),
+            // Default to identifier since it's definitely not a keyword
+            _ => Ok(TokenKind::Identifier),
+        }
     }
 }
 
@@ -481,5 +534,15 @@ mod test {
         } else {
             assert!(false, "Expected kind to be Error");
         }
+    }
+
+    #[test]
+    fn scan_if() {
+        let mut scanner = Scanner::new("if\0");
+
+        let token = scanner.scan_token();
+        assert!(token.is_ok(), "{}", token.unwrap_err());
+        let token = token.unwrap();
+        assert_eq!(token.kind, TokenKind::If, "{:?}", token);
     }
 }
