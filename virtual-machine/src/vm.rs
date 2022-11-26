@@ -1,6 +1,7 @@
 use crate::{
     chunk::{debug, Chunk, OpCode},
-    compiler, debug, debugln,
+    compiler::{self, Compiler, CompilerError},
+    debug, debugln,
     value::{Value, ValueArray},
 };
 use std::{fmt, iter::Enumerate};
@@ -9,13 +10,14 @@ pub struct Vm<'a> {
     chunk_iter: Enumerate<std::slice::Iter<'a, Chunk>>,
     instruction_iter: Enumerate<std::slice::Iter<'a, u8>>,
     stack: ValueArray,
+    temp_storage: Vec<Chunk>,
 }
 
 pub type ErrorMessage = String;
 
 #[derive(Debug, Clone)]
 pub enum InterpretError {
-    Compile(ErrorMessage),
+    Compile(CompilerError),
     Runtime(ErrorMessage),
     InstructionOutOfRange(usize),  // Position in instruction iterator
     ConstantOutOfRange(usize, u8), // Chunk position, constant position
@@ -54,6 +56,7 @@ impl<'a> Vm<'a> {
             chunk_iter: Vm::DEFAULT_CHUNK_SLICE.iter().enumerate(),
             instruction_iter: Vm::DEFAULT_INSTRUCTION_SLICE.iter().enumerate(),
             stack: Vec::new(),
+            temp_storage: Vec::new(),
         }
     }
 
@@ -193,7 +196,7 @@ impl<'a> Vm<'a> {
         Ok(true)
     }
 
-    fn run(&mut self) -> Result<(), InterpretError> {
+    fn run(&'a mut self) -> Result<(), InterpretError> {
         while self.run_once()? {
             // Continue running while we're able to
         }
@@ -201,9 +204,20 @@ impl<'a> Vm<'a> {
         Ok(())
     }
 
-    pub fn interpret(&mut self, source: &str) -> Result<(), InterpretError> {
-        compiler::compile(source);
-        Ok(())
+    pub fn interpret(&'a mut self, source: &str) -> Result<(), InterpretError> {
+        let mut chunk = Chunk::new();
+        let mut compiler = Compiler::new();
+        compiler
+            .compile(source, &mut chunk)
+            .map_err(InterpretError::Compile)?;
+
+        // i cant tell if i can clena up this iter setup or if ill need it for later in the book
+        self.temp_storage = vec![chunk];
+        self.chunk_iter = self.temp_storage.iter().enumerate();
+        self.instruction_iter = self.temp_storage[0].code_iter().enumerate();
+
+        todo!("Need to figure out lifetime issues for chunks");
+        self.run()
     }
 
     #[cfg(test)]
@@ -211,7 +225,7 @@ impl<'a> Vm<'a> {
         self.chunk_iter = chunks.iter().enumerate();
         self.instruction_iter = chunks
             .first()
-            .ok_or_else(|| InterpretError::Compile(format!("No chunks were available in slice")))?
+            .ok_or_else(|| InterpretError::Runtime(format!("No chunks were available in slice")))?
             .code_iter()
             .enumerate();
         Ok(())

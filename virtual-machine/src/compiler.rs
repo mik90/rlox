@@ -1,31 +1,50 @@
-use crate::scanner::{Scanner, TokenKind};
+use crate::{
+    chunk::Chunk,
+    scanner::{Scanner, ScannerError, TokenKind},
+};
+use std::fmt;
 
-pub fn compile(source: &str) {
-    let mut scanner = Scanner::new(source);
-    let mut line = 0;
-    loop {
-        match scanner.scan_token() {
-            Ok(token) => {
-                if token.line != line || line == 0 {
-                    print!("line:{:>4} ", token.line);
-                    line = token.line;
-                } else {
-                    print!("        | ");
-                }
-                let text: String = token
-                    .start
-                    .clone()
-                    .into_iter()
-                    .take(token.length)
-                    .map(|(_, c)| c)
-                    .collect();
-                println!("{:>8?} {}", token.kind, text);
+#[derive(Debug, Clone)]
+pub enum CompilerError {
+    Scanner(ScannerError),
+}
+impl std::error::Error for CompilerError {}
 
-                if let TokenKind::Eof = token.kind {
-                    break;
-                }
+impl fmt::Display for CompilerError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match &self {
+            CompilerError::Scanner(err) => {
+                write!(f, "Unable to compile due to error during scan: {}", err)
             }
-            Err(e) => eprintln!("Failed to scan token during compilation: {}", e),
         }
+    }
+}
+
+pub struct Compiler {}
+
+impl Compiler {
+    pub fn new() -> Compiler {
+        Compiler {}
+    }
+
+    fn advance(&mut self) {
+        todo!()
+    }
+
+    fn consume(&mut self, kind: TokenKind, error_msg: &str) {
+        todo!()
+    }
+
+    fn expression(&mut self) {
+        todo!()
+    }
+
+    pub fn compile(&mut self, source: &str, chunk: &mut Chunk) -> Result<(), CompilerError> {
+        let mut scanner = Scanner::new(source);
+        self.advance();
+        self.expression();
+        self.consume(TokenKind::Eof, "Expect end of expression");
+
+        todo!()
     }
 }
