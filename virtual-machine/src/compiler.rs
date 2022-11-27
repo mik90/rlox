@@ -7,6 +7,7 @@ use std::fmt;
 #[derive(Debug, Clone)]
 pub enum CompilerError {
     Scanner(ScannerError),
+    Parse(Vec<String>), // multiple errors can be stored internally
 }
 impl std::error::Error for CompilerError {}
 
@@ -16,40 +17,85 @@ impl fmt::Display for CompilerError {
             CompilerError::Scanner(err) => {
                 write!(f, "Unable to compile due to error during scan: {}", err)
             }
+            CompilerError::Parse(errors) => {
+                write!(
+                    f,
+                    "Unable to compile due parse errors: {}",
+                    errors.join("\n")
+                )
+            }
         }
     }
 }
 
-struct Parser<'parser_lifetime> {
-    current: Token<'parser_lifetime>,
-    previous: Token<'parser_lifetime>,
+struct Parser<'source_lifetime> {
+    current: Token<'source_lifetime>,
+    previous: Token<'source_lifetime>,
+    panic_mode: bool,
+    errors: Vec<String>,
 }
 
-impl<'parser_lifetime> Parser<'parser_lifetime> {
-    pub fn new() -> Parser<'parser_lifetime> {
+impl<'source_lifetime> Parser<'source_lifetime> {
+    pub fn new() -> Parser<'source_lifetime> {
         Parser {
             current: Token::new_uninit(),
             previous: Token::new_uninit(),
+            panic_mode: false,
+            errors: vec![],
         }
     }
 }
 
-pub struct Compiler<'src_lifetime> {
+pub struct Compiler<'source_lifetime> {
     // TODO, these may not need to be members since their init logic is so odd
-    parser: Parser<'src_lifetime>,
-    scanner: Scanner<'src_lifetime>,
+    parser: Parser<'source_lifetime>,
+    scanner: Scanner<'source_lifetime>,
 }
 
-impl<'src_lifetime> Compiler<'src_lifetime> {
-    pub fn new() -> Compiler<'src_lifetime> {
+enum ErrorAtKind {
+    Previous,
+    Current,
+}
+
+impl<'source_lifetime> Compiler<'source_lifetime> {
+    pub fn new() -> Compiler<'source_lifetime> {
         Compiler {
             parser: Parser::new(),
             scanner: Scanner::new(""),
         }
     }
 
-    fn error_on_current_token(&mut self) {
-        todo!()
+    /// TODO this function call needs to be cleaned up
+    fn error_at(&mut self, error_at_kind: ErrorAtKind, msg: Option<String>) {
+        if self.parser.panic_mode {
+            return;
+        }
+        self.parser.panic_mode = true;
+
+        let token = match error_at_kind {
+            ErrorAtKind::Previous => &self.parser.previous,
+            ErrorAtKind::Current => &self.parser.current,
+        };
+        let mut current_error: Vec<String> = vec![];
+        current_error.push(format!("[line {}] Error", token.line));
+
+        match &token.kind {
+            TokenKind::Eof => {
+                current_error.push(format!(" at end: {}", msg.unwrap_or_default()));
+            }
+            TokenKind::Error(error_msg) => {
+                // The error message itself isn't stored in the source, it's stored as part of the enum
+                current_error.push(format!(": {}", error_msg));
+            }
+            _ => {
+                current_error.push(format!(
+                    "at '{}': {}",
+                    token.to_string(),
+                    msg.unwrap_or_default()
+                ));
+            }
+        }
+        self.parser.errors.push(current_error.join(""));
     }
 
     fn advance(&mut self) -> Result<(), ScannerError> {
@@ -61,12 +107,17 @@ impl<'src_lifetime> Compiler<'src_lifetime> {
                 // Break on non-error types
                 break;
             }
-            self.error_on_current_token();
+            self.error_at(ErrorAtKind::Current, None);
         }
         Ok(())
     }
 
-    fn consume(&mut self, kind: TokenKind, error_msg: &str) {
+    fn consume(&mut self, expected_kind: TokenKind, error_msg: &str) -> Result<(), CompilerError> {
+        if matches!(&self.parser.current.kind, kind) {
+            return self.advance().map_err(CompilerError::Scanner);
+        }
+
+        self.error_at(ErrorAtKind::Current, None);
         todo!()
     }
 
@@ -76,14 +127,22 @@ impl<'src_lifetime> Compiler<'src_lifetime> {
 
     pub fn compile(
         &mut self,
-        source: &'src_lifetime str,
+        source: &'source_lifetime str,
         chunk: &mut Chunk,
     ) -> Result<(), CompilerError> {
         self.scanner = Scanner::new(source);
         self.advance().map_err(CompilerError::Scanner)?;
         self.expression();
-        self.consume(TokenKind::Eof, "Expect end of expression");
+        self.consume(TokenKind::Eof, "Expect end of expression")?;
 
-        todo!()
+        if self.parser.errors.is_empty() {
+            Ok(())
+        } else {
+            let errors: Vec<String> = self.parser.errors.drain(0..).collect();
+            Err(CompilerError::Parse(errors))
+        }
     }
 }
+
+#[cfg(test)]
+mod test {}
