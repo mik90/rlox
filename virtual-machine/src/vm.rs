@@ -10,7 +10,6 @@ pub struct Vm<'a> {
     chunk_iter: Enumerate<std::slice::Iter<'a, Chunk>>,
     instruction_iter: Enumerate<std::slice::Iter<'a, u8>>,
     stack: ValueArray,
-    temp_storage: Vec<Chunk>,
 }
 
 pub type ErrorMessage = String;
@@ -56,7 +55,6 @@ impl<'a> Vm<'a> {
             chunk_iter: Vm::DEFAULT_CHUNK_SLICE.iter().enumerate(),
             instruction_iter: Vm::DEFAULT_INSTRUCTION_SLICE.iter().enumerate(),
             stack: Vec::new(),
-            temp_storage: Vec::new(),
         }
     }
 
@@ -204,19 +202,22 @@ impl<'a> Vm<'a> {
         Ok(())
     }
 
-    pub fn interpret(&'a mut self, source: &str) -> Result<(), InterpretError> {
+    pub fn interpret(
+        &'a mut self,
+        source: &str,
+        chunks: &'a mut Vec<Chunk>,
+    ) -> Result<(), InterpretError> {
         let mut chunk = Chunk::new();
         let mut compiler = Compiler::new();
         compiler
             .compile(source, &mut chunk)
             .map_err(InterpretError::Compile)?;
 
-        // i cant tell if i can clena up this iter setup or if ill need it for later in the book
-        self.temp_storage = vec![chunk];
-        self.chunk_iter = self.temp_storage.iter().enumerate();
-        self.instruction_iter = self.temp_storage[0].code_iter().enumerate();
+        chunks.clear(); // TODO i could just least the chunks persist over runs
+        chunks.push(chunk);
+        self.chunk_iter = chunks.iter().enumerate();
+        self.instruction_iter = chunks[chunks.len() - 1].code_iter().enumerate();
 
-        todo!("Need to figure out lifetime issues for chunks");
         self.run()
     }
 

@@ -1,6 +1,6 @@
 use crate::{
     chunk::Chunk,
-    scanner::{Scanner, ScannerError, TokenKind},
+    scanner::{Scanner, ScannerError, Token, TokenKind},
 };
 use std::fmt;
 
@@ -18,6 +18,10 @@ impl fmt::Display for CompilerError {
             }
         }
     }
+}
+struct Parser<'a> {
+    current: Token<'a>,
+    previous: Token<'a>,
 }
 
 pub struct Compiler {}
