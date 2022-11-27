@@ -19,19 +19,52 @@ impl fmt::Display for CompilerError {
         }
     }
 }
+
 struct Parser<'a> {
     current: Token<'a>,
     previous: Token<'a>,
 }
 
-pub struct Compiler {}
+impl<'a> Parser<'a> {
+    pub fn new() -> Parser<'a> {
+        Parser {
+            current: Token::new_uninit(),
+            previous: Token::new_uninit(),
+        }
+    }
+}
 
-impl Compiler {
-    pub fn new() -> Compiler {
-        Compiler {}
+pub struct Compiler<'a> {
+    // TODO, these may not need to be members since their init logic is so odd
+    parser: Parser<'a>,
+    scanner: Scanner<'a>,
+}
+
+impl<'a> Compiler<'a> {
+    pub fn new() -> Compiler<'a> {
+        Compiler {
+            parser: Parser::new(),
+            scanner: Scanner::new(""),
+        }
     }
 
-    fn advance(&mut self) {
+    fn error_on_current_token(&mut self) {
+        todo!()
+    }
+
+    fn advance(&'a mut self) -> Result<(), ScannerError> {
+        self.parser.previous = self.parser.current.clone();
+
+        loop {
+            {
+                self.parser.current = self.scanner.scan_token()?;
+                if !matches!(self.parser.current.kind, TokenKind::Error(_)) {
+                    // Break on non-error types
+                    break;
+                }
+            }
+            self.error_on_current_token();
+        }
         todo!()
     }
 
@@ -43,8 +76,8 @@ impl Compiler {
         todo!()
     }
 
-    pub fn compile(&mut self, source: &str, chunk: &mut Chunk) -> Result<(), CompilerError> {
-        let mut scanner = Scanner::new(source);
+    pub fn compile(&mut self, source: &'a str, chunk: &mut Chunk) -> Result<(), CompilerError> {
+        self.scanner = Scanner::new(source);
         self.advance();
         self.expression();
         self.consume(TokenKind::Eof, "Expect end of expression");

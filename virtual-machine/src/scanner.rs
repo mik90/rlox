@@ -9,7 +9,7 @@ pub struct Scanner<'a> {
     line: usize,
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub enum TokenKind {
     LeftParen,
     RightParen,
@@ -60,7 +60,7 @@ pub enum TokenKind {
     Eof,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Token<'a> {
     pub line: usize,
     pub start: Enumerate<Chars<'a>>,
@@ -71,6 +71,15 @@ pub struct Token<'a> {
 const EMPTY_STR: &str = "";
 
 impl<'a> Token<'_> {
+    pub fn new_uninit() -> Token<'a> {
+        Token {
+            line: 0,
+            start: EMPTY_STR.chars().enumerate(),
+            length: 0,
+            kind: TokenKind::Error(String::from("Uninitialized token")),
+        }
+    }
+
     pub fn new(line: usize, start: Enumerate<Chars<'a>>, length: usize, kind: TokenKind) -> Token {
         Token {
             line,
@@ -128,7 +137,7 @@ impl<'a> Scanner<'a> {
         }
     }
 
-    pub fn scan_token(&mut self) -> Result<Token, ScannerError> {
+    pub fn scan_token(&mut self) -> Result<Token<'a>, ScannerError> {
         self.skip_whitespace()?;
         self.start = self.current.clone();
         if self.is_at_end()? {
@@ -330,7 +339,7 @@ impl<'a> Scanner<'a> {
 
     /// Token builders
 
-    fn make_token(&self, kind: TokenKind) -> Result<Token, ScannerError> {
+    fn make_token(&self, kind: TokenKind) -> Result<Token<'a>, ScannerError> {
         Ok(Token::new(
             self.line,
             self.start.clone(),
@@ -339,11 +348,11 @@ impl<'a> Scanner<'a> {
         ))
     }
 
-    fn error_token(&self, description: String) -> Token {
+    fn error_token(&self, description: String) -> Token<'a> {
         Token::new_error(self.line, description)
     }
 
-    fn make_string_token(&mut self) -> Result<Token, ScannerError> {
+    fn make_string_token(&mut self) -> Result<Token<'a>, ScannerError> {
         while self.peek_current_char()? != '"' && !self.is_at_end()? {
             if self.peek_current_char()? == '\n' {
                 self.line = self.line + 1;
@@ -359,7 +368,7 @@ impl<'a> Scanner<'a> {
         self.make_token(TokenKind::String)
     }
 
-    fn make_number_token(&mut self) -> Result<Token, ScannerError> {
+    fn make_number_token(&mut self) -> Result<Token<'a>, ScannerError> {
         while self.peek_current_char()?.is_ascii_digit() {
             self.current.next();
         }
@@ -377,7 +386,7 @@ impl<'a> Scanner<'a> {
         self.make_token(TokenKind::Number)
     }
 
-    fn make_identifier_token(&mut self) -> Result<Token, ScannerError> {
+    fn make_identifier_token(&mut self) -> Result<Token<'a>, ScannerError> {
         while self.peek_current_char()?.is_alphanumeric() || self.peek_current_char()? == '_' {
             self.current.next();
         }
