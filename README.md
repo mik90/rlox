@@ -1,6 +1,6 @@
 # rlox
 
-## Interpreter
+## Tree walk interpreter
 
 Lox tree-walk interpreter as part of the Crafting Interpreters book whose source code can be found at <https://github.com/munificent/craftinginterpreters>
 
@@ -35,3 +35,4 @@ I hit some bug where for loops results in undefined variables in the increment. 
 
 ## Virtual machine
 
+Fairly direct translation of `clox` to rust
