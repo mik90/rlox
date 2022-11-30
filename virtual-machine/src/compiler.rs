@@ -1,5 +1,5 @@
 use crate::{
-    chunk::Chunk,
+    chunk::{Chunk, OpCode},
     scanner::{Scanner, ScannerError, Token, TokenKind},
 };
 use std::fmt;
@@ -112,13 +112,37 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         Ok(())
     }
 
-    fn consume(&mut self, expected_kind: TokenKind, error_msg: &str) -> Result<(), CompilerError> {
+    fn consume(
+        &mut self,
+        expected_kind: TokenKind,
+        error_msg: String,
+    ) -> Result<(), CompilerError> {
         if matches!(&self.parser.current.kind, kind) {
             return self.advance().map_err(CompilerError::Scanner);
         }
 
-        self.error_at(ErrorAtKind::Current, None);
-        todo!()
+        self.error_at(ErrorAtKind::Current, Some(error_msg));
+        Ok(())
+    }
+
+    /// The book stores the current chunk as a static variable, ill just pass it in
+    /// This may not be sufficient for later
+    fn emit_byte(&mut self, byte: u8, current_chunk: &mut Chunk) {
+        current_chunk.write_byte(byte, self.parser.previous.line)
+    }
+
+    fn emit_opcode_and_byte(&mut self, opcode: OpCode, byte: u8, current_chunk: &mut Chunk) {
+        current_chunk.write_opcode(opcode, self.parser.previous.line);
+        current_chunk.write_byte(byte, self.parser.previous.line);
+    }
+
+    fn emit_constant(&mut self, value: f64, current_chunk: &mut Chunk) {
+        current_chunk.write_constant(value, self.parser.previous.line);
+    }
+
+    /// Temporary measure as per the book to print hte value of our single expression
+    fn end_compiler(&mut self, current_chunk: &mut Chunk) {
+        current_chunk.write_opcode(OpCode::Return, self.parser.previous.line)
     }
 
     fn expression(&self) {
@@ -133,7 +157,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         self.scanner = Scanner::new(source);
         self.advance().map_err(CompilerError::Scanner)?;
         self.expression();
-        self.consume(TokenKind::Eof, "Expect end of expression")?;
+        self.consume(TokenKind::Eof, "Expect end of expression".to_string())?;
 
         if self.parser.errors.is_empty() {
             Ok(())
@@ -145,4 +169,29 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
 }
 
 #[cfg(test)]
-mod test {}
+mod test {
+    use super::*;
+
+    #[test]
+    fn advance_parser() {
+        let mut compiler = Compiler::new();
+        compiler.scanner = Scanner::new("1 + 2\0");
+
+        let expected_tokens = vec![
+            TokenKind::Number,
+            TokenKind::Plus,
+            TokenKind::Number,
+            TokenKind::Eof,
+        ];
+
+        for _token_kind in expected_tokens {
+            let res = compiler.advance();
+            assert!(res.is_ok(), "{}", res.unwrap_err());
+            assert!(
+                matches!(&compiler.parser.current.kind, _token_kind),
+                "{:?}",
+                compiler.parser.current.kind
+            );
+        }
+    }
+}
