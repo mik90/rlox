@@ -39,6 +39,8 @@ pub struct Chunk {
     lines: Vec<usize>,
 }
 
+type ChunkError = &'static str;
+
 impl Chunk {
     pub fn new() -> Chunk {
         Chunk {
@@ -72,10 +74,15 @@ impl Chunk {
         self.lines.push(source_line);
     }
 
-    pub fn write_constant(&mut self, value: Value, source_line: usize) {
+    pub fn write_constant(&mut self, value: Value, source_line: usize) -> Result<(), ChunkError> {
         let constant_index = self.add_constant(value);
+        if constant_index > std::u8::MAX.into() {
+            // We can only store one bytes worth of indexes into a constant array
+            return Err("Too many constants in one chunk");
+        }
         self.write_opcode(OpCode::Constant, source_line);
         self.write_byte(constant_index as u8, source_line);
+        Ok(())
     }
 
     pub fn write_byte(&mut self, byte: u8, source_line: usize) {

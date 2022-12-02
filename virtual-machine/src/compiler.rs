@@ -8,6 +8,7 @@ use std::fmt;
 pub enum CompilerError {
     Scanner(ScannerError),
     Parse(Vec<String>), // multiple errors can be stored internally
+    Bytecode(String),   // error when building bytecode
 }
 impl std::error::Error for CompilerError {}
 
@@ -23,6 +24,9 @@ impl fmt::Display for CompilerError {
                     "Unable to compile due parse errors: {}",
                     errors.join("\n")
                 )
+            }
+            CompilerError::Bytecode(error) => {
+                write!(f, "Hit error while emitting bytecode: {}", error)
             }
         }
     }
@@ -136,8 +140,32 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         current_chunk.write_byte(byte, self.parser.previous.line);
     }
 
-    fn emit_constant(&mut self, value: f64, current_chunk: &mut Chunk) {
-        current_chunk.write_constant(value, self.parser.previous.line);
+    fn emit_constant(
+        &mut self,
+        value: f64,
+        current_chunk: &mut Chunk,
+    ) -> Result<(), CompilerError> {
+        current_chunk
+            .write_constant(value, self.parser.previous.line)
+            .map_err(|e| {
+                CompilerError::Bytecode(format!("On line {}, {}", self.parser.previous.line, e))
+            })
+    }
+
+    fn number(&mut self, current_chunk: &mut Chunk) -> Result<(), CompilerError> {
+        let value = self
+            .parser
+            .previous
+            .to_string()
+            .parse::<f64>()
+            .map_err(|e| {
+                CompilerError::Parse(vec![format!(
+                    "Could not parse float from {:?}, {}",
+                    self.parser.previous, e
+                )])
+            })?;
+        self.emit_constant(value, current_chunk)?;
+        todo!();
     }
 
     /// Temporary measure as per the book to print hte value of our single expression
