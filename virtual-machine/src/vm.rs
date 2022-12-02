@@ -207,11 +207,8 @@ impl<'a> Vm<'a> {
         source: &str,
         chunks: &'a mut Vec<Chunk>,
     ) -> Result<(), InterpretError> {
-        let mut chunk = Chunk::new();
         let mut compiler = Compiler::new();
-        compiler
-            .compile(source, &mut chunk)
-            .map_err(InterpretError::Compile)?;
+        let chunk = compiler.compile(source).map_err(InterpretError::Compile)?;
 
         chunks.clear(); // TODO i could just least the chunks persist over runs
         chunks.push(chunk);

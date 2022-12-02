@@ -135,38 +135,38 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
 
     /// The book stores the current chunk as a static variable, ill just pass it in
     /// This may not be sufficient for later
-    fn emit_byte(&mut self, byte: u8, current_chunk: &mut Chunk) {
-        current_chunk.write_byte(byte, self.parser.previous.line)
+    fn emit_byte(&self, byte: u8, mut current_chunk: Chunk) -> Chunk {
+        current_chunk.write_byte(byte, self.parser.previous.line);
+        current_chunk
     }
 
-    fn emit_opcode_and_byte(&mut self, opcode: OpCode, byte: u8, current_chunk: &mut Chunk) {
+    fn emit_opcode_and_byte(&self, opcode: OpCode, byte: u8, mut current_chunk: Chunk) -> Chunk {
         current_chunk.write_opcode(opcode, self.parser.previous.line);
         current_chunk.write_byte(byte, self.parser.previous.line);
+        current_chunk
     }
 
-    fn emit_constant(
-        &mut self,
-        value: f64,
-        current_chunk: &mut Chunk,
-    ) -> Result<(), CompilerError> {
+    fn emit_constant(&self, value: f64, mut current_chunk: Chunk) -> Result<Chunk, CompilerError> {
         current_chunk
             .write_constant(value, self.parser.previous.line)
             .map_err(|e| {
                 CompilerError::Bytecode(format!("On line {}, {}", self.parser.previous.line, e))
-            })
+            })?;
+        Ok(current_chunk)
     }
 
     /// Temporary measure as per the book to print hte value of our single expression
-    fn end_compiler(&mut self, current_chunk: &mut Chunk) {
-        current_chunk.write_opcode(OpCode::Return, self.parser.previous.line)
+    fn end_compiler(&mut self, mut current_chunk: Chunk) -> Chunk {
+        current_chunk.write_opcode(OpCode::Return, self.parser.previous.line);
+        current_chunk
     }
 
     // parses and generates bytecode for an expression
-    fn expression(&mut self, chunk: &mut Chunk) -> Result<(), CompilerError> {
+    fn expression(&mut self, chunk: Chunk) -> Result<Chunk, CompilerError> {
         todo!()
     }
 
-    fn number(&mut self, current_chunk: &mut Chunk) -> Result<(), CompilerError> {
+    fn number(&self, mut current_chunk: Chunk) -> Result<Chunk, CompilerError> {
         let value = self
             .parser
             .previous
@@ -178,15 +178,15 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
                     self.parser.previous, e
                 )])
             })?;
-        self.emit_constant(value, current_chunk)?;
-        todo!();
+        current_chunk = self.emit_constant(value, current_chunk)?;
+        Ok(current_chunk)
     }
 
-    fn unary(&mut self, chunk: &mut Chunk) -> Result<(), CompilerError> {
-        let operator_kind = &self.parser.previous.kind;
+    fn unary(&mut self, chunk: Chunk) -> Result<Chunk, CompilerError> {
+        let operator_kind = self.parser.previous.kind.clone();
 
         // compile the operand
-        self.expression(chunk)?;
+        let chunk = self.expression(chunk)?;
 
         if let TokenKind::Minus = operator_kind {
             Ok(self.emit_byte(OpCode::Negate as u8, chunk))
@@ -198,23 +198,23 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         }
     }
 
-    fn grouping(&mut self, chunk: &mut Chunk) -> Result<(), CompilerError> {
-        self.expression(chunk)?;
-        self.consume(TokenKind::RightParen, "Expect ')' after expression")
+    fn grouping(&mut self, chunk: Chunk) -> Result<Chunk, CompilerError> {
+        let chunk = self.expression(chunk)?;
+        self.consume(TokenKind::RightParen, "Expect ')' after expression")?;
+        Ok(chunk)
     }
 
-    pub fn compile(
-        &mut self,
-        source: &'source_lifetime str,
-        chunk: &mut Chunk,
-    ) -> Result<(), CompilerError> {
+    pub fn compile(&mut self, source: &'source_lifetime str) -> Result<Chunk, CompilerError> {
         self.scanner = Scanner::new(source);
+        let mut chunk = Chunk::new();
         self.advance().map_err(CompilerError::Scanner)?;
-        self.expression(chunk)?;
+
+        chunk = self.expression(chunk)?;
+
         self.consume(TokenKind::Eof, "Expect end of expression")?;
 
         if self.parser.errors.is_empty() {
-            Ok(())
+            Ok(chunk)
         } else {
             let errors: Vec<String> = self.parser.errors.drain(0..).collect();
             Err(CompilerError::Parse(errors))
