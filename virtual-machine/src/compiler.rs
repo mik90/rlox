@@ -54,6 +54,21 @@ impl<'source_lifetime> Parser<'source_lifetime> {
     }
 }
 
+/// Pecedence from lowest to highest
+enum Precedence {
+    None = 0,
+    Assignment, //< =
+    Or,         //< or
+    And,        //< and
+    Equality,   //< == !=
+    Comparison, //< < > <= >=
+    Term,       //< + -
+    Factor,     //< * /
+    Unary,      //< ! -
+    Call,       //< . ()
+    Primary,
+}
+
 pub struct Compiler<'source_lifetime> {
     // TODO, these may not need to be members since their init logic is so odd
     parser: Parser<'source_lifetime>,
@@ -163,6 +178,8 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
 
     // parses and generates bytecode for an expression
     fn expression(&mut self, chunk: Chunk) -> Result<Chunk, CompilerError> {
+        // Parse lowest precedence level
+        self.parse_precedence(Precedence::Assignment);
         todo!()
     }
 
@@ -185,8 +202,8 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
     fn unary(&mut self, chunk: Chunk) -> Result<Chunk, CompilerError> {
         let operator_kind = self.parser.previous.kind.clone();
 
-        // compile the operand
-        let chunk = self.expression(chunk)?;
+        // parse only the operand
+        self.parse_precedence(Precedence::Unary);
 
         if let TokenKind::Minus = operator_kind {
             Ok(self.emit_byte(OpCode::Negate as u8, chunk))
@@ -196,6 +213,11 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
                 self.parser.previous.line, operator_kind
             )))
         }
+    }
+
+    /// Starts at current token and parses any expressin at the current precedence or higher
+    fn parse_precedence(&mut self, precedence: Precedence) {
+        todo!()
     }
 
     fn grouping(&mut self, chunk: Chunk) -> Result<Chunk, CompilerError> {
