@@ -7,8 +7,9 @@ use std::fmt;
 #[derive(Debug, Clone)]
 pub enum CompilerError {
     Scanner(ScannerError),
-    Parse(Vec<String>), // multiple errors can be stored internally
-    Bytecode(String),   // error when building bytecode
+    Parse(Vec<String>),  // multiple errors can be stored internally
+    Bytecode(String),    // error when building bytecode
+    Unreachable(String), // error when the parse tree reaches something previously thought impossible
 }
 impl std::error::Error for CompilerError {}
 
@@ -27,6 +28,9 @@ impl fmt::Display for CompilerError {
             }
             CompilerError::Bytecode(error) => {
                 write!(f, "Hit error while emitting bytecode: {}", error)
+            }
+            CompilerError::Unreachable(error) => {
+                write!(f, "Hit unreachable path during compilation: {}", error)
             }
         }
     }
@@ -70,7 +74,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
     }
 
     /// TODO this function call needs to be cleaned up
-    fn error_at(&mut self, error_at_kind: ErrorAtKind, msg: Option<String>) {
+    fn error_at(&mut self, error_at_kind: ErrorAtKind, msg: Option<&'static str>) {
         if self.parser.panic_mode {
             return;
         }
@@ -119,7 +123,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
     fn consume(
         &mut self,
         expected_kind: TokenKind,
-        error_msg: String,
+        error_msg: &'static str,
     ) -> Result<(), CompilerError> {
         if matches!(&self.parser.current.kind, kind) {
             return self.advance().map_err(CompilerError::Scanner);
@@ -152,6 +156,16 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
             })
     }
 
+    /// Temporary measure as per the book to print hte value of our single expression
+    fn end_compiler(&mut self, current_chunk: &mut Chunk) {
+        current_chunk.write_opcode(OpCode::Return, self.parser.previous.line)
+    }
+
+    // parses and generates bytecode for an expression
+    fn expression(&mut self, chunk: &mut Chunk) -> Result<(), CompilerError> {
+        todo!()
+    }
+
     fn number(&mut self, current_chunk: &mut Chunk) -> Result<(), CompilerError> {
         let value = self
             .parser
@@ -168,13 +182,25 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         todo!();
     }
 
-    /// Temporary measure as per the book to print hte value of our single expression
-    fn end_compiler(&mut self, current_chunk: &mut Chunk) {
-        current_chunk.write_opcode(OpCode::Return, self.parser.previous.line)
+    fn unary(&mut self, chunk: &mut Chunk) -> Result<(), CompilerError> {
+        let operator_kind = &self.parser.previous.kind;
+
+        // compile the operand
+        self.expression(chunk)?;
+
+        if let TokenKind::Minus = operator_kind {
+            Ok(self.emit_byte(OpCode::Negate as u8, chunk))
+        } else {
+            Err(CompilerError::Unreachable(format!(
+                "Expected unary negation on line {} but instead saw {:?}",
+                self.parser.previous.line, operator_kind
+            )))
+        }
     }
 
-    fn expression(&self) {
-        todo!()
+    fn grouping(&mut self, chunk: &mut Chunk) -> Result<(), CompilerError> {
+        self.expression(chunk)?;
+        self.consume(TokenKind::RightParen, "Expect ')' after expression")
     }
 
     pub fn compile(
@@ -184,8 +210,8 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
     ) -> Result<(), CompilerError> {
         self.scanner = Scanner::new(source);
         self.advance().map_err(CompilerError::Scanner)?;
-        self.expression();
-        self.consume(TokenKind::Eof, "Expect end of expression".to_string())?;
+        self.expression(chunk)?;
+        self.consume(TokenKind::Eof, "Expect end of expression")?;
 
         if self.parser.errors.is_empty() {
             Ok(())
