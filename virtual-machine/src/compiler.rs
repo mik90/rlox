@@ -2,7 +2,7 @@ use crate::{
     chunk::{Chunk, OpCode},
     scanner::{Scanner, ScannerError, Token, TokenKind},
 };
-use std::fmt;
+use std::{clone, fmt};
 
 #[derive(Debug, Clone)]
 pub enum CompilerError {
@@ -67,6 +67,14 @@ enum Precedence {
     Unary,      //< ! -
     Call,       //< . ()
     Primary,
+}
+
+struct ParserRule {}
+
+impl ParserRule {
+    fn get_next_precedence(&self) -> Precedence {
+        todo!()
+    }
 }
 
 pub struct Compiler<'source_lifetime> {
@@ -155,6 +163,11 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         current_chunk
     }
 
+    fn emit_opcode(&self, op: OpCode, mut current_chunk: Chunk) -> Chunk {
+        current_chunk.write_opcode(opcode, self.parser.previous.line);
+        current_chunk
+    }
+
     fn emit_opcode_and_byte(&self, opcode: OpCode, byte: u8, mut current_chunk: Chunk) -> Chunk {
         current_chunk.write_opcode(opcode, self.parser.previous.line);
         current_chunk.write_byte(byte, self.parser.previous.line);
@@ -170,10 +183,32 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         Ok(current_chunk)
     }
 
+    fn get_rule(&self, operator_kind: TokenKind) -> ParserRule {
+        todo!()
+    }
+
     /// Temporary measure as per the book to print hte value of our single expression
     fn end_compiler(&mut self, mut current_chunk: Chunk) -> Chunk {
         current_chunk.write_opcode(OpCode::Return, self.parser.previous.line);
         current_chunk
+    }
+
+    fn binary(&mut self, mut chunk: Chunk) -> Result<Chunk, CompilerError> {
+        let operator_kind = self.parser.previous.kind.clone();
+        let rule = self.get_rule(operator_kind);
+        let precedence = rule.get_next_precedence();
+        self.parse_precedence(precedence);
+
+        match operator_kind {
+            TokenKind::Plus => Ok(self.emit_opcode(OpCode::Add, chunk)),
+            TokenKind::Minus => Ok(self.emit_opcode(OpCode::Subtract, chunk)),
+            TokenKind::Star => Ok(self.emit_opcode(OpCode::Multiply, chunk)),
+            TokenKind::Slash => Ok(self.emit_opcode(OpCode::Divide, chunk)),
+            _ => Err(CompilerError::Unreachable(format!(
+                "Did not expect operator {:?} in binary expression on line {}",
+                operator_kind, self.parser.previous.line
+            ))),
+        }
     }
 
     // parses and generates bytecode for an expression
