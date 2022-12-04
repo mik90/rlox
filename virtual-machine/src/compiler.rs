@@ -77,6 +77,13 @@ struct ParserRule {
     precedence: Precedence,
 }
 
+struct ParserRuleResult {
+    /// Always returns the parsed chunk
+    chunk: Chunk,
+    error: Option<CompilerError>,
+    precedence: Precedence,
+}
+
 impl ParserRule {
     fn new(
         prefix: Option<Box<ParseFn>>,
@@ -313,7 +320,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
             ),
             (
                 // Eugh, hacky. gets the discriminant on a random instantiated enum variant
-                std::mem::discriminant(&TokenKind::Error("dummy".to_owned())),
+                std::mem::discriminant(&TokenKind::Error(String::new())),
                 ParserRule::new(None, None, Precedence::None),
             ),
             (
@@ -356,11 +363,11 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         self.parser.errors.push(current_error.join(""));
     }
 
-    fn advance(&mut self) -> Result<(), ScannerError> {
+    fn advance(&mut self) -> Result<(), CompilerError> {
         self.parser.previous = self.parser.current.clone();
 
         loop {
-            self.parser.current = self.scanner.scan_token()?;
+            self.parser.current = self.scanner.scan_token().map_err(CompilerError::Scanner)?;
             if !matches!(self.parser.current.kind, TokenKind::Error(_)) {
                 // Break on non-error types
                 break;
@@ -376,7 +383,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         error_msg: &'static str,
     ) -> Result<(), CompilerError> {
         if matches!(&self.parser.current.kind, kind) {
-            return self.advance().map_err(CompilerError::Scanner);
+            return self.advance();
         }
 
         self.error_at(ErrorAtKind::Current, Some(error_msg));
@@ -410,8 +417,37 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         Ok(current_chunk)
     }
 
-    fn get_rule(&self, operator_kind: &TokenKind) -> ParserRule {
-        todo!()
+    fn call_prefix(
+        &mut self,
+        operator_kind: &TokenKind,
+        chunk: Chunk,
+    ) -> Result<Chunk, CompilerError> {
+        self.rules
+            .get(&std::mem::discriminant(operator_kind))
+            .ok_or_else(|| {
+                CompilerError::Unreachable(format!(
+                    "Could not find ParserRule for operator {:?} on line {}",
+                    operator_kind, self.parser.previous.line
+                ))
+            })?
+            .prefix
+            .as_ref()
+            .map(|f| f(self, chunk))
+            .ok_or_else(|| {
+                self.error_at(ErrorAtKind::Previous, Some("Expect expression"));
+                CompilerError::Unreachable(format!("No prefix handler provided"))
+            })?
+    }
+
+    fn get_rule(&self, operator_kind: &TokenKind) -> Result<&ParserRule, CompilerError> {
+        self.rules
+            .get(&std::mem::discriminant(operator_kind))
+            .ok_or_else(|| {
+                CompilerError::Unreachable(format!(
+                    "Could not find ParserRule for operator {:?} on line {}",
+                    operator_kind, self.parser.previous.line
+                ))
+            })
     }
 
     /// Temporary measure as per the book to print hte value of our single expression
@@ -422,9 +458,9 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
 
     fn binary(&mut self, mut chunk: Chunk) -> Result<Chunk, CompilerError> {
         let operator_kind = self.parser.previous.kind.clone();
-        let rule = self.get_rule(&operator_kind);
+        let rule = self.get_rule(&operator_kind)?;
         let precedence = rule.get_next_precedence();
-        self.parse_precedence(precedence);
+        chunk = self.parse_precedence(precedence, chunk)?;
 
         match operator_kind {
             TokenKind::Plus => Ok(self.emit_opcode(OpCode::Add, chunk)),
@@ -439,9 +475,9 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
     }
 
     // parses and generates bytecode for an expression
-    fn expression(&mut self, chunk: Chunk) -> Result<Chunk, CompilerError> {
+    fn expression(&mut self, mut chunk: Chunk) -> Result<Chunk, CompilerError> {
         // Parse lowest precedence level
-        self.parse_precedence(Precedence::Assignment);
+        chunk = self.parse_precedence(Precedence::Assignment, chunk)?;
         todo!()
     }
 
@@ -461,11 +497,11 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         Ok(current_chunk)
     }
 
-    fn unary(&mut self, chunk: Chunk) -> Result<Chunk, CompilerError> {
+    fn unary(&mut self, mut chunk: Chunk) -> Result<Chunk, CompilerError> {
         let operator_kind = self.parser.previous.kind.clone();
 
         // parse only the operand
-        self.parse_precedence(Precedence::Unary);
+        chunk = self.parse_precedence(Precedence::Unary, chunk)?;
 
         if let TokenKind::Minus = operator_kind {
             Ok(self.emit_byte(OpCode::Negate as u8, chunk))
@@ -478,8 +514,22 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
     }
 
     /// Starts at current token and parses any expressin at the current precedence or higher
-    fn parse_precedence(&mut self, precedence: Precedence) {
-        todo!()
+    fn parse_precedence(
+        &mut self,
+        precedence: Precedence,
+        mut chunk: Chunk,
+    ) -> Result<Chunk, CompilerError> {
+        self.advance()?;
+        let parser_rule = self.get_rule(&self.parser.previous.kind)?;
+
+        if let Some(prefix_fn) = &parser_rule.prefix {
+            chunk = prefix_fn(self, chunk)?;
+        } else {
+            self.error_at(ErrorAtKind::Previous, Some("Expect expression"));
+            // Non-fatal error, evidently?
+            return Ok(chunk);
+        };
+        Ok(chunk)
     }
 
     fn grouping(&mut self, chunk: Chunk) -> Result<Chunk, CompilerError> {
@@ -491,7 +541,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
     pub fn compile(&mut self, source: &'source_lifetime str) -> Result<Chunk, CompilerError> {
         self.scanner = Scanner::new(source);
         let mut chunk = Chunk::new();
-        self.advance().map_err(CompilerError::Scanner)?;
+        self.advance()?;
 
         chunk = self.expression(chunk)?;
 
