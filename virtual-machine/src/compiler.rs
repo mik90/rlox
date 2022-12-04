@@ -54,7 +54,8 @@ impl<'source_lifetime> Parser<'source_lifetime> {
     }
 }
 
-/// Pecedence from lowest to highest
+/// Precedence from lowest to highest
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
 enum Precedence {
     None = 0,
     Assignment, //< =
@@ -67,6 +68,12 @@ enum Precedence {
     Unary,      //< ! -
     Call,       //< . ()
     Primary,
+}
+
+impl Precedence {
+    fn next(&self) -> Precedence {
+        todo!()
+    }
 }
 
 type ParseFn = dyn Fn(&mut Compiler, Chunk) -> Result<Chunk, CompilerError>;
@@ -109,7 +116,6 @@ impl ParserRule {
 pub struct Compiler<'source_lifetime> {
     // TODO, these may not need to be members since their init logic is so odd
     parser: Parser<'source_lifetime>,
-    rules: HashMap<std::mem::Discriminant<TokenKind>, ParserRule>,
     scanner: Scanner<'source_lifetime>,
 }
 
@@ -120,13 +126,10 @@ enum ErrorAtKind {
 
 impl<'source_lifetime> Compiler<'source_lifetime> {
     pub fn new() -> Compiler<'source_lifetime> {
-        let mut compiler = Compiler {
+        Compiler {
             parser: Parser::new(),
-            rules: HashMap::new(),
             scanner: Scanner::new(""),
-        };
-        compiler.set_rules();
-        compiler
+        }
     }
 
     /// This is a hacky workaround to the parse table in clox. A better approach would be to have a big match expression
@@ -134,13 +137,12 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
     /// it would return the request information from the ParserRule such as the precedence or the result of the applied infix or prefix operation
     /// TODO use a better approach
 
-    fn handle_operator(
+    fn get_rule(
         &mut self,
         operator_kind: &TokenKind,
         call_type: ParserCallType,
-        chunk: Chunk,
-    ) -> ParserRuleResult {
-        let callable: (Option<Box<ParseFn>>, Precedence) = match operator_kind {
+    ) -> (Option<Box<ParseFn>>, Precedence) {
+        match operator_kind {
             TokenKind::LeftParen => (
                 match call_type {
                     ParserCallType::Prefix => {
@@ -435,8 +437,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
                 },
                 Precedence::None,
             ),
-        };
-        todo!()
+        }
     }
 
     /// TODO this function call needs to be cleaned up
@@ -526,39 +527,6 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         Ok(current_chunk)
     }
 
-    fn call_prefix(
-        &mut self,
-        operator_kind: &TokenKind,
-        chunk: Chunk,
-    ) -> Result<Chunk, CompilerError> {
-        self.rules
-            .get(&std::mem::discriminant(operator_kind))
-            .ok_or_else(|| {
-                CompilerError::Unreachable(format!(
-                    "Could not find ParserRule for operator {:?} on line {}",
-                    operator_kind, self.parser.previous.line
-                ))
-            })?
-            .prefix
-            .as_ref()
-            .map(|f| f(self, chunk))
-            .ok_or_else(|| {
-                self.error_at(ErrorAtKind::Previous, Some("Expect expression"));
-                CompilerError::Unreachable(format!("No prefix handler provided"))
-            })?
-    }
-
-    fn get_rule(&self, operator_kind: &TokenKind) -> Result<&ParserRule, CompilerError> {
-        self.rules
-            .get(&std::mem::discriminant(operator_kind))
-            .ok_or_else(|| {
-                CompilerError::Unreachable(format!(
-                    "Could not find ParserRule for operator {:?} on line {}",
-                    operator_kind, self.parser.previous.line
-                ))
-            })
-    }
-
     /// Temporary measure as per the book to print hte value of our single expression
     fn end_compiler(&mut self, mut current_chunk: Chunk) -> Chunk {
         current_chunk.write_opcode(OpCode::Return, self.parser.previous.line);
@@ -567,9 +535,9 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
 
     fn binary(&mut self, mut chunk: Chunk) -> Result<Chunk, CompilerError> {
         let operator_kind = self.parser.previous.kind.clone();
-        let rule = self.get_rule(&operator_kind)?;
-        let precedence = rule.get_next_precedence();
-        chunk = self.parse_precedence(precedence, chunk)?;
+        // Technically either infix/prefix works since the precedence doesnt care
+        let (_, precedence) = self.get_rule(&operator_kind, ParserCallType::Infix);
+        chunk = self.parse_precedence(precedence.next(), chunk)?;
 
         match operator_kind {
             TokenKind::Plus => Ok(self.emit_opcode(OpCode::Add, chunk)),
@@ -629,15 +597,38 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         mut chunk: Chunk,
     ) -> Result<Chunk, CompilerError> {
         self.advance()?;
-        let parser_rule = self.get_rule(&self.parser.previous.kind)?;
+        let prev_kind = self.parser.previous.kind.clone();
+        let (prefix_callable, precedence) = self.get_rule(&prev_kind, ParserCallType::Prefix);
 
-        if let Some(prefix_fn) = &parser_rule.prefix {
+        if let Some(prefix_fn) = prefix_callable {
             chunk = prefix_fn(self, chunk)?;
         } else {
             self.error_at(ErrorAtKind::Previous, Some("Expect expression"));
             // Non-fatal error, evidently?
             return Ok(chunk);
         };
+
+        // Handle infix
+        loop {
+            let current_kind = self.parser.current.kind.clone();
+            let (_, infix_precedence) = self.get_rule(&current_kind, ParserCallType::Infix);
+            if precedence > infix_precedence {
+                break;
+            }
+            self.advance()?;
+            let prev_kind = self.parser.previous.kind.clone();
+            let (infix_rule, _) = self.get_rule(&prev_kind, ParserCallType::Infix);
+            match infix_rule {
+                Some(r) => chunk = r(self, chunk)?,
+                None => {
+                    return Err(CompilerError::Unreachable(format!(
+                        "No infix parser rule provided for {:?} on line {}",
+                        &self.parser.previous.kind, self.parser.previous.line
+                    )))
+                }
+            }
+        }
+
         Ok(chunk)
     }
 
