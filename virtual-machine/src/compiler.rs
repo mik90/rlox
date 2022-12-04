@@ -55,7 +55,7 @@ impl<'source_lifetime> Parser<'source_lifetime> {
 }
 
 /// Precedence from lowest to highest
-#[derive(PartialEq, Eq, PartialOrd, Ord)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 enum Precedence {
     None = 0,
     Assignment, //< =
@@ -72,7 +72,27 @@ enum Precedence {
 
 impl Precedence {
     fn next(&self) -> Precedence {
-        todo!()
+        let next_enum_integer = *self as u8 + 1;
+        Precedence::from(next_enum_integer)
+    }
+}
+
+impl From<u8> for Precedence {
+    fn from(v: u8) -> Self {
+        match v {
+            x if x == Precedence::None as u8 => Precedence::None,
+            x if x == Precedence::Assignment as u8 => Precedence::Assignment,
+            x if x == Precedence::Or as u8 => Precedence::Or,
+            x if x == Precedence::And as u8 => Precedence::And,
+            x if x == Precedence::Equality as u8 => Precedence::Equality,
+            x if x == Precedence::Comparison as u8 => Precedence::Comparison,
+            x if x == Precedence::Term as u8 => Precedence::Term,
+            x if x == Precedence::Factor as u8 => Precedence::Factor,
+            x if x == Precedence::Unary as u8 => Precedence::Unary,
+            x if x == Precedence::Call as u8 => Precedence::Call,
+            x if x == Precedence::Primary as u8 => Precedence::Primary,
+            _ => Precedence::Primary,
+        }
     }
 }
 
@@ -554,8 +574,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
     // parses and generates bytecode for an expression
     fn expression(&mut self, mut chunk: Chunk) -> Result<Chunk, CompilerError> {
         // Parse lowest precedence level
-        chunk = self.parse_precedence(Precedence::Assignment, chunk)?;
-        todo!()
+        self.parse_precedence(Precedence::Assignment, chunk)
     }
 
     fn number(&self, mut current_chunk: Chunk) -> Result<Chunk, CompilerError> {
@@ -598,7 +617,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
     ) -> Result<Chunk, CompilerError> {
         self.advance()?;
         let prev_kind = self.parser.previous.kind.clone();
-        let (prefix_callable, precedence) = self.get_rule(&prev_kind, ParserCallType::Prefix);
+        let (prefix_callable, _) = self.get_rule(&prev_kind, ParserCallType::Prefix);
 
         if let Some(prefix_fn) = prefix_callable {
             chunk = prefix_fn(self, chunk)?;
