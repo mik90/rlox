@@ -2,7 +2,7 @@ use crate::{
     chunk::{Chunk, OpCode},
     scanner::{Scanner, ScannerError, Token, TokenKind},
 };
-use std::{clone, fmt};
+use std::{clone, collections::HashMap, fmt, hash::Hash};
 
 #[derive(Debug, Clone)]
 pub enum CompilerError {
@@ -97,7 +97,7 @@ impl ParserRule {
 pub struct Compiler<'source_lifetime> {
     // TODO, these may not need to be members since their init logic is so odd
     parser: Parser<'source_lifetime>,
-    rules: Vec<ParserRule>,
+    rules: HashMap<std::mem::Discriminant<TokenKind>, ParserRule>,
     scanner: Scanner<'source_lifetime>,
 }
 
@@ -110,135 +110,217 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
     pub fn new() -> Compiler<'source_lifetime> {
         let mut compiler = Compiler {
             parser: Parser::new(),
-            rules: vec![],
+            rules: HashMap::new(),
             scanner: Scanner::new(""),
         };
         compiler.set_rules();
         compiler
     }
 
+    /// This is a hacky workaround to the parse table in clox. A better approach would be to have a big match expression
+    /// that matches a TokenKind to a ParserRule. It would either return a reference to an already-constructed ParserRule or, if given the appropriate args,
+    /// it would return the request information from the ParserRule such as the precedence or the result of the applied infix or prefix operation
+    /// TODO use a better approach
     fn set_rules(&mut self) {
-        let left_paren = ParserRule::new(
-            Some(Box::new(|compiler: &mut Compiler, chunk: Chunk| {
-                compiler.grouping(chunk)
-            })),
-            None,
-            Precedence::None,
-        );
-        let left_brace = ParserRule::new(None, None, Precedence::None);
-        let right_brace = ParserRule::new(None, None, Precedence::None);
-        let comma = ParserRule::new(None, None, Precedence::None);
-        let dot = ParserRule::new(None, None, Precedence::None);
-        let minus = ParserRule::new(
-            Some(Box::new(|compiler: &mut Compiler, chunk: Chunk| {
-                compiler.unary(chunk)
-            })),
-            Some(Box::new(|compiler: &mut Compiler, chunk: Chunk| {
-                compiler.binary(chunk)
-            })),
-            Precedence::Term,
-        );
-        let plus = ParserRule::new(
-            Some(Box::new(|compiler: &mut Compiler, chunk: Chunk| {
-                compiler.unary(chunk)
-            })),
-            Some(Box::new(|compiler: &mut Compiler, chunk: Chunk| {
-                compiler.binary(chunk)
-            })),
-            Precedence::Term,
-        );
-        let semicolon = ParserRule::new(None, None, Precedence::None);
-        let slash = ParserRule::new(
-            None,
-            Some(Box::new(|compiler: &mut Compiler, chunk: Chunk| {
-                compiler.binary(chunk)
-            })),
-            Precedence::Factor,
-        );
-        let star = ParserRule::new(
-            None,
-            Some(Box::new(|compiler: &mut Compiler, chunk: Chunk| {
-                compiler.binary(chunk)
-            })),
-            Precedence::Factor,
-        );
-        let bang = ParserRule::new(None, None, Precedence::None);
-        let bang_equal = ParserRule::new(None, None, Precedence::None);
-        let equal = ParserRule::new(None, None, Precedence::None);
-        let equal_equal = ParserRule::new(None, None, Precedence::None);
-        let greater = ParserRule::new(None, None, Precedence::None);
-        let greater_equal = ParserRule::new(None, None, Precedence::None);
-        let less = ParserRule::new(None, None, Precedence::None);
-        let less_equal = ParserRule::new(None, None, Precedence::None);
-        let identifier = ParserRule::new(None, None, Precedence::None);
-        let string = ParserRule::new(None, None, Precedence::None);
-        let number = ParserRule::new(
-            Some(Box::new(|compiler: &mut Compiler, chunk: Chunk| {
-                compiler.number(chunk)
-            })),
-            None,
-            Precedence::None,
-        );
-        let and = ParserRule::new(None, None, Precedence::None);
-        let class = ParserRule::new(None, None, Precedence::None);
-        let tok_else = ParserRule::new(None, None, Precedence::None);
-        let tok_false = ParserRule::new(None, None, Precedence::None);
-        let tok_for = ParserRule::new(None, None, Precedence::None);
-        let fun = ParserRule::new(None, None, Precedence::None);
-        let tok_if = ParserRule::new(None, None, Precedence::None);
-        let nil = ParserRule::new(None, None, Precedence::None);
-        let or = ParserRule::new(None, None, Precedence::None);
-        let print = ParserRule::new(None, None, Precedence::None);
-        let tok_ret = ParserRule::new(None, None, Precedence::None);
-        let tok_super = ParserRule::new(None, None, Precedence::None);
-        let this = ParserRule::new(None, None, Precedence::None);
-        let tok_true = ParserRule::new(None, None, Precedence::None);
-        let var = ParserRule::new(None, None, Precedence::None);
-        let tok_while = ParserRule::new(None, None, Precedence::None);
-        let error = ParserRule::new(None, None, Precedence::None);
-        let eof = ParserRule::new(None, None, Precedence::None);
-
-        self.rules = vec![
-            left_paren,
-            left_brace,
-            right_brace,
-            comma,
-            dot,
-            minus,
-            plus,
-            semicolon,
-            slash,
-            star,
-            bang,
-            bang_equal,
-            equal,
-            equal_equal,
-            greater,
-            greater_equal,
-            less,
-            less_equal,
-            identifier,
-            string,
-            number,
-            and,
-            class,
-            tok_else,
-            tok_false,
-            tok_for,
-            fun,
-            tok_if,
-            nil,
-            or,
-            print,
-            tok_ret,
-            tok_super,
-            this,
-            tok_true,
-            var,
-            tok_while,
-            error,
-            eof,
-        ]
+        self.rules = HashMap::from([
+            (
+                std::mem::discriminant(&TokenKind::LeftParen),
+                ParserRule::new(
+                    Some(Box::new(|compiler: &mut Compiler, chunk: Chunk| {
+                        compiler.grouping(chunk)
+                    })),
+                    None,
+                    Precedence::None,
+                ),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::LeftBrace),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::RightBrace),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::Comma),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::Dot),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::Minus),
+                ParserRule::new(
+                    Some(Box::new(|compiler: &mut Compiler, chunk: Chunk| {
+                        compiler.unary(chunk)
+                    })),
+                    Some(Box::new(|compiler: &mut Compiler, chunk: Chunk| {
+                        compiler.binary(chunk)
+                    })),
+                    Precedence::Term,
+                ),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::Plus),
+                ParserRule::new(
+                    Some(Box::new(|compiler: &mut Compiler, chunk: Chunk| {
+                        compiler.unary(chunk)
+                    })),
+                    Some(Box::new(|compiler: &mut Compiler, chunk: Chunk| {
+                        compiler.binary(chunk)
+                    })),
+                    Precedence::Term,
+                ),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::SemiColon),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::Slash),
+                ParserRule::new(
+                    None,
+                    Some(Box::new(|compiler: &mut Compiler, chunk: Chunk| {
+                        compiler.binary(chunk)
+                    })),
+                    Precedence::Factor,
+                ),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::Star),
+                ParserRule::new(
+                    None,
+                    Some(Box::new(|compiler: &mut Compiler, chunk: Chunk| {
+                        compiler.binary(chunk)
+                    })),
+                    Precedence::Factor,
+                ),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::Bang),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::BangEqual),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::Equal),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::EqualEqual),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::Greater),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::GreaterEqual),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::Less),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::LessEqual),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::Identifier),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::String),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::Number),
+                ParserRule::new(
+                    Some(Box::new(|compiler: &mut Compiler, chunk: Chunk| {
+                        compiler.number(chunk)
+                    })),
+                    None,
+                    Precedence::None,
+                ),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::And),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::Class),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::Else),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::False),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::For),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::Fun),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::If),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::Nil),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::Or),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::Print),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::Return),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::Super),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::This),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::True),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::Var),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::While),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                // Eugh, hacky. gets the discriminant on a random instantiated enum variant
+                std::mem::discriminant(&TokenKind::Error("dummy".to_owned())),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::Eof),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+        ]);
     }
 
     /// TODO this function call needs to be cleaned up
@@ -328,7 +410,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         Ok(current_chunk)
     }
 
-    fn get_rule(&self, operator_kind: TokenKind) -> ParserRule {
+    fn get_rule(&self, operator_kind: &TokenKind) -> ParserRule {
         todo!()
     }
 
@@ -340,7 +422,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
 
     fn binary(&mut self, mut chunk: Chunk) -> Result<Chunk, CompilerError> {
         let operator_kind = self.parser.previous.kind.clone();
-        let rule = self.get_rule(operator_kind);
+        let rule = self.get_rule(&operator_kind);
         let precedence = rule.get_next_precedence();
         self.parse_precedence(precedence);
 
