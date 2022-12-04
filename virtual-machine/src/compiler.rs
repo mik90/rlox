@@ -108,17 +108,137 @@ enum ErrorAtKind {
 
 impl<'source_lifetime> Compiler<'source_lifetime> {
     pub fn new() -> Compiler<'source_lifetime> {
-        Compiler {
+        let mut compiler = Compiler {
             parser: Parser::new(),
             rules: vec![],
             scanner: Scanner::new(""),
-        }
+        };
+        compiler.set_rules();
+        compiler
     }
 
     fn set_rules(&mut self) {
-        let parse_fn = Box::new(|compiler: &mut Compiler, chunk: Chunk| compiler.grouping(chunk));
-        let rule = ParserRule::new(Some(parse_fn), None, Precedence::None);
-        self.rules.push(rule);
+        let left_paren = ParserRule::new(
+            Some(Box::new(|compiler: &mut Compiler, chunk: Chunk| {
+                compiler.grouping(chunk)
+            })),
+            None,
+            Precedence::None,
+        );
+        let left_brace = ParserRule::new(None, None, Precedence::None);
+        let right_brace = ParserRule::new(None, None, Precedence::None);
+        let comma = ParserRule::new(None, None, Precedence::None);
+        let dot = ParserRule::new(None, None, Precedence::None);
+        let minus = ParserRule::new(
+            Some(Box::new(|compiler: &mut Compiler, chunk: Chunk| {
+                compiler.unary(chunk)
+            })),
+            Some(Box::new(|compiler: &mut Compiler, chunk: Chunk| {
+                compiler.binary(chunk)
+            })),
+            Precedence::Term,
+        );
+        let plus = ParserRule::new(
+            Some(Box::new(|compiler: &mut Compiler, chunk: Chunk| {
+                compiler.unary(chunk)
+            })),
+            Some(Box::new(|compiler: &mut Compiler, chunk: Chunk| {
+                compiler.binary(chunk)
+            })),
+            Precedence::Term,
+        );
+        let semicolon = ParserRule::new(None, None, Precedence::None);
+        let slash = ParserRule::new(
+            None,
+            Some(Box::new(|compiler: &mut Compiler, chunk: Chunk| {
+                compiler.binary(chunk)
+            })),
+            Precedence::Factor,
+        );
+        let star = ParserRule::new(
+            None,
+            Some(Box::new(|compiler: &mut Compiler, chunk: Chunk| {
+                compiler.binary(chunk)
+            })),
+            Precedence::Factor,
+        );
+        let bang = ParserRule::new(None, None, Precedence::None);
+        let bang_equal = ParserRule::new(None, None, Precedence::None);
+        let equal = ParserRule::new(None, None, Precedence::None);
+        let equal_equal = ParserRule::new(None, None, Precedence::None);
+        let greater = ParserRule::new(None, None, Precedence::None);
+        let greater_equal = ParserRule::new(None, None, Precedence::None);
+        let less = ParserRule::new(None, None, Precedence::None);
+        let less_equal = ParserRule::new(None, None, Precedence::None);
+        let identifier = ParserRule::new(None, None, Precedence::None);
+        let string = ParserRule::new(None, None, Precedence::None);
+        let number = ParserRule::new(
+            Some(Box::new(|compiler: &mut Compiler, chunk: Chunk| {
+                compiler.number(chunk)
+            })),
+            None,
+            Precedence::None,
+        );
+        let and = ParserRule::new(None, None, Precedence::None);
+        let class = ParserRule::new(None, None, Precedence::None);
+        let tok_else = ParserRule::new(None, None, Precedence::None);
+        let tok_false = ParserRule::new(None, None, Precedence::None);
+        let tok_for = ParserRule::new(None, None, Precedence::None);
+        let fun = ParserRule::new(None, None, Precedence::None);
+        let tok_if = ParserRule::new(None, None, Precedence::None);
+        let nil = ParserRule::new(None, None, Precedence::None);
+        let or = ParserRule::new(None, None, Precedence::None);
+        let print = ParserRule::new(None, None, Precedence::None);
+        let tok_ret = ParserRule::new(None, None, Precedence::None);
+        let tok_super = ParserRule::new(None, None, Precedence::None);
+        let this = ParserRule::new(None, None, Precedence::None);
+        let tok_true = ParserRule::new(None, None, Precedence::None);
+        let var = ParserRule::new(None, None, Precedence::None);
+        let tok_while = ParserRule::new(None, None, Precedence::None);
+        let error = ParserRule::new(None, None, Precedence::None);
+        let eof = ParserRule::new(None, None, Precedence::None);
+
+        self.rules = vec![
+            left_paren,
+            left_brace,
+            right_brace,
+            comma,
+            dot,
+            minus,
+            plus,
+            semicolon,
+            slash,
+            star,
+            bang,
+            bang_equal,
+            equal,
+            equal_equal,
+            greater,
+            greater_equal,
+            less,
+            less_equal,
+            identifier,
+            string,
+            number,
+            and,
+            class,
+            tok_else,
+            tok_false,
+            tok_for,
+            fun,
+            tok_if,
+            nil,
+            or,
+            print,
+            tok_ret,
+            tok_super,
+            this,
+            tok_true,
+            var,
+            tok_while,
+            error,
+            eof,
+        ]
     }
 
     /// TODO this function call needs to be cleaned up
