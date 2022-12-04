@@ -1,5 +1,6 @@
 use crate::{
-    chunk::{Chunk, OpCode},
+    chunk::{debug::dissassemble_chunk, Chunk, OpCode},
+    debugln,
     scanner::{Scanner, ScannerError, Token, TokenKind},
 };
 use std::{clone, collections::HashMap, fmt, hash::Hash};
@@ -550,6 +551,10 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
     /// Temporary measure as per the book to print hte value of our single expression
     fn end_compiler(&mut self, mut current_chunk: Chunk) -> Chunk {
         current_chunk.write_opcode(OpCode::Return, self.parser.previous.line);
+        if self.parser.errors.is_empty() {
+            debugln!("{}", dissassemble_chunk(&current_chunk, "code"));
+        }
+
         current_chunk
     }
 

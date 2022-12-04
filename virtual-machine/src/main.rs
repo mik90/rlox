@@ -31,10 +31,11 @@ fn run_file(path: &Path) -> ExitCode {
 }
 
 fn repl() -> ExitCode {
+    print!("> ");
     let mut input = BufReader::new(std::io::stdin());
-    //let mut vm = Vm::new(chunk_iter, instruction_iter);
+    let mut vm = Vm::new();
+    let mut chunks: Vec<Chunk> = vec![Chunk::new()];
     loop {
-        print!("> ");
         let mut buffer = String::new();
         match input.read_line(&mut buffer) {
             Ok(0) => {
@@ -43,8 +44,10 @@ fn repl() -> ExitCode {
                 return ExitCode::SUCCESS;
             }
             Ok(_) => {
-                //vm.interpret(buffer);
-                todo!("pass in source code to interpret({})", buffer)
+                if let Err(e) = vm.interpret(buffer.as_str(), &mut chunks) {
+                    eprintln!("{}", e);
+                    return ExitCode::FAILURE;
+                }
             }
             Err(e) => {
                 eprintln!("Could not process input, error: {}", e);
