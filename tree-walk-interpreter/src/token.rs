@@ -54,7 +54,7 @@ impl std::cmp::Eq for LiteralKind {}
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum TokenKind {
     // Single-char tokenInto<String>s
-    LeftParen,
+    LeftParen = 0,
     RightParen,
     LeftBrace,
     RightBrace,

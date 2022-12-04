@@ -69,9 +69,26 @@ enum Precedence {
     Primary,
 }
 
-struct ParserRule {}
+type ParseFn = dyn Fn(&mut Compiler, Chunk) -> Result<Chunk, CompilerError>;
+
+struct ParserRule {
+    prefix: Option<Box<ParseFn>>,
+    infix: Option<Box<ParseFn>>,
+    precedence: Precedence,
+}
 
 impl ParserRule {
+    fn new(
+        prefix: Option<Box<ParseFn>>,
+        infix: Option<Box<ParseFn>>,
+        precedence: Precedence,
+    ) -> ParserRule {
+        ParserRule {
+            prefix,
+            infix,
+            precedence,
+        }
+    }
     fn get_next_precedence(&self) -> Precedence {
         todo!()
     }
@@ -80,6 +97,7 @@ impl ParserRule {
 pub struct Compiler<'source_lifetime> {
     // TODO, these may not need to be members since their init logic is so odd
     parser: Parser<'source_lifetime>,
+    rules: Vec<ParserRule>,
     scanner: Scanner<'source_lifetime>,
 }
 
@@ -92,8 +110,15 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
     pub fn new() -> Compiler<'source_lifetime> {
         Compiler {
             parser: Parser::new(),
+            rules: vec![],
             scanner: Scanner::new(""),
         }
+    }
+
+    fn set_rules(&mut self) {
+        let parse_fn = Box::new(|compiler: &mut Compiler, chunk: Chunk| compiler.grouping(chunk));
+        let rule = ParserRule::new(Some(parse_fn), None, Precedence::None);
+        self.rules.push(rule);
     }
 
     /// TODO this function call needs to be cleaned up
@@ -163,7 +188,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         current_chunk
     }
 
-    fn emit_opcode(&self, op: OpCode, mut current_chunk: Chunk) -> Chunk {
+    fn emit_opcode(&self, opcode: OpCode, mut current_chunk: Chunk) -> Chunk {
         current_chunk.write_opcode(opcode, self.parser.previous.line);
         current_chunk
     }
