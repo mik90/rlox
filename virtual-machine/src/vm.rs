@@ -1,12 +1,15 @@
 use crate::{
     chunk::{debug, Chunk, OpCode},
-    compiler::{self, Compiler, CompilerError},
+    compiler::{Compiler, CompilerError},
     debug, debugln,
     value::{Value, ValueArray},
 };
 use std::{fmt, iter::Enumerate};
 
-pub struct Vm<'a> {
+pub struct Vm {}
+
+#[derive(Debug)]
+pub struct VmState<'a> {
     chunk_iter: Enumerate<std::slice::Iter<'a, Chunk>>,
     instruction_iter: Enumerate<std::slice::Iter<'a, u8>>,
     stack: ValueArray,
@@ -45,16 +48,20 @@ impl fmt::Display for InterpretError {
     }
 }
 
-impl<'a> Vm<'a> {
+impl<'a> VmState<'a> {
     // Only used to allow the Vm to init. Easier than having an optional iterator
-    const DEFAULT_INSTRUCTION_SLICE: &'static [u8] = &[];
-    const DEFAULT_CHUNK_SLICE: &'static [Chunk] = &[];
+    //const DEFAULT_INSTRUCTION_SLICE: &'static [u8] = &[];
+    //const DEFAULT_CHUNK_SLICE: &'static [Chunk] = &[];
 
-    pub fn new() -> Self {
-        Self {
-            chunk_iter: Vm::DEFAULT_CHUNK_SLICE.iter().enumerate(),
-            instruction_iter: Vm::DEFAULT_INSTRUCTION_SLICE.iter().enumerate(),
-            stack: Vec::new(),
+    fn new(
+        chunk_iter: Enumerate<std::slice::Iter<'a, Chunk>>,
+        instruction_iter: Enumerate<std::slice::Iter<'a, u8>>,
+        stack: ValueArray,
+    ) -> VmState<'a> {
+        VmState {
+            chunk_iter,
+            instruction_iter,
+            stack,
         }
     }
 
@@ -143,45 +150,54 @@ impl<'a> Vm<'a> {
             Ok(String::from("No chunks left\n"))
         }
     }
+}
+
+impl Vm {
+    pub fn new() -> Self {
+        Self {}
+    }
 
     /// Disassembles a single instructions and returns whether or not it should continue running
-    fn run_once(&mut self) -> Result<bool, InterpretError> {
+    fn run_once<'a>(
+        &'a self,
+        mut state: VmState<'a>,
+    ) -> Result<(bool, VmState<'a>), InterpretError> {
         debugln!("---------------------------------");
         //debugln!("stack data  : {}", self.dump_stack());
-        debug!("{}", self.disassemble_latest_instruction()?);
+        debug!("{}", state.disassemble_latest_instruction()?);
 
-        let byte = self.read_byte()?;
+        let byte = state.read_byte()?;
         match OpCode::try_from(byte) {
             Ok(opcode) => match opcode {
                 OpCode::Constant => {
-                    let constant = self.read_constant()?;
-                    self.stack.push(constant);
+                    let constant = state.read_constant()?;
+                    state.stack.push(constant);
                 }
                 OpCode::Add => {
-                    let (lhs, rhs) = self.pop_pair_from_stack()?;
-                    self.stack.push(lhs + rhs);
+                    let (lhs, rhs) = state.pop_pair_from_stack()?;
+                    state.stack.push(lhs + rhs);
                 }
                 OpCode::Subtract => {
-                    let (lhs, rhs) = self.pop_pair_from_stack()?;
-                    self.stack.push(lhs - rhs);
+                    let (lhs, rhs) = state.pop_pair_from_stack()?;
+                    state.stack.push(lhs - rhs);
                 }
                 OpCode::Multiply => {
-                    let (lhs, rhs) = self.pop_pair_from_stack()?;
-                    self.stack.push(lhs * rhs);
+                    let (lhs, rhs) = state.pop_pair_from_stack()?;
+                    state.stack.push(lhs * rhs);
                 }
                 OpCode::Divide => {
-                    let (lhs, rhs) = self.pop_pair_from_stack()?;
-                    self.stack.push(lhs / rhs);
+                    let (lhs, rhs) = state.pop_pair_from_stack()?;
+                    state.stack.push(lhs / rhs);
                 }
                 OpCode::Negate => {
-                    let value = self.pop_from_stack()?;
-                    self.stack.push(-value);
+                    let value = state.pop_from_stack()?;
+                    state.stack.push(-value);
                 }
                 OpCode::Return => {
-                    if let Some(v) = self.stack.pop() {
+                    if let Some(v) = state.stack.pop() {
                         println!("{}", v);
                     }
-                    return Ok(false);
+                    return Ok((false, state));
                 }
             },
             Err(_) => {
@@ -191,42 +207,49 @@ impl<'a> Vm<'a> {
                 )));
             }
         };
-        Ok(true)
+        Ok((true, state))
     }
 
-    fn run(&'a mut self) -> Result<(), InterpretError> {
-        while self.run_once()? {
-            // Continue running while we're able to
-        }
-        // Non-error exit is fine
-        Ok(())
-    }
-
-    pub fn interpret(
-        &'a mut self,
-        source: &str,
+    pub fn interpret<'a>(
+        &'a self,
+        source: &'a str,
         chunks: &'a mut Vec<Chunk>,
-    ) -> Result<(), InterpretError> {
+        state: Option<VmState<'a>>,
+    ) -> Result<VmState<'a>, InterpretError> {
         let mut compiler = Compiler::new();
         let chunk = compiler.compile(source).map_err(InterpretError::Compile)?;
 
         chunks.clear(); // TODO i could just least the chunks persist over runs
         chunks.push(chunk);
-        self.chunk_iter = chunks.iter().enumerate();
-        self.instruction_iter = chunks[chunks.len() - 1].code_iter().enumerate();
 
-        self.run()
+        // Init state on first run, may nee dto use a pass-thru state eventually
+        let mut state = state.unwrap_or(VmState::new(
+            chunks.iter().enumerate(),
+            chunks[chunks.len() - 1].code_iter().enumerate(),
+            vec![],
+        ));
+
+        loop {
+            let (continue_running, new_state) = self.run_once(state)?;
+            state = new_state;
+            // Continue running while we're able to
+            if !continue_running {
+                // Non-error exit is fine
+                return Ok(state);
+            }
+        }
     }
 
     #[cfg(test)]
-    fn set_iters_to_chunk(&mut self, chunks: &'a [Chunk]) -> Result<(), InterpretError> {
-        self.chunk_iter = chunks.iter().enumerate();
-        self.instruction_iter = chunks
+    fn build_state<'a>(&mut self, chunks: &'a [Chunk]) -> Result<VmState<'a>, InterpretError> {
+        let chunk_iter = chunks.iter().enumerate();
+        let instruction_iter = chunks
             .first()
             .ok_or_else(|| InterpretError::Runtime(format!("No chunks were available in slice")))?
             .code_iter()
             .enumerate();
-        Ok(())
+        let state = VmState::new(chunk_iter, instruction_iter, vec![]);
+        Ok(state)
     }
 }
 
@@ -256,25 +279,29 @@ mod test {
             "Constants : {:?}",
             chunks[0].constant_iter().collect::<Vec<&Value>>()
         );
-        let mut vm = Vm::new();
-        if let Err(e) = vm.set_iters_to_chunk(&chunks) {
-            assert!(false, "{}", e);
-        }
+        let vm = Vm::new();
+
+        let state = vm.build_state(&chunks);
+        assert!(state.is_ok(), "{}", state.unwrap_err());
+        let state = state.unwrap();
 
         // Interprets add constant
-        let res = vm.run_once();
+        let res = vm.run_once(state);
         assert!(res.is_ok(), "{}", res.unwrap_err());
-        assert!(res.unwrap());
+        let (continue_running, state) = res.unwrap();
+        assert!(continue_running);
 
         // Interprets negate
-        let res = vm.run_once();
+        let res = vm.run_once(state);
         assert!(res.is_ok(), "{}", res.unwrap_err());
-        assert!(res.unwrap());
+        let (continue_running, state) = res.unwrap();
+        assert!(continue_running);
 
         // Interprets return
-        let res = vm.run_once();
+        let res = vm.run_once(state);
         assert!(res.is_ok(), "{}", res.unwrap_err());
-        assert_eq!(res.unwrap(), false);
+        let (continue_running, state) = res.unwrap();
+        assert!(continue_running);
     }
 
     #[test]
@@ -290,30 +317,34 @@ mod test {
 
             chunks.push(chunk);
         }
-        let mut vm = Vm::new();
-        if let Err(e) = vm.set_iters_to_chunk(&chunks) {
-            assert!(false, "{}", e);
-        }
+        let vm = Vm::new();
+
+        let state = vm.build_state(&chunks);
+        assert!(state.is_ok(), "{}", state.unwrap_err());
+        let state = state.unwrap();
 
         // Interprets add constant
-        let res = vm.run_once();
+        let res = vm.run_once(state);
         assert!(res.is_ok(), "{}", res.unwrap_err());
-        assert!(res.unwrap());
+        let (continue_running, state) = res.unwrap();
+        assert!(continue_running);
 
         // Interprets negate
-        let res = vm.run_once();
+        let res = vm.run_once(state);
         assert!(res.is_ok(), "{}", res.unwrap_err());
-        assert!(res.unwrap());
+        let (continue_running, state) = res.unwrap();
+        assert!(continue_running);
 
         // Interprets negate
-        let res = vm.run_once();
+        let res = vm.run_once(state);
+        assert!(res.is_ok(), "{}", res.unwrap_err());
         match res.unwrap_err() {
             // Without a return, we expect to hit the end of execution ungracefully and without cleaning up the stack
             InterpretError::InstructionOutOfRange(_) => (),
             err => assert!(false, "{}", err),
         }
 
-        let value = vm.stack.last();
+        let value = state.stack.last();
         assert!(value.is_some());
         assert_eq!(*value.unwrap(), -1.2);
     }
@@ -341,27 +372,31 @@ mod test {
 
             chunks.push(chunk);
         }
-        let mut vm = Vm::new();
-        if let Err(e) = vm.set_iters_to_chunk(&chunks) {
-            assert!(false, "{}", e);
-        }
+        let vm = Vm::new();
+
+        let state = vm.build_state(&chunks);
+        assert!(state.is_ok(), "{}", state.unwrap_err());
+        let state = state.unwrap();
 
         // Interprets add constant
-        let res = vm.run_once();
+        let res = vm.run_once(state);
         assert!(res.is_ok(), "{}", res.unwrap_err());
-        assert!(res.unwrap());
+        let (continue_running, state) = res.unwrap();
+        assert!(continue_running);
 
         // Interprets add constant
-        let res = vm.run_once();
+        let res = vm.run_once(state);
         assert!(res.is_ok(), "{}", res.unwrap_err());
-        assert!(res.unwrap());
+        let (continue_running, state) = res.unwrap();
+        assert!(continue_running);
 
         // Interprets substract
-        let res = vm.run_once();
+        let res = vm.run_once(state);
         assert!(res.is_ok(), "{}", res.unwrap_err());
-        assert!(res.unwrap());
+        let (continue_running, state) = res.unwrap();
+        assert!(continue_running);
 
-        let value = vm.stack.last();
+        let value = state.stack.last();
         assert!(value.is_some());
         assert_eq!(*value.unwrap(), 2.0);
     }
@@ -375,22 +410,25 @@ mod test {
             chunk.write_constant(1.0, 123);
             chunks.push(chunk);
         }
-        let mut vm = Vm::new();
-        if let Err(e) = vm.set_iters_to_chunk(&chunks) {
-            assert!(false, "{}", e);
-        }
+        let vm = Vm::new();
+
+        let state = vm.build_state(&chunks);
+        assert!(state.is_ok(), "{}", state.unwrap_err());
+        let state = state.unwrap();
 
         // add constant
-        let res = vm.run_once();
+        let res = vm.run_once(state);
         assert!(res.is_ok(), "{}", res.unwrap_err());
-        assert!(res.unwrap());
+        let (continue_running, state) = res.unwrap();
+        assert!(continue_running);
 
         // add constant
-        let res = vm.run_once();
+        let res = vm.run_once(state);
         assert!(res.is_ok(), "{}", res.unwrap_err());
-        assert!(res.unwrap());
+        let (continue_running, state) = res.unwrap();
+        assert!(continue_running);
 
-        let chunk = vm.peek_latest_chunk();
+        let chunk = state.peek_latest_chunk();
         assert!(chunk.is_some());
         let chunk = chunk.unwrap();
         let value = chunk.get_constant_value(0);

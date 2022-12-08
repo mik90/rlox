@@ -5,20 +5,26 @@ mod scanner;
 mod value;
 mod vm;
 
-use chunk::{Chunk, OpCode};
+use chunk::Chunk;
+use vm::Vm;
+
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
-use vm::Vm;
 
 fn run_file(path: &Path) -> ExitCode {
-    //let mut vm = Vm::new(chunk_iter, instruction_iter);
+    let vm = Vm::new();
+    // Since interpret is only run once, no state will persist
+    let state = None;
+    let mut chunks: Vec<Chunk> = vec![];
     match std::fs::read_to_string(path) {
-        //vm.interpret(buffer);
-        Ok(code) => {
-            //vm.interpret(buffer)
-            todo!("interpret({})", code)
-        }
+        Ok(code) => match vm.interpret(&code, &mut chunks, state) {
+            Ok(_) => ExitCode::SUCCESS,
+            Err(e) => {
+                eprintln!("{}", e);
+                ExitCode::FAILURE
+            }
+        },
         Err(e) => {
             eprintln!(
                 "Could not open file '{}', hit error {}",
@@ -33,8 +39,11 @@ fn run_file(path: &Path) -> ExitCode {
 fn repl() -> ExitCode {
     print!("> ");
     let mut input = BufReader::new(std::io::stdin());
-    let mut vm = Vm::new();
+    let vm = Vm::new();
+    let mut state = None;
     let mut chunks: Vec<Chunk> = vec![Chunk::new()];
+    let mut cmd_history = Vec::<String>::new();
+
     loop {
         let mut buffer = String::new();
         match input.read_line(&mut buffer) {
@@ -44,9 +53,16 @@ fn repl() -> ExitCode {
                 return ExitCode::SUCCESS;
             }
             Ok(_) => {
-                if let Err(e) = vm.interpret(buffer.as_str(), &mut chunks) {
-                    eprintln!("{}", e);
-                    return ExitCode::FAILURE;
+                cmd_history.push(buffer.to_owned());
+                let command = cmd_history.last().unwrap();
+                match vm.interpret(command, &mut chunks, state) {
+                    Ok(new_state) => {
+                        state = Some(new_state);
+                    }
+                    Err(e) => {
+                        eprintln!("{}", e);
+                        return ExitCode::FAILURE;
+                    }
                 }
             }
             Err(e) => {
