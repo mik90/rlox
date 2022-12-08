@@ -5,26 +5,30 @@ mod scanner;
 mod value;
 mod vm;
 
-use chunk::Chunk;
 use vm::Vm;
 
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
+use crate::vm::VmState;
+
 fn run_file(path: &Path) -> ExitCode {
     let vm = Vm::new();
     // Since interpret is only run once, no state will persist
-    let state = None;
-    let mut chunks: Vec<Chunk> = vec![];
+    let mut state = VmState::new_uninit();
+
     match std::fs::read_to_string(path) {
-        Ok(code) => match vm.interpret(&code, &mut chunks, state) {
-            Ok(_) => ExitCode::SUCCESS,
-            Err(e) => {
-                eprintln!("{}", e);
-                ExitCode::FAILURE
+        Ok(code) => {
+            state.source = code;
+            match vm.interpret(state) {
+                Ok(_) => ExitCode::SUCCESS,
+                Err(e) => {
+                    eprintln!("{}", e);
+                    ExitCode::FAILURE
+                }
             }
-        },
+        }
         Err(e) => {
             eprintln!(
                 "Could not open file '{}', hit error {}",
@@ -39,10 +43,9 @@ fn run_file(path: &Path) -> ExitCode {
 fn repl() -> ExitCode {
     print!("> ");
     let mut input = BufReader::new(std::io::stdin());
+
     let vm = Vm::new();
-    let mut state = None;
-    let mut chunks: Vec<Chunk> = vec![Chunk::new()];
-    let mut cmd_history = Vec::<String>::new();
+    let mut state = VmState::new_uninit();
 
     loop {
         let mut buffer = String::new();
@@ -53,11 +56,11 @@ fn repl() -> ExitCode {
                 return ExitCode::SUCCESS;
             }
             Ok(_) => {
-                cmd_history.push(buffer.to_owned());
-                let command = cmd_history.last().unwrap();
-                match vm.interpret(command, &mut chunks, state) {
+                state.source = buffer.to_owned();
+
+                match vm.interpret(state) {
                     Ok(new_state) => {
-                        state = Some(new_state);
+                        state = new_state;
                     }
                     Err(e) => {
                         eprintln!("{}", e);
