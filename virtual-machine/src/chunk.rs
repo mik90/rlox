@@ -49,7 +49,7 @@ impl Chunk {
             lines: vec![],
         }
     }
-    pub fn code_iter<'a>(&'a self) -> std::slice::Iter<'a, u8> {
+    pub fn code_iter<'a>(&'_ self) -> std::slice::Iter<'_, u8> {
         self.code.iter()
     }
 

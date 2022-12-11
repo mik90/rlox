@@ -1,9 +1,9 @@
 use crate::{
     chunk::{debug::dissassemble_chunk, Chunk, OpCode},
-    debugln,
+    debugln, herefmt,
     scanner::{Scanner, ScannerError, Token, TokenKind},
 };
-use std::fmt;
+use std::{collections::HashMap, fmt, hash::Hash, rc::Rc};
 
 #[derive(Debug, Clone)]
 pub enum CompilerError {
@@ -99,28 +99,20 @@ impl From<u8> for Precedence {
 
 type ParseFn = dyn Fn(&mut Compiler, Chunk) -> Result<Chunk, CompilerError>;
 
+// The functions are stored in an Rc so that they can be cloned from the map and called
+// We cannot call the function if we're borrowing it since it uses the mutable Compiler
+// Another option would be to only call it in-place but that isn't very ergonomic
+#[derive(Clone)]
 struct ParserRule {
-    prefix: Option<Box<ParseFn>>,
-    infix: Option<Box<ParseFn>>,
-    precedence: Precedence,
-}
-
-enum ParserCallType {
-    Prefix,
-    Infix,
-}
-
-struct ParserRuleResult {
-    /// Always returns the parsed chunk, even if parsing failed
-    chunk: Chunk,
-    error: Option<CompilerError>,
+    prefix: Option<Rc<ParseFn>>,
+    infix: Option<Rc<ParseFn>>,
     precedence: Precedence,
 }
 
 impl ParserRule {
     fn new(
-        prefix: Option<Box<ParseFn>>,
-        infix: Option<Box<ParseFn>>,
+        prefix: Option<Rc<ParseFn>>,
+        infix: Option<Rc<ParseFn>>,
         precedence: Precedence,
     ) -> ParserRule {
         ParserRule {
@@ -129,15 +121,19 @@ impl ParserRule {
             precedence,
         }
     }
-    fn get_next_precedence(&self) -> Precedence {
-        todo!()
-    }
 }
+
+type ParseRuleMap = HashMap<
+    std::mem::Discriminant<TokenKind>, //< Kind of token
+    ParserRule,
+>;
 
 pub struct Compiler<'source_lifetime> {
     // TODO, these may not need to be members since their init logic is so odd
     parser: Parser<'source_lifetime>,
     scanner: Scanner<'source_lifetime>,
+
+    rules: ParseRuleMap,
 }
 
 enum ErrorAtKind {
@@ -150,315 +146,228 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         Compiler {
             parser: Parser::new(),
             scanner: Scanner::new(""),
+            rules: Compiler::make_rules(),
         }
     }
 
-    /// This is a hacky workaround to the parse table in clox. A better approach would be to have a big match expression
-    /// that matches a TokenKind to a ParserRule. It would either return a reference to an already-constructed ParserRule or, if given the appropriate args,
-    /// it would return the request information from the ParserRule such as the precedence or the result of the applied infix or prefix operation
-    /// TODO use a better approach
+    fn make_rules() -> ParseRuleMap {
+        HashMap::from([
+            (
+                std::mem::discriminant(&TokenKind::LeftParen),
+                ParserRule::new(
+                    Some(
+                        Rc::new(|compiler: &mut Compiler, chunk: Chunk| compiler.grouping(chunk))
+                            as Rc<ParseFn>,
+                    ),
+                    None,
+                    Precedence::None,
+                ),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::RightParen),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::LeftBrace),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::RightBrace),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::Comma),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::Dot),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::Minus),
+                ParserRule::new(
+                    Some(
+                        Rc::new(|compiler: &mut Compiler, chunk: Chunk| compiler.unary(chunk))
+                            as Rc<ParseFn>,
+                    ),
+                    Some(
+                        Rc::new(|compiler: &mut Compiler, chunk: Chunk| compiler.binary(chunk))
+                            as Rc<ParseFn>,
+                    ),
+                    Precedence::Term,
+                ),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::Plus),
+                ParserRule::new(
+                    None,
+                    Some(
+                        Rc::new(|compiler: &mut Compiler, chunk: Chunk| compiler.binary(chunk))
+                            as Rc<ParseFn>,
+                    ),
+                    Precedence::Term,
+                ),
+            ),
+            (
+                std::mem::discriminant(&&TokenKind::SemiColon),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::Slash),
+                ParserRule::new(
+                    None,
+                    Some(
+                        Rc::new(|compiler: &mut Compiler, chunk: Chunk| compiler.binary(chunk))
+                            as Rc<ParseFn>,
+                    ),
+                    Precedence::Factor,
+                ),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::Star),
+                ParserRule::new(
+                    None,
+                    Some(
+                        Rc::new(|compiler: &mut Compiler, chunk: Chunk| compiler.binary(chunk))
+                            as Rc<ParseFn>,
+                    ),
+                    Precedence::Factor,
+                ),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::Bang),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::BangEqual),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::Equal),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::EqualEqual),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::Greater),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::GreaterEqual),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::Less),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::LessEqual),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::Identifier),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::String),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::Number),
+                ParserRule::new(
+                    Some(
+                        Rc::new(|compiler: &mut Compiler, chunk: Chunk| compiler.number(chunk))
+                            as Rc<ParseFn>,
+                    ),
+                    None,
+                    Precedence::None,
+                ),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::And),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::Class),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::Else),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::False),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::For),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::Fun),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::If),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::Nil),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::Or),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::Print),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::Return),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::Super),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::This),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::True),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::Var),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::While),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::Error("".to_owned())),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+            (
+                std::mem::discriminant(&TokenKind::Eof),
+                ParserRule::new(None, None, Precedence::None),
+            ),
+        ])
+    }
 
-    fn get_rule(
-        &mut self,
-        operator_kind: &TokenKind,
-        call_type: ParserCallType,
-    ) -> (Option<Box<ParseFn>>, Precedence) {
-        match operator_kind {
-            TokenKind::LeftParen => (
-                match call_type {
-                    ParserCallType::Prefix => {
-                        Some(Box::new(|compiler, chunk| compiler.grouping(chunk)))
-                    }
-                    ParserCallType::Infix => None,
-                },
-                Precedence::None,
-            ),
-            TokenKind::RightParen => (
-                match call_type {
-                    ParserCallType::Prefix => None,
-                    ParserCallType::Infix => None,
-                },
-                Precedence::None,
-            ),
-            TokenKind::LeftBrace => (
-                match call_type {
-                    ParserCallType::Prefix => None,
-                    ParserCallType::Infix => None,
-                },
-                Precedence::None,
-            ),
-            TokenKind::RightBrace => (
-                match call_type {
-                    ParserCallType::Prefix => None,
-                    ParserCallType::Infix => None,
-                },
-                Precedence::None,
-            ),
-            TokenKind::Comma => (
-                match call_type {
-                    ParserCallType::Prefix => None,
-                    ParserCallType::Infix => None,
-                },
-                Precedence::None,
-            ),
-            TokenKind::Dot => (
-                match call_type {
-                    ParserCallType::Prefix => None,
-                    ParserCallType::Infix => None,
-                },
-                Precedence::None,
-            ),
-            TokenKind::Minus => (
-                match call_type {
-                    ParserCallType::Prefix => {
-                        Some(Box::new(|compiler, chunk| compiler.unary(chunk)))
-                    }
-                    ParserCallType::Infix => {
-                        Some(Box::new(|compiler, chunk| compiler.binary(chunk)))
-                    }
-                },
-                Precedence::Term,
-            ),
-            TokenKind::Plus => (
-                match call_type {
-                    ParserCallType::Prefix => None,
-                    ParserCallType::Infix => {
-                        Some(Box::new(|compiler, chunk| compiler.binary(chunk)))
-                    }
-                },
-                Precedence::Term,
-            ),
-            TokenKind::SemiColon => (
-                match call_type {
-                    ParserCallType::Prefix => None,
-                    ParserCallType::Infix => None,
-                },
-                Precedence::None,
-            ),
-            TokenKind::Slash => (
-                match call_type {
-                    ParserCallType::Prefix => None,
-                    ParserCallType::Infix => {
-                        Some(Box::new(|compiler, chunk| compiler.binary(chunk)))
-                    }
-                },
-                Precedence::Factor,
-            ),
-            TokenKind::Star => (
-                match call_type {
-                    ParserCallType::Prefix => None,
-                    ParserCallType::Infix => {
-                        Some(Box::new(|compiler, chunk| compiler.binary(chunk)))
-                    }
-                },
-                Precedence::Factor,
-            ),
-            TokenKind::Bang => (
-                match call_type {
-                    ParserCallType::Prefix => None,
-                    ParserCallType::Infix => None,
-                },
-                Precedence::None,
-            ),
-            TokenKind::BangEqual => (
-                match call_type {
-                    ParserCallType::Prefix => None,
-                    ParserCallType::Infix => None,
-                },
-                Precedence::None,
-            ),
-            TokenKind::Equal => (
-                match call_type {
-                    ParserCallType::Prefix => None,
-                    ParserCallType::Infix => None,
-                },
-                Precedence::None,
-            ),
-            TokenKind::EqualEqual => (
-                match call_type {
-                    ParserCallType::Prefix => None,
-                    ParserCallType::Infix => None,
-                },
-                Precedence::None,
-            ),
-            TokenKind::Greater => (
-                match call_type {
-                    ParserCallType::Prefix => None,
-                    ParserCallType::Infix => None,
-                },
-                Precedence::None,
-            ),
-            TokenKind::GreaterEqual => (
-                match call_type {
-                    ParserCallType::Prefix => None,
-                    ParserCallType::Infix => None,
-                },
-                Precedence::None,
-            ),
-            TokenKind::Less => (
-                match call_type {
-                    ParserCallType::Prefix => None,
-                    ParserCallType::Infix => None,
-                },
-                Precedence::None,
-            ),
-            TokenKind::LessEqual => (
-                match call_type {
-                    ParserCallType::Prefix => None,
-                    ParserCallType::Infix => None,
-                },
-                Precedence::None,
-            ),
-            TokenKind::Identifier => (
-                match call_type {
-                    ParserCallType::Prefix => None,
-                    ParserCallType::Infix => None,
-                },
-                Precedence::None,
-            ),
-            TokenKind::String => (
-                match call_type {
-                    ParserCallType::Prefix => None,
-                    ParserCallType::Infix => None,
-                },
-                Precedence::None,
-            ),
-            TokenKind::Number => (
-                match call_type {
-                    ParserCallType::Prefix => {
-                        Some(Box::new(|compiler, chunk| compiler.number(chunk)))
-                    }
-                    ParserCallType::Infix => None,
-                },
-                Precedence::None,
-            ),
-            TokenKind::And => (
-                match call_type {
-                    ParserCallType::Prefix => None,
-                    ParserCallType::Infix => None,
-                },
-                Precedence::None,
-            ),
-            TokenKind::Class => (
-                match call_type {
-                    ParserCallType::Prefix => None,
-                    ParserCallType::Infix => None,
-                },
-                Precedence::None,
-            ),
-            TokenKind::Else => (
-                match call_type {
-                    ParserCallType::Prefix => None,
-                    ParserCallType::Infix => None,
-                },
-                Precedence::None,
-            ),
-            TokenKind::False => (
-                match call_type {
-                    ParserCallType::Prefix => None,
-                    ParserCallType::Infix => None,
-                },
-                Precedence::None,
-            ),
-            TokenKind::For => (
-                match call_type {
-                    ParserCallType::Prefix => None,
-                    ParserCallType::Infix => None,
-                },
-                Precedence::None,
-            ),
-            TokenKind::Fun => (
-                match call_type {
-                    ParserCallType::Prefix => None,
-                    ParserCallType::Infix => None,
-                },
-                Precedence::None,
-            ),
-            TokenKind::If => (
-                match call_type {
-                    ParserCallType::Prefix => None,
-                    ParserCallType::Infix => None,
-                },
-                Precedence::None,
-            ),
-            TokenKind::Nil => (
-                match call_type {
-                    ParserCallType::Prefix => None,
-                    ParserCallType::Infix => None,
-                },
-                Precedence::None,
-            ),
-            TokenKind::Or => (
-                match call_type {
-                    ParserCallType::Prefix => None,
-                    ParserCallType::Infix => None,
-                },
-                Precedence::None,
-            ),
-            TokenKind::Print => (
-                match call_type {
-                    ParserCallType::Prefix => None,
-                    ParserCallType::Infix => None,
-                },
-                Precedence::None,
-            ),
-            TokenKind::Return => (
-                match call_type {
-                    ParserCallType::Prefix => None,
-                    ParserCallType::Infix => None,
-                },
-                Precedence::None,
-            ),
-            TokenKind::Super => (
-                match call_type {
-                    ParserCallType::Prefix => None,
-                    ParserCallType::Infix => None,
-                },
-                Precedence::None,
-            ),
-            TokenKind::This => (
-                match call_type {
-                    ParserCallType::Prefix => None,
-                    ParserCallType::Infix => None,
-                },
-                Precedence::None,
-            ),
-            TokenKind::True => (
-                match call_type {
-                    ParserCallType::Prefix => None,
-                    ParserCallType::Infix => None,
-                },
-                Precedence::None,
-            ),
-            TokenKind::Var => (
-                match call_type {
-                    ParserCallType::Prefix => None,
-                    ParserCallType::Infix => None,
-                },
-                Precedence::None,
-            ),
-            TokenKind::While => (
-                match call_type {
-                    ParserCallType::Prefix => None,
-                    ParserCallType::Infix => None,
-                },
-                Precedence::None,
-            ),
-            TokenKind::Error(_) => (
-                match call_type {
-                    ParserCallType::Prefix => None,
-                    ParserCallType::Infix => None,
-                },
-                Precedence::None,
-            ),
-            TokenKind::Eof => (
-                match call_type {
-                    ParserCallType::Prefix => None,
-                    ParserCallType::Infix => None,
-                },
-                Precedence::None,
-            ),
-        }
+    fn get_rule(&self, operator_kind: &TokenKind) -> ParserRule {
+        self.rules
+            .get(&std::mem::discriminant(operator_kind))
+            .expect(&herefmt!(
+                "Could not find parser rule for TokenKind '{:?}'",
+                operator_kind
+            ))
+            .clone()
     }
 
     /// TODO this function call needs to be cleaned up
@@ -563,8 +472,8 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
     fn binary(&mut self, mut chunk: Chunk) -> Result<Chunk, CompilerError> {
         let operator_kind = self.parser.previous.kind.clone();
         // Technically either infix/prefix works since the precedence doesnt care
-        let (_, precedence) = self.get_rule(&operator_kind, ParserCallType::Infix);
-        chunk = self.parse_precedence(precedence.next(), chunk)?;
+        let rule = self.get_rule(&operator_kind);
+        chunk = self.parse_precedence(rule.precedence.next(), chunk)?;
 
         match operator_kind {
             TokenKind::Plus => Ok(self.emit_opcode(OpCode::Add, chunk)),
@@ -624,9 +533,9 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
     ) -> Result<Chunk, CompilerError> {
         self.advance()?;
         let prev_kind = self.parser.previous.kind.clone();
-        let (prefix_callable, _) = self.get_rule(&prev_kind, ParserCallType::Prefix);
+        let rule = self.get_rule(&prev_kind);
 
-        if let Some(prefix_fn) = prefix_callable {
+        if let Some(prefix_fn) = rule.prefix {
             chunk = prefix_fn(self, chunk)?;
         } else {
             self.error_at(ErrorAtKind::Previous, Some("Expect expression"));
@@ -637,14 +546,14 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         // Handle infix
         loop {
             let current_kind = self.parser.current.kind.clone();
-            let (_, infix_precedence) = self.get_rule(&current_kind, ParserCallType::Infix);
-            if precedence > infix_precedence {
+            let rule = self.get_rule(&current_kind);
+            if precedence > rule.precedence {
                 break;
             }
             self.advance()?;
             let prev_kind = self.parser.previous.kind.clone();
-            let (infix_rule, _) = self.get_rule(&prev_kind, ParserCallType::Infix);
-            match infix_rule {
+            let rule = self.get_rule(&prev_kind);
+            match rule.infix {
                 Some(r) => chunk = r(self, chunk)?,
                 None => {
                     return Err(CompilerError::Unreachable(format!(

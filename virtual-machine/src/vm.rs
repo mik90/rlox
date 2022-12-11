@@ -4,7 +4,7 @@ use crate::{
     debug, debugln, herefmt,
     value::{Value, ValueArray},
 };
-use std::fmt::{self, format};
+use std::fmt;
 
 pub struct Vm {}
 
@@ -66,8 +66,7 @@ impl VmState {
     fn read_byte(&mut self) -> Result<u8, InterpretError> {
         let byte = *self
             .peek_instructions()?
-            .iter()
-            .nth(self.instruction_index)
+            .get(self.instruction_index)
             .ok_or(InterpretError::InstructionOutOfRange(
                 file!(),
                 line!(),
@@ -97,14 +96,13 @@ impl VmState {
     }
 
     fn peek_latest_chunk(&self) -> Result<&Chunk, InterpretError> {
-        self.chunks
-            .iter()
-            .nth(self.chunk_index)
-            .ok_or(InterpretError::Runtime(herefmt!(
+        self.chunks.get(self.chunk_index).ok_or_else(|| {
+            InterpretError::Runtime(herefmt!(
                 "Chunk index '{}' is out of range. Only {} chunks exist",
                 self.chunk_index,
                 self.chunks.len()
-            )))
+            ))
+        })
     }
 
     fn peek_instructions(&self) -> Result<&[u8], InterpretError> {
@@ -322,13 +320,9 @@ mod test {
         assert_eq!(*value.unwrap(), -1.2);
 
         // post-negate
+        // A lack of instructions is not an error
         let res = vm.run_once(state);
-        assert!(res.is_err());
-        match res.unwrap_err() {
-            // Without a return, we expect to hit the end of execution ungracefully and without cleaning up the stack
-            InterpretError::InstructionOutOfRange(_, _, _) => (),
-            err => assert!(false, "{}", err),
-        }
+        assert!(res.is_ok(), "{}", res.unwrap_err());
     }
 
     #[test]

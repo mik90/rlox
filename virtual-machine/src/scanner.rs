@@ -217,7 +217,7 @@ impl<'a> Scanner<'a> {
     fn peek_starting_char(&self) -> Result<char, ScannerError> {
         self.start
             .clone()
-            .nth(0)
+            .next()
             .map(|(_, c)| c)
             .ok_or(ScannerError::UnexpectedEndOfInput(self.line))
     }
@@ -225,7 +225,7 @@ impl<'a> Scanner<'a> {
     fn peek_current_char(&self) -> Result<char, ScannerError> {
         self.current
             .clone()
-            .nth(0)
+            .next()
             .map(|(_, c)| c)
             .ok_or(ScannerError::UnexpectedEndOfInput(self.line))
     }
@@ -245,7 +245,7 @@ impl<'a> Scanner<'a> {
                     self.current.next();
                 }
                 '\n' => {
-                    self.line = self.line + 1;
+                    self.line += 1;
                     self.current.next();
                 }
                 '/' => {
@@ -311,8 +311,8 @@ impl<'a> Scanner<'a> {
         let (current_idx, _) = self
             .current
             .clone()
-            .nth(0)
-            .ok_or_else(|| ScannerError::UnexpectedEndOfInput(self.line))?;
+            .next()
+            .ok_or(ScannerError::UnexpectedEndOfInput(self.line))?;
         let token_str = self
             .start
             .clone()
@@ -326,13 +326,13 @@ impl<'a> Scanner<'a> {
         let (start_idx, _) = self
             .start
             .clone()
-            .nth(0)
-            .ok_or_else(|| ScannerError::UnexpectedEndOfInput(self.line))?;
+            .next()
+            .ok_or(ScannerError::UnexpectedEndOfInput(self.line))?;
         let (current_idx, _) = self
             .current
             .clone()
-            .nth(0)
-            .ok_or_else(|| ScannerError::UnexpectedEndOfInput(self.line))?;
+            .next()
+            .ok_or(ScannerError::UnexpectedEndOfInput(self.line))?;
         Ok(current_idx - start_idx)
     }
 
@@ -354,7 +354,7 @@ impl<'a> Scanner<'a> {
     fn make_string_token(&mut self) -> Result<Token<'a>, ScannerError> {
         while self.peek_current_char()? != '"' && !self.is_at_end()? {
             if self.peek_current_char()? == '\n' {
-                self.line = self.line + 1;
+                self.line += 1;
             }
             self.current.next();
         }
@@ -409,7 +409,7 @@ impl<'a> Scanner<'a> {
             return Ok(proposed_kind);
         }
 
-        return Ok(TokenKind::Identifier);
+        Ok(TokenKind::Identifier)
     }
 
     fn identifier_type(&self) -> Result<TokenKind, ScannerError> {
@@ -419,7 +419,7 @@ impl<'a> Scanner<'a> {
             .peekable()
             .peek()
             .map(|(_, c)| *c)
-            .ok_or_else(|| ScannerError::UnexpectedEndOfInput(self.line))?;
+            .ok_or(ScannerError::UnexpectedEndOfInput(self.line))?;
         match c {
             'a' => self.check_keyword(1, "nd", TokenKind::And),
             'c' => self.check_keyword(1, "lass", TokenKind::Class),
