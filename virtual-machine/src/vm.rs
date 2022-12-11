@@ -59,6 +59,10 @@ impl VmState {
         }
     }
 
+    fn end_of_instructions(&self) -> Result<bool, InterpretError> {
+        Ok(self.instruction_index >= self.peek_instructions()?.len())
+    }
+
     fn read_byte(&mut self) -> Result<u8, InterpretError> {
         let byte = *self
             .peek_instructions()?
@@ -166,6 +170,9 @@ impl Vm {
         debugln!("---------------------------------");
         //debugln!("stack data  : {}", self.dump_stack());
         debug!("{}", state.disassemble_latest_instruction());
+        if state.end_of_instructions()? {
+            return Ok((false, state));
+        }
 
         let byte = state.read_byte()?;
         match OpCode::try_from(byte) {

@@ -52,15 +52,18 @@ fn repl() -> ExitCode {
                 println!("\nExiting repl");
                 return ExitCode::SUCCESS;
             }
-            Ok(_) => match vm.interpret(&buffer, state) {
-                Ok(new_state) => {
-                    state = new_state;
+            Ok(_) => {
+                buffer.push('\0'); // Add terminator
+                match vm.interpret(&buffer, state) {
+                    Ok(new_state) => {
+                        state = new_state;
+                    }
+                    Err(e) => {
+                        eprintln!("{}", e);
+                        return ExitCode::FAILURE;
+                    }
                 }
-                Err(e) => {
-                    eprintln!("{}", e);
-                    return ExitCode::FAILURE;
-                }
-            },
+            }
             Err(e) => {
                 eprintln!("Could not process input, error: {}", e);
                 return ExitCode::FAILURE;
