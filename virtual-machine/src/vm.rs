@@ -420,12 +420,11 @@ mod test {
         assert_eq!(*value.unwrap(), 1.0);
     }
 
-    /*
     #[test]
     fn interpret() {
         let vm = Vm::new();
         let state = VmState::new();
-        let res = vm.interpret("return 1 + 2;\0", state);
+        let res = vm.interpret("1 + 2\0", state);
         assert!(res.is_ok(), "{}", res.unwrap_err());
-    } */
+    }
 }
