@@ -3,7 +3,7 @@ use crate::{
     debugln,
     scanner::{Scanner, ScannerError, Token, TokenKind},
 };
-use std::{clone, collections::HashMap, fmt, hash::Hash};
+use std::fmt;
 
 #[derive(Debug, Clone)]
 pub enum CompilerError {
@@ -485,7 +485,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
             }
             _ => {
                 current_error.push(format!(
-                    "at '{}': {}",
+                    " at '{}': {}",
                     token.to_string(),
                     msg.unwrap_or_default()
                 ));
@@ -513,7 +513,9 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         expected_kind: TokenKind,
         error_msg: &'static str,
     ) -> Result<(), CompilerError> {
-        if matches!(&self.parser.current.kind, kind) {
+        if std::mem::discriminant(&self.parser.current.kind)
+            == std::mem::discriminant(&expected_kind)
+        {
             return self.advance();
         }
 
@@ -577,7 +579,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
     }
 
     // parses and generates bytecode for an expression
-    fn expression(&mut self, mut chunk: Chunk) -> Result<Chunk, CompilerError> {
+    fn expression(&mut self, chunk: Chunk) -> Result<Chunk, CompilerError> {
         // Parse lowest precedence level
         self.parse_precedence(Precedence::Assignment, chunk)
     }

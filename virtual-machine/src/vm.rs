@@ -4,7 +4,7 @@ use crate::{
     debug, debugln, herefmt,
     value::{Value, ValueArray},
 };
-use std::fmt;
+use std::fmt::{self, format};
 
 pub struct Vm {}
 
@@ -22,8 +22,8 @@ pub type ErrorMessage = String;
 pub enum InterpretError {
     Compile(CompilerError),
     Runtime(ErrorMessage),
-    InstructionOutOfRange(usize),  // Position in instruction iterator
-    ConstantOutOfRange(usize, u8), // Chunk position, constant position
+    InstructionOutOfRange(&'static str, u32, usize), // File, line, Position in instruction iterator
+    ConstantOutOfRange(&'static str, u32, usize, u8), // File, line, Chunk position, constant position
 }
 
 impl std::error::Error for InterpretError {}
@@ -33,17 +33,17 @@ impl fmt::Display for InterpretError {
         match &self {
             InterpretError::Compile(err) => write!(f, "Compile error during interpret: {}", err),
             InterpretError::Runtime(err) => write!(f, "Runtime error during interpret: {}", err),
-            InterpretError::InstructionOutOfRange(chunk_pos) => {
+            InterpretError::InstructionOutOfRange(file, line, chunk_pos) => {
                 write!(
                     f,
-                    "Instruction pointer out of range with index {}",
-                    chunk_pos
+                    "[{}:{}] Instruction pointer out of range with index {}",
+                    file, line, chunk_pos
                 )
             }
-            InterpretError::ConstantOutOfRange(chunk_pos, constant_pos) => write!(
+            InterpretError::ConstantOutOfRange(file, line, chunk_pos, constant_pos) => write!(
                 f,
-                "Constant offset out of range with index {} in chunk index {}",
-                constant_pos, chunk_pos
+                "[{}:{}] Constant offset out of range with index {} in chunk index {}",
+                file, line, constant_pos, chunk_pos
             ),
         }
     }
@@ -52,7 +52,7 @@ impl fmt::Display for InterpretError {
 impl VmState {
     pub fn new() -> VmState {
         VmState {
-            chunks: vec![Chunk::new()],
+            chunks: vec![],
             chunk_index: 0,
             instruction_index: 0,
             stack: vec![],
@@ -65,6 +65,8 @@ impl VmState {
             .iter()
             .nth(self.instruction_index)
             .ok_or(InterpretError::InstructionOutOfRange(
+                file!(),
+                line!(),
                 self.instruction_index,
             ))?;
 
@@ -80,6 +82,8 @@ impl VmState {
             Ok(chunk) => match chunk.get_constant_value(constant_index as usize) {
                 Some(v) => Ok(*v),
                 None => Err(InterpretError::ConstantOutOfRange(
+                    file!(),
+                    line!(),
                     self.chunk_index,
                     constant_index,
                 )),
@@ -129,19 +133,26 @@ impl VmState {
         out
     }
 
-    fn disassemble_latest_instruction(&self) -> Result<String, InterpretError> {
+    fn disassemble_latest_instruction(&self) -> String {
         if let Ok(chunk) = self.peek_latest_chunk() {
-            if self.instruction_index >= chunk.code_iter().clone().count() {
-                return Err(InterpretError::InstructionOutOfRange(
-                    self.instruction_index,
-                ));
+            let instruction_len = chunk.code_iter().clone().count();
+            if self.instruction_index >= instruction_len {
+                return format!(
+                    "No instructions left. instruction_index={}, instruction.len()={}\n",
+                    self.instruction_index, instruction_len
+                );
+            } else {
+                let (debug_instruction, _) =
+                    debug::dissassemble_instruction(chunk, self.instruction_index);
+                return debug_instruction;
             }
-            let (debug_instruction, _) =
-                debug::dissassemble_instruction(chunk, self.instruction_index);
-            Ok(debug_instruction)
-        } else {
-            Ok(String::from("No chunks left\n"))
         }
+
+        format!(
+            "No chunks left. chunk_index={}, chunk.len()={}",
+            self.chunk_index,
+            self.chunks.len(),
+        )
     }
 }
 
@@ -154,7 +165,7 @@ impl Vm {
     fn run_once(&self, mut state: VmState) -> Result<(bool, VmState), InterpretError> {
         debugln!("---------------------------------");
         //debugln!("stack data  : {}", self.dump_stack());
-        debug!("{}", state.disassemble_latest_instruction()?);
+        debug!("{}", state.disassemble_latest_instruction());
 
         let byte = state.read_byte()?;
         match OpCode::try_from(byte) {
@@ -308,7 +319,7 @@ mod test {
         assert!(res.is_err());
         match res.unwrap_err() {
             // Without a return, we expect to hit the end of execution ungracefully and without cleaning up the stack
-            InterpretError::InstructionOutOfRange(_) => (),
+            InterpretError::InstructionOutOfRange(_, _, _) => (),
             err => assert!(false, "{}", err),
         }
     }
@@ -401,4 +412,13 @@ mod test {
         assert!(value.is_some());
         assert_eq!(*value.unwrap(), 1.0);
     }
+
+    /*
+    #[test]
+    fn interpret() {
+        let vm = Vm::new();
+        let state = VmState::new();
+        let res = vm.interpret("return 1 + 2;\0", state);
+        assert!(res.is_ok(), "{}", res.unwrap_err());
+    } */
 }

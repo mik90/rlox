@@ -16,7 +16,7 @@ use crate::vm::VmState;
 fn run_file(path: &Path) -> ExitCode {
     let vm = Vm::new();
     // Since interpret is only run once, no state will persist
-    let mut state = VmState::new();
+    let state = VmState::new();
 
     match std::fs::read_to_string(path) {
         Ok(code) => match vm.interpret(&code, state) {

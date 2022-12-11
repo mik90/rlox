@@ -1,6 +1,5 @@
-use crate::debugln;
 use core::iter::Enumerate;
-use std::fmt::{self, format};
+use std::fmt;
 use std::str::Chars;
 
 pub struct Scanner<'a> {

@@ -53,11 +53,12 @@ impl Chunk {
         self.code.iter()
     }
 
-    pub fn constant_iter<'a>(&'a self) -> std::slice::Iter<'a, Value> {
+    #[allow(dead_code)]
+    pub fn constant_iter(&self) -> std::slice::Iter<Value> {
         self.constants.iter()
     }
 
-    pub fn len(&self) -> usize {
+    pub fn code_len(&self) -> usize {
         self.code.len()
     }
 
@@ -105,12 +106,13 @@ impl Chunk {
 pub mod debug {
     use crate::chunk::{Chunk, OpCode};
 
-    /// Returns debug string
+    /// Returns debug string for a chunk
+    #[allow(dead_code)]
     pub fn dissassemble_chunk(chunk: &Chunk, name: &str) -> String {
         let mut debug_string = format!("== {} ==\n", name);
 
         let mut offset: usize = 0;
-        while offset < chunk.len() {
+        while offset < chunk.code_len() {
             let (instruction_string, new_offset) = dissassemble_instruction(chunk, offset);
             debug_string.push_str(instruction_string.as_str());
             offset = new_offset;
