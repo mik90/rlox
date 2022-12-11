@@ -197,7 +197,7 @@ mod test {
     #[test]
     fn test_example_chunks() {
         let mut chunk = Chunk::new();
-        let constant = chunk.add_constant(1.2);
+        let constant = chunk.add_constant(Value::Number(1.2));
 
         chunk.write_opcode(OpCode::Constant, 123);
         chunk.write_byte(constant as u8, 123);
@@ -208,7 +208,7 @@ mod test {
 
         let value = chunk.get_constant_value(constant_idx as usize);
         assert!(value.is_some());
-        assert_eq!(*value.unwrap(), 1.2);
+        assert_eq!(*value.unwrap(), Value::Number(1.2));
         assert_eq!(chunk.line_at(0), 123);
         assert_eq!(chunk.line_at(1), 123);
 

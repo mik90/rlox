@@ -2,6 +2,7 @@ use crate::{
     chunk::{debug::dissassemble_chunk, Chunk, OpCode},
     debugln, herefmt,
     scanner::{Scanner, ScannerError, Token, TokenKind},
+    value::Value,
 };
 use std::{collections::HashMap, fmt, hash::Hash, rc::Rc};
 
@@ -450,7 +451,11 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         current_chunk
     }
 
-    fn emit_constant(&self, value: f64, mut current_chunk: Chunk) -> Result<Chunk, CompilerError> {
+    fn emit_constant(
+        &self,
+        value: Value,
+        mut current_chunk: Chunk,
+    ) -> Result<Chunk, CompilerError> {
         current_chunk
             .write_constant(value, self.parser.previous.line)
             .map_err(|e| {
@@ -505,7 +510,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
                     self.parser.previous, e
                 )])
             })?;
-        current_chunk = self.emit_constant(value, current_chunk)?;
+        current_chunk = self.emit_constant(Value::Number(value), current_chunk)?;
         Ok(current_chunk)
     }
 

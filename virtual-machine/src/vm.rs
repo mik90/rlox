@@ -83,7 +83,7 @@ impl VmState {
 
         match self.peek_latest_chunk() {
             Ok(chunk) => match chunk.get_constant_value(constant_index as usize) {
-                Some(v) => Ok(*v),
+                Some(v) => Ok(v.clone()),
                 None => Err(InterpretError::ConstantOutOfRange(
                     file!(),
                     line!(),
@@ -119,6 +119,12 @@ impl VmState {
         })
     }
 
+    fn peek_on_stack(&self, distance: usize) -> Result<&Value, InterpretError> {
+        self.stack.iter().rev().nth(distance).ok_or(InterpretError::Runtime(
+            herefmt!("Tried to get Value {} elements from top of stack but the stack was only {} elements deep", distance, self.stack.len())))
+    }
+
+    /// Pops pair of same type from the stack
     fn pop_pair_from_stack(&mut self) -> Result<(Value, Value), InterpretError> {
         let rhs = self.pop_from_stack()?;
         let lhs = self.pop_from_stack()?;
@@ -156,6 +162,25 @@ impl VmState {
             self.chunks.len(),
         )
     }
+
+    fn reset_stack(&mut self) {
+        self.stack.clear()
+    }
+
+    pub fn runtime_error(&self, message: String) -> InterpretError {
+        let instruction_index = self.instruction_index;
+
+        let script_info = if let Ok(chunk) = self.peek_latest_chunk() {
+            // Index - 1 since the interpreter has moved past the failed instruction and we need to go back to check it
+            let line = chunk.line_at(instruction_index - 1);
+            format!("[line {}] in script", line)
+        } else {
+            String::from("[unknown line/chunk] in script")
+        };
+        // TODO the book has me resetting the stack before this exits, unsure why
+        //self.reset_stack();
+        InterpretError::Runtime(format!("{}\n{}", message, script_info))
+    }
 }
 
 impl Vm {
@@ -179,25 +204,77 @@ impl Vm {
                     let constant = state.read_constant()?;
                     state.stack.push(constant);
                 }
-                OpCode::Add => {
-                    let (lhs, rhs) = state.pop_pair_from_stack()?;
-                    state.stack.push(lhs + rhs);
-                }
-                OpCode::Subtract => {
-                    let (lhs, rhs) = state.pop_pair_from_stack()?;
-                    state.stack.push(lhs - rhs);
-                }
-                OpCode::Multiply => {
-                    let (lhs, rhs) = state.pop_pair_from_stack()?;
-                    state.stack.push(lhs * rhs);
-                }
-                OpCode::Divide => {
-                    let (lhs, rhs) = state.pop_pair_from_stack()?;
-                    state.stack.push(lhs / rhs);
-                }
+                OpCode::Add => match state.pop_pair_from_stack()? {
+                    (Value::Number(lhs), Value::Number(rhs)) => {
+                        state.stack.push(Value::Number(lhs + rhs))
+                    }
+                    (lhs, rhs) => {
+                        let err = state.runtime_error(herefmt!(
+                            "Operands must be numbers but were lhs={:?} and rhs={:?}",
+                            lhs,
+                            rhs
+                        ));
+                        state.stack.push(rhs);
+                        state.stack.push(lhs);
+                        return Err(err);
+                    }
+                },
+                OpCode::Subtract => match state.pop_pair_from_stack()? {
+                    (Value::Number(lhs), Value::Number(rhs)) => {
+                        state.stack.push(Value::Number(lhs - rhs));
+                    }
+                    (lhs, rhs) => {
+                        let err = state.runtime_error(herefmt!(
+                            "Operands must be numbers but were lhs={:?} and rhs={:?}",
+                            lhs,
+                            rhs
+                        ));
+                        state.stack.push(rhs);
+                        state.stack.push(lhs);
+                        return Err(err);
+                    }
+                },
+                OpCode::Multiply => match state.pop_pair_from_stack()? {
+                    (Value::Number(lhs), Value::Number(rhs)) => {
+                        state.stack.push(Value::Number(lhs * rhs))
+                    }
+                    (lhs, rhs) => {
+                        let err = state.runtime_error(herefmt!(
+                            "Operands must be numbers but were lhs={:?} and rhs={:?}",
+                            lhs,
+                            rhs
+                        ));
+                        state.stack.push(rhs.clone());
+                        state.stack.push(lhs.clone());
+                        return Err(err);
+                    }
+                },
+                OpCode::Divide => match state.pop_pair_from_stack()? {
+                    (Value::Number(lhs), Value::Number(rhs)) => {
+                        state.stack.push(Value::Number(lhs / rhs))
+                    }
+                    (lhs, rhs) => {
+                        let err = state.runtime_error(herefmt!(
+                            "Operands must be numbers but were lhs={:?} and rhs={:?}",
+                            lhs,
+                            rhs
+                        ));
+                        state.stack.push(rhs);
+                        state.stack.push(lhs);
+                        return Err(err);
+                    }
+                },
                 OpCode::Negate => {
-                    let value = state.pop_from_stack()?;
-                    state.stack.push(-value);
+                    match state.pop_from_stack()? {
+                        Value::Number(value) => state.stack.push(Value::Number(-value)),
+                        other => {
+                            // put it back on the stack since it wasn't what we expected
+                            state.stack.push(other);
+                            return Err(state.runtime_error(herefmt!(
+                                "Operand to unary negation must be a number"
+                            )));
+                        }
+                    };
                 }
                 OpCode::Return => {
                     if let Some(v) = state.stack.pop() {
@@ -249,7 +326,7 @@ mod test {
         {
             let mut chunk = Chunk::new();
 
-            assert!(chunk.write_constant(1.2, 123).is_ok());
+            assert!(chunk.write_constant(Value::Number(1.2), 123).is_ok());
 
             chunk.write_opcode(OpCode::Negate, 123);
 
@@ -293,7 +370,7 @@ mod test {
         {
             let mut chunk = Chunk::new();
 
-            assert!(chunk.write_constant(1.2, 123).is_ok());
+            assert!(chunk.write_constant(Value::Number(1.2), 123).is_ok());
 
             chunk.write_opcode(OpCode::Negate, 123);
 
@@ -317,7 +394,7 @@ mod test {
 
         let value = state.stack.last();
         assert!(value.is_some());
-        assert_eq!(*value.unwrap(), -1.2);
+        assert_eq!(*value.unwrap(), Value::Number(-1.2));
 
         // post-negate
         // A lack of instructions is not an error
@@ -330,20 +407,8 @@ mod test {
         let mut chunks = vec![];
         {
             let mut chunk = Chunk::new();
-            {
-                let constant = chunk.add_constant(3.0);
-                chunk.write_opcode(OpCode::Constant, 123);
-                chunk.write_byte(constant as u8, 123);
-                assert_eq!(constant, 0);
-            }
-
-            {
-                let constant = chunk.add_constant(1.0);
-                chunk.write_opcode(OpCode::Constant, 123);
-                chunk.write_byte(constant as u8, 123);
-                assert_eq!(constant, 1);
-            }
-
+            chunk.write_constant(Value::Number(3.0), 123);
+            chunk.write_constant(Value::Number(1.0), 123);
             chunk.write_opcode(OpCode::Subtract, 123);
 
             chunks.push(chunk);
@@ -372,7 +437,7 @@ mod test {
 
         let value = state.stack.last();
         assert!(value.is_some());
-        assert_eq!(*value.unwrap(), 2.0);
+        assert_eq!(*value.unwrap(), Value::Number(2.0));
     }
 
     #[test]
@@ -380,9 +445,9 @@ mod test {
         let mut chunks = vec![];
         {
             let mut chunk = Chunk::new();
-            let res = chunk.write_constant(3.0, 123);
+            let res = chunk.write_constant(Value::Number(3.0), 123);
             assert!(res.is_ok(), "{}", res.unwrap_err());
-            let res = chunk.write_constant(1.0, 123);
+            let res = chunk.write_constant(Value::Number(1.0), 123);
             assert!(res.is_ok(), "{}", res.unwrap_err());
             chunks.push(chunk);
         }
@@ -407,11 +472,11 @@ mod test {
         let chunk = chunk.unwrap();
         let value = chunk.get_constant_value(0);
         assert!(value.is_some());
-        assert_eq!(*value.unwrap(), 3.0);
+        assert_eq!(*value.unwrap(), Value::Number(3.0));
 
         let value = chunk.get_constant_value(1);
         assert!(value.is_some());
-        assert_eq!(*value.unwrap(), 1.0);
+        assert_eq!(*value.unwrap(), Value::Number(1.0));
     }
 
     #[test]
