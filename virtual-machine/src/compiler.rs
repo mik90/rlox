@@ -152,17 +152,17 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
     }
 
     fn make_rules() -> ParseRuleMap {
+        // Closures that can be used for any of these parser rules
+        let grouping = Rc::new(|compiler: &mut Compiler, chunk: Chunk| compiler.grouping(chunk));
+        let literal = Rc::new(|compiler: &mut Compiler, chunk: Chunk| compiler.literal(chunk));
+        let number = Rc::new(|compiler: &mut Compiler, chunk: Chunk| compiler.number(chunk));
+        let binary = Rc::new(|compiler: &mut Compiler, chunk: Chunk| compiler.binary(chunk));
+        let unary = Rc::new(|compiler: &mut Compiler, chunk: Chunk| compiler.unary(chunk));
+
         HashMap::from([
             (
                 std::mem::discriminant(&TokenKind::LeftParen),
-                ParserRule::new(
-                    Some(
-                        Rc::new(|compiler: &mut Compiler, chunk: Chunk| compiler.grouping(chunk))
-                            as Rc<ParseFn>,
-                    ),
-                    None,
-                    Precedence::None,
-                ),
+                ParserRule::new(Some(grouping.clone()), None, Precedence::None),
             ),
             (
                 std::mem::discriminant(&TokenKind::RightParen),
@@ -186,28 +186,11 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
             ),
             (
                 std::mem::discriminant(&TokenKind::Minus),
-                ParserRule::new(
-                    Some(
-                        Rc::new(|compiler: &mut Compiler, chunk: Chunk| compiler.unary(chunk))
-                            as Rc<ParseFn>,
-                    ),
-                    Some(
-                        Rc::new(|compiler: &mut Compiler, chunk: Chunk| compiler.binary(chunk))
-                            as Rc<ParseFn>,
-                    ),
-                    Precedence::Term,
-                ),
+                ParserRule::new(Some(unary.clone()), Some(binary.clone()), Precedence::Term),
             ),
             (
                 std::mem::discriminant(&TokenKind::Plus),
-                ParserRule::new(
-                    None,
-                    Some(
-                        Rc::new(|compiler: &mut Compiler, chunk: Chunk| compiler.binary(chunk))
-                            as Rc<ParseFn>,
-                    ),
-                    Precedence::Term,
-                ),
+                ParserRule::new(None, Some(binary.clone()), Precedence::Term),
             ),
             (
                 std::mem::discriminant(&&TokenKind::SemiColon),
@@ -215,25 +198,11 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
             ),
             (
                 std::mem::discriminant(&TokenKind::Slash),
-                ParserRule::new(
-                    None,
-                    Some(
-                        Rc::new(|compiler: &mut Compiler, chunk: Chunk| compiler.binary(chunk))
-                            as Rc<ParseFn>,
-                    ),
-                    Precedence::Factor,
-                ),
+                ParserRule::new(None, Some(binary.clone()), Precedence::Factor),
             ),
             (
                 std::mem::discriminant(&TokenKind::Star),
-                ParserRule::new(
-                    None,
-                    Some(
-                        Rc::new(|compiler: &mut Compiler, chunk: Chunk| compiler.binary(chunk))
-                            as Rc<ParseFn>,
-                    ),
-                    Precedence::Factor,
-                ),
+                ParserRule::new(None, Some(binary.clone()), Precedence::Factor),
             ),
             (
                 std::mem::discriminant(&TokenKind::Bang),
@@ -277,14 +246,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
             ),
             (
                 std::mem::discriminant(&TokenKind::Number),
-                ParserRule::new(
-                    Some(
-                        Rc::new(|compiler: &mut Compiler, chunk: Chunk| compiler.number(chunk))
-                            as Rc<ParseFn>,
-                    ),
-                    None,
-                    Precedence::None,
-                ),
+                ParserRule::new(Some(number.clone()), None, Precedence::None),
             ),
             (
                 std::mem::discriminant(&TokenKind::And),
@@ -300,7 +262,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
             ),
             (
                 std::mem::discriminant(&TokenKind::False),
-                ParserRule::new(None, None, Precedence::None),
+                ParserRule::new(Some(literal.clone()), None, Precedence::None),
             ),
             (
                 std::mem::discriminant(&TokenKind::For),
@@ -316,7 +278,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
             ),
             (
                 std::mem::discriminant(&TokenKind::Nil),
-                ParserRule::new(None, None, Precedence::None),
+                ParserRule::new(Some(literal.clone()), None, Precedence::None),
             ),
             (
                 std::mem::discriminant(&TokenKind::Or),
@@ -340,7 +302,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
             ),
             (
                 std::mem::discriminant(&TokenKind::True),
-                ParserRule::new(None, None, Precedence::None),
+                ParserRule::new(Some(literal.clone()), None, Precedence::None),
             ),
             (
                 std::mem::discriminant(&TokenKind::Var),
@@ -488,6 +450,18 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
             _ => Err(CompilerError::Unreachable(format!(
                 "Did not expect operator {:?} in binary expression on line {}",
                 operator_kind, self.parser.previous.line
+            ))),
+        }
+    }
+
+    fn literal(&mut self, chunk: Chunk) -> Result<Chunk, CompilerError> {
+        match &self.parser.previous.kind {
+            TokenKind::False => Ok(self.emit_opcode(OpCode::False, chunk)),
+            TokenKind::Nil => Ok(self.emit_opcode(OpCode::Nil, chunk)),
+            TokenKind::True => Ok(self.emit_opcode(OpCode::True, chunk)),
+            other => Err(CompilerError::Unreachable(herefmt!(
+                "Expected literal but saw {:?}",
+                other
             ))),
         }
     }

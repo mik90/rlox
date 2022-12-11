@@ -3,13 +3,16 @@ use crate::value::{Value, ValueArray};
 #[repr(u8)]
 #[derive(Debug)]
 pub enum OpCode {
-    Constant = 0, // Loads constant for use.
-    Add = 1,      // Binary operation
-    Subtract = 2, // Binary operation
-    Multiply = 3, // Binary operation
-    Divide = 4,   // Binary operation
-    Negate = 5,   // Unary negation
-    Return = 6,   // Return from current function.
+    Constant = 0, //< Loads constant for use.
+    Nil,          //< literal
+    True,         //< literal
+    False,        //< literal
+    Add,          //< Binary operation
+    Subtract,     //< Binary operation
+    Multiply,     //< Binary operation
+    Divide,       //< Binary operation
+    Negate,       //< Unary negation
+    Return,       //< Return from current function.
 }
 
 impl TryFrom<u8> for OpCode {
@@ -19,6 +22,9 @@ impl TryFrom<u8> for OpCode {
         match value {
             // TODO ew
             x if x == OpCode::Constant as u8 => Ok(OpCode::Constant),
+            x if x == OpCode::Nil as u8 => Ok(OpCode::Nil),
+            x if x == OpCode::True as u8 => Ok(OpCode::True),
+            x if x == OpCode::False as u8 => Ok(OpCode::False),
             x if x == OpCode::Add as u8 => Ok(OpCode::Add),
             x if x == OpCode::Subtract as u8 => Ok(OpCode::Subtract),
             x if x == OpCode::Multiply as u8 => Ok(OpCode::Multiply),
@@ -160,6 +166,9 @@ pub mod debug {
         let (instruction_string, offset) = match OpCode::try_from(instruction) {
             Ok(op) => match op {
                 OpCode::Constant => constant_instruction("OP_CONSTANT", chunk, offset),
+                OpCode::Nil => simple_instruction("OP_NIL", offset),
+                OpCode::True => simple_instruction("OP_TRUE", offset),
+                OpCode::False => simple_instruction("OP_FALSE", offset),
                 OpCode::Add => simple_instruction("OP_ADD", offset),
                 OpCode::Subtract => simple_instruction("OP_SUBTRACT", offset),
                 OpCode::Multiply => simple_instruction("OP_MULTIPLY", offset),

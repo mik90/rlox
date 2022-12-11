@@ -204,6 +204,15 @@ impl Vm {
                     let constant = state.read_constant()?;
                     state.stack.push(constant);
                 }
+                OpCode::Nil => {
+                    state.stack.push(Value::Nil);
+                }
+                OpCode::True => {
+                    state.stack.push(Value::Bool(true));
+                }
+                OpCode::False => {
+                    state.stack.push(Value::Bool(false));
+                }
                 OpCode::Add => match state.pop_pair_from_stack()? {
                     (Value::Number(lhs), Value::Number(rhs)) => {
                         state.stack.push(Value::Number(lhs + rhs))

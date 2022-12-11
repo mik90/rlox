@@ -1,4 +1,4 @@
-use std::{fmt, ops::Add};
+use std::fmt;
 
 /// Primitives supported by the VM
 #[derive(Debug, Clone, PartialEq)]
