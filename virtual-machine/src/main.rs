@@ -16,19 +16,16 @@ use crate::vm::VmState;
 fn run_file(path: &Path) -> ExitCode {
     let vm = Vm::new();
     // Since interpret is only run once, no state will persist
-    let mut state = VmState::new_uninit();
+    let mut state = VmState::new();
 
     match std::fs::read_to_string(path) {
-        Ok(code) => {
-            state.source = code;
-            match vm.interpret(state) {
-                Ok(_) => ExitCode::SUCCESS,
-                Err(e) => {
-                    eprintln!("{}", e);
-                    ExitCode::FAILURE
-                }
+        Ok(code) => match vm.interpret(&code, state) {
+            Ok(_) => ExitCode::SUCCESS,
+            Err(e) => {
+                eprintln!("{}", e);
+                ExitCode::FAILURE
             }
-        }
+        },
         Err(e) => {
             eprintln!(
                 "Could not open file '{}', hit error {}",
@@ -45,7 +42,7 @@ fn repl() -> ExitCode {
     let mut input = BufReader::new(std::io::stdin());
 
     let vm = Vm::new();
-    let mut state = VmState::new_uninit();
+    let mut state = VmState::new();
 
     loop {
         let mut buffer = String::new();
@@ -55,19 +52,15 @@ fn repl() -> ExitCode {
                 println!("\nExiting repl");
                 return ExitCode::SUCCESS;
             }
-            Ok(_) => {
-                state.source = buffer.to_owned();
-
-                match vm.interpret(state) {
-                    Ok(new_state) => {
-                        state = new_state;
-                    }
-                    Err(e) => {
-                        eprintln!("{}", e);
-                        return ExitCode::FAILURE;
-                    }
+            Ok(_) => match vm.interpret(&buffer, state) {
+                Ok(new_state) => {
+                    state = new_state;
                 }
-            }
+                Err(e) => {
+                    eprintln!("{}", e);
+                    return ExitCode::FAILURE;
+                }
+            },
             Err(e) => {
                 eprintln!("Could not process input, error: {}", e);
                 return ExitCode::FAILURE;

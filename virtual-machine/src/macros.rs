@@ -14,3 +14,11 @@ macro_rules! debugln {
         println!("[{}:{}] {}", file!(), line!(), format!($($arg)*));
     }
 }
+
+#[macro_export]
+/// format! but with file and line
+macro_rules! herefmt {
+    ($($arg: tt)*) => {
+        format!("[{}:{}] {}", file!(), line!(), format!($($arg)*))
+    }
+}
