@@ -65,6 +65,7 @@ impl Chunk {
         self.code[offset]
     }
 
+    /// Source code line for a given instruction byte
     pub fn line_at(&self, offset: usize) -> usize {
         self.lines[offset]
     }

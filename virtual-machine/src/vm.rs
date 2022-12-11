@@ -48,9 +48,6 @@ impl fmt::Display for InterpretError {
         }
     }
 }
-// Only used to allow the Vm to init. Easier than having an optional iterator
-const DEFAULT_INSTRUCTION_SLICE: &'static [u8] = &[];
-const DEFAULT_CHUNK_SLICE: &'static [Chunk] = &[];
 
 impl VmState {
     pub fn new() -> VmState {
@@ -122,6 +119,8 @@ impl VmState {
         Ok((lhs, rhs))
     }
 
+    #[allow(dead_code)]
+    /// Only used for debugging
     fn dump_stack(&self) -> String {
         let mut out = String::from(" ");
         for value in &self.stack {
@@ -132,6 +131,11 @@ impl VmState {
 
     fn disassemble_latest_instruction(&self) -> Result<String, InterpretError> {
         if let Ok(chunk) = self.peek_latest_chunk() {
+            if self.instruction_index >= chunk.code_iter().clone().count() {
+                return Err(InterpretError::InstructionOutOfRange(
+                    self.instruction_index,
+                ));
+            }
             let (debug_instruction, _) =
                 debug::dissassemble_instruction(chunk, self.instruction_index);
             Ok(debug_instruction)
@@ -147,7 +151,7 @@ impl Vm {
     }
 
     /// Disassembles a single instructions and returns whether or not it should continue running
-    fn run_once<'a>(&'a self, mut state: VmState) -> Result<(bool, VmState), InterpretError> {
+    fn run_once(&self, mut state: VmState) -> Result<(bool, VmState), InterpretError> {
         debugln!("---------------------------------");
         //debugln!("stack data  : {}", self.dump_stack());
         debug!("{}", state.disassemble_latest_instruction()?);
@@ -181,7 +185,7 @@ impl Vm {
                 }
                 OpCode::Return => {
                     if let Some(v) = state.stack.pop() {
-                        println!("{}", v);
+                        println!("Returning {}", v);
                     }
                     return Ok((false, state));
                 }
@@ -228,9 +232,8 @@ mod test {
         let mut chunks = vec![];
         {
             let mut chunk = Chunk::new();
-            let constant = chunk.add_constant(1.2);
-            chunk.write_opcode(OpCode::Constant, 123);
-            chunk.write_byte(constant as u8, 123);
+
+            assert!(chunk.write_constant(1.2, 123).is_ok());
 
             chunk.write_opcode(OpCode::Negate, 123);
 
@@ -261,11 +264,11 @@ mod test {
         let (continue_running, state) = res.unwrap();
         assert!(continue_running);
 
-        // Interprets return
+        // Interprets return, should stop running after this
         let res = vm.run_once(state);
         assert!(res.is_ok(), "{}", res.unwrap_err());
-        let (continue_running, state) = res.unwrap();
-        assert!(continue_running);
+        let (continue_running, _) = res.unwrap();
+        assert!(!continue_running);
     }
 
     #[test]
@@ -273,9 +276,8 @@ mod test {
         let mut chunks = vec![];
         {
             let mut chunk = Chunk::new();
-            let constant = chunk.add_constant(1.2);
-            chunk.write_opcode(OpCode::Constant, 123);
-            chunk.write_byte(constant as u8, 123);
+
+            assert!(chunk.write_constant(1.2, 123).is_ok());
 
             chunk.write_opcode(OpCode::Negate, 123);
 
@@ -303,7 +305,7 @@ mod test {
 
         // post-negate
         let res = vm.run_once(state);
-        assert!(res.is_ok(), "{}", res.unwrap_err());
+        assert!(res.is_err());
         match res.unwrap_err() {
             // Without a return, we expect to hit the end of execution ungracefully and without cleaning up the stack
             InterpretError::InstructionOutOfRange(_) => (),
@@ -366,8 +368,10 @@ mod test {
         let mut chunks = vec![];
         {
             let mut chunk = Chunk::new();
-            chunk.write_constant(3.0, 123);
-            chunk.write_constant(1.0, 123);
+            let res = chunk.write_constant(3.0, 123);
+            assert!(res.is_ok(), "{}", res.unwrap_err());
+            let res = chunk.write_constant(1.0, 123);
+            assert!(res.is_ok(), "{}", res.unwrap_err());
             chunks.push(chunk);
         }
         let vm = Vm::new();
