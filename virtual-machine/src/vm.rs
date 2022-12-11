@@ -407,8 +407,8 @@ mod test {
         let mut chunks = vec![];
         {
             let mut chunk = Chunk::new();
-            chunk.write_constant(Value::Number(3.0), 123);
-            chunk.write_constant(Value::Number(1.0), 123);
+            assert!(chunk.write_constant(Value::Number(3.0), 123).is_ok());
+            assert!(chunk.write_constant(Value::Number(1.0), 123).is_ok());
             chunk.write_opcode(OpCode::Subtract, 123);
 
             chunks.push(chunk);
