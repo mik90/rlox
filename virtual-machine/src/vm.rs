@@ -303,6 +303,7 @@ impl Vm {
     }
 
     pub fn interpret(&self, source: &str, mut state: VmState) -> Result<VmState, InterpretError> {
+        // TODO use same stateful compiler over iteration
         let mut compiler = Compiler::new();
         let chunk = compiler.compile(source).map_err(InterpretError::Compile)?;
         state.chunks.push(chunk);
