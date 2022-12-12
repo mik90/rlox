@@ -8,8 +8,8 @@ use std::fmt;
 
 pub struct Vm {}
 
-#[derive(Debug)]
 pub struct VmState {
+    //compiler: Compiler,
     chunks: Vec<Chunk>,
     chunk_index: usize,       //< idx into chunks
     instruction_index: usize, //< idx into the current chunk's instructions
@@ -357,19 +357,19 @@ mod test {
 
         // Interprets add constant
         let res = vm.run_once(state);
-        assert!(res.is_ok(), "{}", res.unwrap_err());
+        assert!(res.is_ok());
         let (continue_running, state) = res.unwrap();
         assert!(continue_running);
 
         // Interprets negate
         let res = vm.run_once(state);
-        assert!(res.is_ok(), "{}", res.unwrap_err());
+        assert!(res.is_ok());
         let (continue_running, state) = res.unwrap();
         assert!(continue_running);
 
         // Interprets return, should stop running after this
         let res = vm.run_once(state);
-        assert!(res.is_ok(), "{}", res.unwrap_err());
+        assert!(res.is_ok());
         let (continue_running, _) = res.unwrap();
         assert!(!continue_running);
     }
@@ -392,13 +392,13 @@ mod test {
 
         // Interprets add constant
         let res = vm.run_once(state);
-        assert!(res.is_ok(), "{}", res.unwrap_err());
+        assert!(res.is_ok());
         let (continue_running, state) = res.unwrap();
         assert!(continue_running);
 
         // Interprets negate
         let res = vm.run_once(state);
-        assert!(res.is_ok(), "{}", res.unwrap_err());
+        assert!(res.is_ok());
         let (continue_running, state) = res.unwrap();
         assert!(continue_running);
 
@@ -409,7 +409,7 @@ mod test {
         // post-negate
         // A lack of instructions is not an error
         let res = vm.run_once(state);
-        assert!(res.is_ok(), "{}", res.unwrap_err());
+        assert!(res.is_ok());
     }
 
     #[test]
@@ -429,19 +429,19 @@ mod test {
 
         // Interprets add constant
         let res = vm.run_once(state);
-        assert!(res.is_ok(), "{}", res.unwrap_err());
+        assert!(res.is_ok());
         let (continue_running, state) = res.unwrap();
         assert!(continue_running);
 
         // Interprets add constant
         let res = vm.run_once(state);
-        assert!(res.is_ok(), "{}", res.unwrap_err());
+        assert!(res.is_ok());
         let (continue_running, state) = res.unwrap();
         assert!(continue_running);
 
         // Interprets substract
         let res = vm.run_once(state);
-        assert!(res.is_ok(), "{}", res.unwrap_err());
+        assert!(res.is_ok());
         let (continue_running, state) = res.unwrap();
         assert!(continue_running);
 
@@ -456,9 +456,9 @@ mod test {
         {
             let mut chunk = Chunk::new();
             let res = chunk.write_constant(Value::Number(3.0), 123);
-            assert!(res.is_ok(), "{}", res.unwrap_err());
+            assert!(res.is_ok());
             let res = chunk.write_constant(Value::Number(1.0), 123);
-            assert!(res.is_ok(), "{}", res.unwrap_err());
+            assert!(res.is_ok());
             chunks.push(chunk);
         }
         let vm = Vm::new();
@@ -467,13 +467,13 @@ mod test {
 
         // add constant
         let res = vm.run_once(state);
-        assert!(res.is_ok(), "{}", res.unwrap_err());
+        assert!(res.is_ok());
         let (continue_running, state) = res.unwrap();
         assert!(continue_running);
 
         // add constant
         let res = vm.run_once(state);
-        assert!(res.is_ok(), "{}", res.unwrap_err());
+        assert!(res.is_ok());
         let (continue_running, state) = res.unwrap();
         assert!(continue_running);
 
@@ -494,6 +494,6 @@ mod test {
         let vm = Vm::new();
         let state = VmState::new();
         let res = vm.interpret("1 + 2\0", state);
-        assert!(res.is_ok(), "{}", res.unwrap_err());
+        assert!(res.is_ok());
     }
 }
