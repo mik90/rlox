@@ -516,31 +516,4 @@ mod test {
         let res = vm.interpret("1 + 2\0", state);
         assert!(res.is_ok());
     }
-
-    #[test]
-    fn handle_comparisons_ch18() {
-        let vm = Vm::new();
-        let state = VmState::new();
-        let res = vm.interpret("!(5 - 4 > 3 * 2 == !nil)\0", state);
-        assert!(res.is_ok());
-        let chunks = res.unwrap().chunks;
-        assert_eq!(chunks.len(), 1);
-        let instructions: Vec<u8> = chunks[0].code_iter().copied().collect();
-
-        assert_eq!(instructions[0], OpCode::Constant as u8);
-
-        assert_eq!(instructions[2], OpCode::Constant as u8);
-
-        assert_eq!(instructions[4], OpCode::Subtract as u8);
-        assert_eq!(instructions[5], OpCode::Constant as u8);
-
-        assert_eq!(instructions[7], OpCode::Constant as u8);
-
-        assert_eq!(instructions[9], OpCode::Multiply as u8);
-        assert_eq!(instructions[10], OpCode::Greater as u8);
-        assert_eq!(instructions[11], OpCode::Nil as u8);
-        assert_eq!(instructions[12], OpCode::Not as u8);
-        assert_eq!(instructions[13], OpCode::Equal as u8);
-        assert_eq!(instructions[14], OpCode::Not as u8);
-    }
 }

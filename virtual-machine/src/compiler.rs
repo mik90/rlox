@@ -638,4 +638,31 @@ mod test {
         assert!(maybe_op.is_ok());
         assert_eq!(maybe_op.unwrap(), OpCode::True);
     }
+    #[test]
+    fn compile_comparisons() {
+        let mut compiler = Compiler::new();
+        let res = compiler.compile("!(5 - 4 > 3 * 2 == !nil)\0");
+        assert!(res.is_ok());
+        let chunk = res.unwrap();
+        let instructions: Vec<u8> = chunk.code_iter().copied().collect();
+
+        // Instruction indices are skipped since we don't care about the indexes of the constants
+        // This is really just using the offsets found in the debug output and checking that future changes don't break
+        // how the opcodes are emitted
+        assert_eq!(instructions[0], OpCode::Constant as u8);
+
+        assert_eq!(instructions[2], OpCode::Constant as u8);
+
+        assert_eq!(instructions[4], OpCode::Subtract as u8);
+        assert_eq!(instructions[5], OpCode::Constant as u8);
+
+        assert_eq!(instructions[7], OpCode::Constant as u8);
+
+        assert_eq!(instructions[9], OpCode::Multiply as u8);
+        assert_eq!(instructions[10], OpCode::Greater as u8);
+        assert_eq!(instructions[11], OpCode::Nil as u8);
+        assert_eq!(instructions[12], OpCode::Not as u8);
+        assert_eq!(instructions[13], OpCode::Equal as u8);
+        assert_eq!(instructions[14], OpCode::Not as u8);
+    }
 }
