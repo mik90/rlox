@@ -18,5 +18,15 @@ impl fmt::Display for Value {
     }
 }
 
+impl Value {
+    pub fn falsey(&self) -> bool {
+        match &self {
+            Self::Nil => true,
+            Self::Bool(b) => !b,
+            _ => true, // Any type other than bool or nil is true
+        }
+    }
+}
+
 // Pool of constants
 pub type ValueArray = Vec<Value>;

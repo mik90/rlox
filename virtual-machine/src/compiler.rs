@@ -206,7 +206,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
             ),
             (
                 std::mem::discriminant(&TokenKind::Bang),
-                ParserRule::new(None, None, Precedence::None),
+                ParserRule::new(Some(unary.clone()), None, Precedence::None),
             ),
             (
                 std::mem::discriminant(&TokenKind::BangEqual),
@@ -494,13 +494,13 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         // parse only the operand
         chunk = self.parse_precedence(Precedence::Unary, chunk)?;
 
-        if let TokenKind::Minus = operator_kind {
-            Ok(self.emit_byte(OpCode::Negate as u8, chunk))
-        } else {
-            Err(CompilerError::Unreachable(format!(
+        match operator_kind {
+            TokenKind::Minus => Ok(self.emit_opcode(OpCode::Negate, chunk)),
+            TokenKind::Bang => Ok(self.emit_opcode(OpCode::Not, chunk)),
+            other => Err(CompilerError::Unreachable(format!(
                 "Expected unary negation on line {} but instead saw {:?}",
-                self.parser.previous.line, operator_kind
-            )))
+                self.parser.previous.line, other
+            ))),
         }
     }
 
@@ -572,6 +572,8 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
 
 #[cfg(test)]
 mod test {
+    use crate::chunk;
+
     use super::*;
 
     #[test]
@@ -586,14 +588,33 @@ mod test {
             TokenKind::Eof,
         ];
 
-        for _token_kind in expected_tokens {
+        for token_kind in expected_tokens {
             let res = compiler.advance();
             assert!(res.is_ok(), "{}", res.unwrap_err());
-            assert!(
-                matches!(&compiler.parser.current.kind, _token_kind),
+            assert_eq!(
+                std::mem::discriminant(&compiler.parser.current.kind),
+                std::mem::discriminant(&token_kind),
                 "{:?}",
                 compiler.parser.current.kind
             );
         }
+    }
+
+    #[test]
+    fn compile_literal() {
+        let mut compiler = Compiler::new();
+
+        let source = "true\0";
+        let chunk = compiler.compile(source);
+        assert!(chunk.is_ok());
+        let chunk = chunk.unwrap();
+
+        let mut code = chunk.code_iter();
+        assert_eq!(code.clone().count(), 1);
+        let byte = code.next().unwrap();
+
+        let maybe_op = OpCode::try_from(*byte);
+        assert!(maybe_op.is_ok());
+        assert_eq!(maybe_op.unwrap(), OpCode::True);
     }
 }

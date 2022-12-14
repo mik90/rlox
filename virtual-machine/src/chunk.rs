@@ -1,7 +1,7 @@
 use crate::value::{Value, ValueArray};
 
 #[repr(u8)]
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum OpCode {
     Constant = 0, //< Loads constant for use.
     Nil,          //< literal
@@ -11,6 +11,7 @@ pub enum OpCode {
     Subtract,     //< Binary operation
     Multiply,     //< Binary operation
     Divide,       //< Binary operation
+    Not,          //< Unary boolean negation
     Negate,       //< Unary negation
     Return,       //< Return from current function.
 }
@@ -29,6 +30,7 @@ impl TryFrom<u8> for OpCode {
             x if x == OpCode::Subtract as u8 => Ok(OpCode::Subtract),
             x if x == OpCode::Multiply as u8 => Ok(OpCode::Multiply),
             x if x == OpCode::Divide as u8 => Ok(OpCode::Divide),
+            x if x == OpCode::Not as u8 => Ok(OpCode::Not),
             x if x == OpCode::Negate as u8 => Ok(OpCode::Negate),
             x if x == OpCode::Return as u8 => Ok(OpCode::Return),
             _ => Err(()),
@@ -173,6 +175,7 @@ pub mod debug {
                 OpCode::Subtract => simple_instruction("OP_SUBTRACT", offset),
                 OpCode::Multiply => simple_instruction("OP_MULTIPLY", offset),
                 OpCode::Divide => simple_instruction("OP_DIVIDE", offset),
+                OpCode::Not => simple_instruction("OP_NOT", offset),
                 OpCode::Negate => simple_instruction("OP_NEGATE", offset),
                 OpCode::Return => simple_instruction("OP_RETURN", offset),
             },
@@ -194,7 +197,7 @@ mod test {
 
     #[test]
     fn test_opcode_translation() {
-        let raw: u8 = 2;
+        let raw: u8 = OpCode::Subtract as u8;
         let op = OpCode::try_from(raw);
         assert!(op.is_ok());
         match op.unwrap() {

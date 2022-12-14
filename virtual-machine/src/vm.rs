@@ -198,99 +198,105 @@ impl Vm {
 
         let byte = state.read_byte()?;
         match OpCode::try_from(byte) {
-            Ok(opcode) => match opcode {
-                OpCode::Constant => {
-                    let constant = state.read_constant()?;
-                    state.stack.push(constant);
-                }
-                OpCode::Nil => {
-                    state.stack.push(Value::Nil);
-                }
-                OpCode::True => {
-                    state.stack.push(Value::Bool(true));
-                }
-                OpCode::False => {
-                    state.stack.push(Value::Bool(false));
-                }
-                OpCode::Add => match state.pop_pair_from_stack()? {
-                    (Value::Number(lhs), Value::Number(rhs)) => {
-                        state.stack.push(Value::Number(lhs + rhs))
+            Ok(opcode) => {
+                match opcode {
+                    OpCode::Constant => {
+                        let constant = state.read_constant()?;
+                        state.stack.push(constant);
                     }
-                    (lhs, rhs) => {
-                        let err = state.runtime_error(herefmt!(
-                            "Operands must be numbers but were lhs={:?} and rhs={:?}",
-                            lhs,
-                            rhs
-                        ));
-                        state.stack.push(rhs);
-                        state.stack.push(lhs);
-                        return Err(err);
+                    OpCode::Nil => {
+                        state.stack.push(Value::Nil);
                     }
-                },
-                OpCode::Subtract => match state.pop_pair_from_stack()? {
-                    (Value::Number(lhs), Value::Number(rhs)) => {
-                        state.stack.push(Value::Number(lhs - rhs));
+                    OpCode::True => {
+                        state.stack.push(Value::Bool(true));
                     }
-                    (lhs, rhs) => {
-                        let err = state.runtime_error(herefmt!(
-                            "Operands must be numbers but were lhs={:?} and rhs={:?}",
-                            lhs,
-                            rhs
-                        ));
-                        state.stack.push(rhs);
-                        state.stack.push(lhs);
-                        return Err(err);
+                    OpCode::False => {
+                        state.stack.push(Value::Bool(false));
                     }
-                },
-                OpCode::Multiply => match state.pop_pair_from_stack()? {
-                    (Value::Number(lhs), Value::Number(rhs)) => {
-                        state.stack.push(Value::Number(lhs * rhs))
-                    }
-                    (lhs, rhs) => {
-                        let err = state.runtime_error(herefmt!(
-                            "Operands must be numbers but were lhs={:?} and rhs={:?}",
-                            lhs,
-                            rhs
-                        ));
-                        state.stack.push(rhs.clone());
-                        state.stack.push(lhs.clone());
-                        return Err(err);
-                    }
-                },
-                OpCode::Divide => match state.pop_pair_from_stack()? {
-                    (Value::Number(lhs), Value::Number(rhs)) => {
-                        state.stack.push(Value::Number(lhs / rhs))
-                    }
-                    (lhs, rhs) => {
-                        let err = state.runtime_error(herefmt!(
-                            "Operands must be numbers but were lhs={:?} and rhs={:?}",
-                            lhs,
-                            rhs
-                        ));
-                        state.stack.push(rhs);
-                        state.stack.push(lhs);
-                        return Err(err);
-                    }
-                },
-                OpCode::Negate => {
-                    match state.pop_from_stack()? {
-                        Value::Number(value) => state.stack.push(Value::Number(-value)),
-                        other => {
-                            // put it back on the stack since it wasn't what we expected
-                            state.stack.push(other);
-                            return Err(state.runtime_error(herefmt!(
-                                "Operand to unary negation must be a number"
-                            )));
+                    OpCode::Add => match state.pop_pair_from_stack()? {
+                        (Value::Number(lhs), Value::Number(rhs)) => {
+                            state.stack.push(Value::Number(lhs + rhs))
                         }
-                    };
-                }
-                OpCode::Return => {
-                    if let Some(v) = state.stack.pop() {
-                        println!("Returning {}", v);
+                        (lhs, rhs) => {
+                            let err = state.runtime_error(herefmt!(
+                                "Operands must be numbers but were lhs={:?} and rhs={:?}",
+                                lhs,
+                                rhs
+                            ));
+                            state.stack.push(rhs);
+                            state.stack.push(lhs);
+                            return Err(err);
+                        }
+                    },
+                    OpCode::Subtract => match state.pop_pair_from_stack()? {
+                        (Value::Number(lhs), Value::Number(rhs)) => {
+                            state.stack.push(Value::Number(lhs - rhs));
+                        }
+                        (lhs, rhs) => {
+                            let err = state.runtime_error(herefmt!(
+                                "Operands must be numbers but were lhs={:?} and rhs={:?}",
+                                lhs,
+                                rhs
+                            ));
+                            state.stack.push(rhs);
+                            state.stack.push(lhs);
+                            return Err(err);
+                        }
+                    },
+                    OpCode::Multiply => match state.pop_pair_from_stack()? {
+                        (Value::Number(lhs), Value::Number(rhs)) => {
+                            state.stack.push(Value::Number(lhs * rhs))
+                        }
+                        (lhs, rhs) => {
+                            let err = state.runtime_error(herefmt!(
+                                "Operands must be numbers but were lhs={:?} and rhs={:?}",
+                                lhs,
+                                rhs
+                            ));
+                            state.stack.push(rhs.clone());
+                            state.stack.push(lhs.clone());
+                            return Err(err);
+                        }
+                    },
+                    OpCode::Divide => match state.pop_pair_from_stack()? {
+                        (Value::Number(lhs), Value::Number(rhs)) => {
+                            state.stack.push(Value::Number(lhs / rhs))
+                        }
+                        (lhs, rhs) => {
+                            let err = state.runtime_error(herefmt!(
+                                "Operands must be numbers but were lhs={:?} and rhs={:?}",
+                                lhs,
+                                rhs
+                            ));
+                            state.stack.push(rhs);
+                            state.stack.push(lhs);
+                            return Err(err);
+                        }
+                    },
+                    OpCode::Not => {
+                        let value = state.pop_from_stack()?;
+                        state.stack.push(Value::Bool(value.falsey()));
                     }
-                    return Ok((false, state));
+                    OpCode::Negate => {
+                        match state.pop_from_stack()? {
+                            Value::Number(value) => state.stack.push(Value::Number(-value)),
+                            other => {
+                                // put it back on the stack since it wasn't what we expected
+                                state.stack.push(other);
+                                return Err(state.runtime_error(herefmt!(
+                                    "Operand to unary negation must be a number"
+                                )));
+                            }
+                        };
+                    }
+                    OpCode::Return => {
+                        if let Some(v) = state.stack.pop() {
+                            println!("Returning {}", v);
+                        }
+                        return Ok((false, state));
+                    }
                 }
-            },
+            }
             Err(_) => {
                 return Err(InterpretError::Runtime(format!(
                     "Could not convert upcode from instruction {}",
