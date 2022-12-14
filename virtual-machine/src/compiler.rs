@@ -210,7 +210,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
             ),
             (
                 std::mem::discriminant(&TokenKind::BangEqual),
-                ParserRule::new(None, None, Precedence::None),
+                ParserRule::new(None, Some(binary.clone()), Precedence::Equality),
             ),
             (
                 std::mem::discriminant(&TokenKind::Equal),
@@ -218,23 +218,23 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
             ),
             (
                 std::mem::discriminant(&TokenKind::EqualEqual),
-                ParserRule::new(None, None, Precedence::None),
+                ParserRule::new(None, Some(binary.clone()), Precedence::Equality),
             ),
             (
                 std::mem::discriminant(&TokenKind::Greater),
-                ParserRule::new(None, None, Precedence::None),
+                ParserRule::new(None, Some(binary.clone()), Precedence::Comparison),
             ),
             (
                 std::mem::discriminant(&TokenKind::GreaterEqual),
-                ParserRule::new(None, None, Precedence::None),
+                ParserRule::new(None, Some(binary.clone()), Precedence::Comparison),
             ),
             (
                 std::mem::discriminant(&TokenKind::Less),
-                ParserRule::new(None, None, Precedence::None),
+                ParserRule::new(None, Some(binary.clone()), Precedence::Comparison),
             ),
             (
                 std::mem::discriminant(&TokenKind::LessEqual),
-                ParserRule::new(None, None, Precedence::None),
+                ParserRule::new(None, Some(binary.clone()), Precedence::Comparison),
             ),
             (
                 std::mem::discriminant(&TokenKind::Identifier),
@@ -443,10 +443,31 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         chunk = self.parse_precedence(rule.precedence.next(), chunk)?;
 
         match operator_kind {
+            // Comparisons
+            // Equality
+            TokenKind::BangEqual => {
+                let chunk = self.emit_opcode(OpCode::Equal, chunk);
+                Ok(self.emit_opcode(OpCode::Not, chunk))
+            }
+            TokenKind::EqualEqual => Ok(self.emit_opcode(OpCode::Equal, chunk)),
+            // Greater
+            TokenKind::Greater => Ok(self.emit_opcode(OpCode::Greater, chunk)),
+            TokenKind::GreaterEqual => {
+                let chunk = self.emit_opcode(OpCode::Less, chunk);
+                Ok(self.emit_opcode(OpCode::Not, chunk))
+            }
+            // Less
+            TokenKind::Less => Ok(self.emit_opcode(OpCode::Less, chunk)),
+            TokenKind::LessEqual => {
+                let chunk = self.emit_opcode(OpCode::Greater, chunk);
+                Ok(self.emit_opcode(OpCode::Not, chunk))
+            }
+            // Arithmetic
             TokenKind::Plus => Ok(self.emit_opcode(OpCode::Add, chunk)),
             TokenKind::Minus => Ok(self.emit_opcode(OpCode::Subtract, chunk)),
             TokenKind::Star => Ok(self.emit_opcode(OpCode::Multiply, chunk)),
             TokenKind::Slash => Ok(self.emit_opcode(OpCode::Divide, chunk)),
+            // Other
             _ => Err(CompilerError::Unreachable(format!(
                 "Did not expect operator {:?} in binary expression on line {}",
                 operator_kind, self.parser.previous.line

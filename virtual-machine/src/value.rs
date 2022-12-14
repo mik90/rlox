@@ -1,7 +1,7 @@
 use std::fmt;
 
 /// Primitives supported by the VM
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub enum Value {
     Bool(bool),
     Nil,

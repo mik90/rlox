@@ -7,6 +7,9 @@ pub enum OpCode {
     Nil,          //< literal
     True,         //< literal
     False,        //< literal
+    Equal,        //< Comparison
+    Greater,      //< Comparison
+    Less,         //< Comparison
     Add,          //< Binary operation
     Subtract,     //< Binary operation
     Multiply,     //< Binary operation
@@ -21,11 +24,14 @@ impl TryFrom<u8> for OpCode {
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
-            // TODO ew
+            // TODO ew, this isn't guaranteed to be exhaustive. I could do a greater than Return as u8 comparison
             x if x == OpCode::Constant as u8 => Ok(OpCode::Constant),
             x if x == OpCode::Nil as u8 => Ok(OpCode::Nil),
             x if x == OpCode::True as u8 => Ok(OpCode::True),
             x if x == OpCode::False as u8 => Ok(OpCode::False),
+            x if x == OpCode::Equal as u8 => Ok(OpCode::Equal),
+            x if x == OpCode::Greater as u8 => Ok(OpCode::Greater),
+            x if x == OpCode::Less as u8 => Ok(OpCode::Less),
             x if x == OpCode::Add as u8 => Ok(OpCode::Add),
             x if x == OpCode::Subtract as u8 => Ok(OpCode::Subtract),
             x if x == OpCode::Multiply as u8 => Ok(OpCode::Multiply),
@@ -171,6 +177,9 @@ pub mod debug {
                 OpCode::Nil => simple_instruction("OP_NIL", offset),
                 OpCode::True => simple_instruction("OP_TRUE", offset),
                 OpCode::False => simple_instruction("OP_FALSE", offset),
+                OpCode::Equal => simple_instruction("OP_EQUAL", offset),
+                OpCode::Greater => simple_instruction("OP_GREATER", offset),
+                OpCode::Less => simple_instruction("OP_LESS", offset),
                 OpCode::Add => simple_instruction("OP_ADD", offset),
                 OpCode::Subtract => simple_instruction("OP_SUBTRACT", offset),
                 OpCode::Multiply => simple_instruction("OP_MULTIPLY", offset),
