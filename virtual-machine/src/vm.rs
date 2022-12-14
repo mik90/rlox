@@ -9,7 +9,6 @@ use std::fmt;
 pub struct Vm {}
 
 pub struct VmState {
-    //compiler: Compiler,
     chunks: Vec<Chunk>,
     chunk_index: usize,       //< idx into chunks
     instruction_index: usize, //< idx into the current chunk's instructions
@@ -307,6 +306,9 @@ impl Vm {
         let mut compiler = Compiler::new();
         let chunk = compiler.compile(source).map_err(InterpretError::Compile)?;
         state.chunks.push(chunk);
+        // Update indexes of state to match the new generated chunk
+        state.chunk_index = state.chunks.len() - 1;
+        state.instruction_index = 0;
 
         loop {
             let (continue_running, new_state) = self.run_once(state)?;
