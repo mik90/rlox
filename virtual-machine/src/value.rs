@@ -25,6 +25,7 @@ pub enum Value {
 }
 
 impl From<Obj> for Value {
+    // TODO Figure out a way to track allocations since I'm not using the same method as the book
     fn from(o: Obj) -> Self {
         Value::Obj(Arc::new(Mutex::new(o)))
     }

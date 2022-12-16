@@ -681,4 +681,38 @@ mod test {
         assert_eq!(instructions[13], OpCode::Equal as u8);
         assert_eq!(instructions[14], OpCode::Not as u8);
     }
+
+    #[test]
+    fn compile_string_concat() {
+        let mut compiler = Compiler::new();
+
+        let source = r#""st" + "ri" + "ng" "#;
+        let chunk = compiler.compile(source);
+        assert!(chunk.is_ok());
+        let chunk = chunk.unwrap();
+
+        let instructions: Vec<u8> = chunk.code_iter().copied().collect();
+
+        // Instruction indices are skipped since we don't care about the indexes of the constants
+        // This is really just using the offsets found in the debug output and checking that future changes don't break
+        // how the opcodes are emitted
+        assert_eq!(instructions[0], OpCode::Constant as u8);
+        let value = chunk.get_constant_value(instructions[1] as usize);
+        assert!(value.is_some());
+        assert_eq!(format!("{}", value.unwrap()), "st");
+
+        assert_eq!(instructions[2], OpCode::Constant as u8);
+        let value = chunk.get_constant_value(instructions[3] as usize);
+        assert!(value.is_some());
+        assert_eq!(format!("{}", value.unwrap()), "ri");
+
+        assert_eq!(instructions[4], OpCode::Add as u8);
+
+        assert_eq!(instructions[5], OpCode::Constant as u8);
+        let value = chunk.get_constant_value(instructions[6] as usize);
+        assert!(value.is_some());
+        assert_eq!(format!("{}", value.unwrap()), "ng");
+
+        assert_eq!(instructions[7], OpCode::Add as u8);
+    }
 }

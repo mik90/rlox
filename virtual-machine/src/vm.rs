@@ -13,6 +13,8 @@ pub struct VmState {
     chunk_index: usize,       //< idx into chunks
     instruction_index: usize, //< idx into the current chunk's instructions
     stack: Vec<Value>,
+    // Normally, the linked list of Objects would be stored here but I have all thle objects in stored as Arc<Mutex<T>>
+    // Maybe I should use unsafe so I could write a garbage collector?
 }
 
 pub type ErrorMessage = String;
