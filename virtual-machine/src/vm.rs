@@ -228,11 +228,9 @@ impl Vm {
                         state.stack.push(Value::Bool(lhs < rhs));
                     }
                     OpCode::Add => match state.pop_pair_from_stack()? {
-                        (Value::Obj(locked_lhs), Value::Obj(locked_rhs)) => {
-                            let lhs: &Obj =
-                                &locked_lhs.lock().expect(&herefmt!("Chould not lock rhs"));
-                            let rhs: &Obj =
-                                &locked_rhs.lock().expect(&herefmt!("Chould not lock rhs"));
+                        (Value::Obj(lhs), Value::Obj(rhs)) => {
+                            let lhs: &Obj = &lhs;
+                            let rhs: &Obj = &rhs;
                             match (lhs, rhs) {
                                 (Obj::String(lhs), Obj::String(rhs)) => {
                                     let mut combined_string = lhs.clone();

@@ -1,5 +1,5 @@
 use crate::herefmt;
-use std::{fmt, sync::Arc, sync::Mutex};
+use std::{fmt, rc::Rc};
 
 /// Generic heap-allocated object container
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
@@ -21,13 +21,13 @@ pub enum Value {
     Bool(bool),
     Nil,
     Number(f64),
-    Obj(Arc<Mutex<Obj>>),
+    Obj(Rc<Obj>),
 }
 
 impl From<Obj> for Value {
     // TODO Figure out a way to track allocations since I'm not using the same method as the book
-    fn from(o: Obj) -> Self {
-        Value::Obj(Arc::new(Mutex::new(o)))
+    fn from(obj: Obj) -> Self {
+        Value::Obj(Rc::new(obj))
     }
 }
 
@@ -37,7 +37,7 @@ impl fmt::Display for Value {
             Self::Bool(b) => write!(f, "{}", b),
             Self::Nil => write!(f, "nil"),
             Self::Number(n) => write!(f, "{}", n),
-            Self::Obj(o) => write!(f, "{}", o.lock().expect(&herefmt!("Cannot lock object"))),
+            Self::Obj(obj) => write!(f, "{}", obj),
         }
     }
 }
@@ -48,8 +48,8 @@ impl PartialEq for Value {
             (Self::Bool(l0), Self::Bool(r0)) => l0 == r0,
             (Self::Number(l0), Self::Number(r0)) => l0 == r0,
             (Self::Obj(l0), Self::Obj(r0)) => {
-                let lhs: &Obj = &l0.lock().expect(&herefmt!("Cannot lock lhs"));
-                let rhs: &Obj = &r0.lock().expect(&herefmt!("Cannot lock rhs"));
+                let lhs: &Obj = &l0;
+                let rhs: &Obj = &r0;
                 lhs == rhs
             }
             _ => false,
@@ -63,8 +63,8 @@ impl PartialOrd for Value {
             (Self::Bool(l0), Self::Bool(r0)) => Some(l0.cmp(r0)),
             (Self::Number(l0), Self::Number(r0)) => l0.partial_cmp(r0),
             (Self::Obj(l0), Self::Obj(r0)) => {
-                let lhs: &Obj = &l0.lock().expect(&herefmt!("Cannot lock lhs"));
-                let rhs: &Obj = &r0.lock().expect(&herefmt!("Cannot lock rhs"));
+                let lhs: &Obj = &l0;
+                let rhs: &Obj = &r0;
                 lhs.partial_cmp(rhs)
             }
             _ => None,
