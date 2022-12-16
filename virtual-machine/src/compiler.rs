@@ -2,9 +2,9 @@ use crate::{
     chunk::{debug::dissassemble_chunk, Chunk, OpCode},
     debugln, herefmt,
     scanner::{Scanner, ScannerError, Token, TokenKind},
-    value::Value,
+    value::{Obj, Value},
 };
-use std::{collections::HashMap, fmt, hash::Hash, rc::Rc};
+use std::{collections::HashMap, fmt, rc::Rc};
 
 #[derive(Debug, Clone)]
 pub enum CompilerError {
@@ -156,6 +156,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         let grouping = Rc::new(|compiler: &mut Compiler, chunk: Chunk| compiler.grouping(chunk));
         let literal = Rc::new(|compiler: &mut Compiler, chunk: Chunk| compiler.literal(chunk));
         let number = Rc::new(|compiler: &mut Compiler, chunk: Chunk| compiler.number(chunk));
+        let string = Rc::new(|compiler: &mut Compiler, chunk: Chunk| compiler.string(chunk));
         let binary = Rc::new(|compiler: &mut Compiler, chunk: Chunk| compiler.binary(chunk));
         let unary = Rc::new(|compiler: &mut Compiler, chunk: Chunk| compiler.unary(chunk));
 
@@ -242,7 +243,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
             ),
             (
                 std::mem::discriminant(&TokenKind::String),
-                ParserRule::new(None, None, Precedence::None),
+                ParserRule::new(Some(string.clone()), None, Precedence::None),
             ),
             (
                 std::mem::discriminant(&TokenKind::Number),
@@ -507,6 +508,21 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
             })?;
         current_chunk = self.emit_constant(Value::Number(value), current_chunk)?;
         Ok(current_chunk)
+    }
+
+    fn string(&self, current_chunk: Chunk) -> Result<Chunk, CompilerError> {
+        let length = self.parser.previous.length - 2;
+        let copy: String = self
+            .parser
+            .previous
+            .start
+            .clone()
+            .skip(1)
+            .take(length)
+            .map(|(_, c)| c)
+            .collect();
+
+        self.emit_constant(Value::from(Obj::String(copy)), current_chunk)
     }
 
     fn unary(&mut self, mut chunk: Chunk) -> Result<Chunk, CompilerError> {

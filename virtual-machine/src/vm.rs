@@ -2,7 +2,7 @@ use crate::{
     chunk::{debug, Chunk, OpCode},
     compiler::{Compiler, CompilerError},
     debug, debugln, herefmt,
-    value::{Value, ValueArray},
+    value::{Obj, Value},
 };
 use std::fmt;
 
@@ -12,7 +12,7 @@ pub struct VmState {
     chunks: Vec<Chunk>,
     chunk_index: usize,       //< idx into chunks
     instruction_index: usize, //< idx into the current chunk's instructions
-    stack: ValueArray,
+    stack: Vec<Value>,
 }
 
 pub type ErrorMessage = String;
@@ -226,12 +226,26 @@ impl Vm {
                         state.stack.push(Value::Bool(lhs < rhs));
                     }
                     OpCode::Add => match state.pop_pair_from_stack()? {
+                        (Value::Obj(locked_lhs), Value::Obj(locked_rhs)) => {
+                            let lhs: &Obj =
+                                &locked_lhs.lock().expect(&herefmt!("Chould not lock rhs"));
+                            let rhs: &Obj =
+                                &locked_rhs.lock().expect(&herefmt!("Chould not lock rhs"));
+                            match (lhs, rhs) {
+                                (Obj::String(lhs), Obj::String(rhs)) => {
+                                    let mut combined_string = lhs.clone();
+                                    combined_string.push_str(rhs);
+                                    let value = Value::from(Obj::String(combined_string));
+                                    state.stack.push(value);
+                                }
+                            }
+                        }
                         (Value::Number(lhs), Value::Number(rhs)) => {
                             state.stack.push(Value::Number(lhs + rhs))
                         }
                         (lhs, rhs) => {
                             let err = state.runtime_error(herefmt!(
-                                "Operands must be numbers but were lhs={:?} and rhs={:?}",
+                                "Operands must be two numbers or strings but were lhs={:?} and rhs={:?}",
                                 lhs,
                                 rhs
                             ));
@@ -262,11 +276,11 @@ impl Vm {
                         (lhs, rhs) => {
                             let err = state.runtime_error(herefmt!(
                                 "Operands must be numbers but were lhs={:?} and rhs={:?}",
-                                lhs,
-                                rhs
+                                &lhs,
+                                &rhs
                             ));
-                            state.stack.push(rhs.clone());
-                            state.stack.push(lhs.clone());
+                            state.stack.push(rhs);
+                            state.stack.push(lhs);
                             return Err(err);
                         }
                     },

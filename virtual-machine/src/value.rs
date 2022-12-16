@@ -1,14 +1,16 @@
 use crate::herefmt;
 use std::{fmt, sync::Arc, sync::Mutex};
 
-/// Generic object container
+/// Generic heap-allocated object container
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
-pub enum Obj {}
+pub enum Obj {
+    String(String),
+}
 
 impl fmt::Display for Obj {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self {
-            _ => write!(f, "todo"),
+            Obj::String(s) => write!(f, "{}", s),
         }
     }
 }
@@ -19,7 +21,13 @@ pub enum Value {
     Bool(bool),
     Nil,
     Number(f64),
-    Obj(Arc<Mutex<Obj>>), // TODO this will
+    Obj(Arc<Mutex<Obj>>),
+}
+
+impl From<Obj> for Value {
+    fn from(o: Obj) -> Self {
+        Value::Obj(Arc::new(Mutex::new(o)))
+    }
 }
 
 impl fmt::Display for Value {
@@ -72,6 +80,3 @@ impl Value {
         }
     }
 }
-
-// Pool of constants
-pub type ValueArray = Vec<Value>;

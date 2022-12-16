@@ -1,4 +1,4 @@
-use crate::value::{Value, ValueArray};
+use crate::value::Value;
 
 #[repr(u8)]
 #[derive(Debug, PartialEq)]
@@ -49,7 +49,7 @@ impl TryFrom<u8> for OpCode {
 pub struct Chunk {
     // The book has this as a dynamic array of uint8_t. I could use a rust enum but ill just stick with this for now i guess
     code: Vec<u8>,
-    constants: ValueArray,
+    constants: Vec<Value>,
     lines: Vec<usize>,
 }
 
@@ -59,7 +59,7 @@ impl Chunk {
     pub fn new() -> Chunk {
         Chunk {
             code: vec![],
-            constants: ValueArray::new(),
+            constants: vec![],
             lines: vec![],
         }
     }
