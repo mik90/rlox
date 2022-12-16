@@ -1,11 +1,25 @@
-use std::fmt;
+use crate::herefmt;
+use std::{fmt, sync::Arc, sync::Mutex};
+
+/// Generic object container
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
+pub enum Obj {}
+
+impl fmt::Display for Obj {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self {
+            _ => write!(f, "todo"),
+        }
+    }
+}
 
 /// Primitives supported by the VM
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
+#[derive(Debug, Clone)]
 pub enum Value {
     Bool(bool),
     Nil,
     Number(f64),
+    Obj(Arc<Mutex<Obj>>), // TODO this will
 }
 
 impl fmt::Display for Value {
@@ -14,6 +28,37 @@ impl fmt::Display for Value {
             Self::Bool(b) => write!(f, "{}", b),
             Self::Nil => write!(f, "nil"),
             Self::Number(n) => write!(f, "{}", n),
+            Self::Obj(o) => write!(f, "{}", o.lock().expect(&herefmt!("Cannot lock object"))),
+        }
+    }
+}
+
+impl PartialEq for Value {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Bool(l0), Self::Bool(r0)) => l0 == r0,
+            (Self::Number(l0), Self::Number(r0)) => l0 == r0,
+            (Self::Obj(l0), Self::Obj(r0)) => {
+                let lhs: &Obj = &l0.lock().expect(&herefmt!("Cannot lock lhs"));
+                let rhs: &Obj = &r0.lock().expect(&herefmt!("Cannot lock rhs"));
+                lhs == rhs
+            }
+            _ => false,
+        }
+    }
+}
+
+impl PartialOrd for Value {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        match (self, other) {
+            (Self::Bool(l0), Self::Bool(r0)) => Some(l0.cmp(r0)),
+            (Self::Number(l0), Self::Number(r0)) => l0.partial_cmp(r0),
+            (Self::Obj(l0), Self::Obj(r0)) => {
+                let lhs: &Obj = &l0.lock().expect(&herefmt!("Cannot lock lhs"));
+                let rhs: &Obj = &r0.lock().expect(&herefmt!("Cannot lock rhs"));
+                lhs.partial_cmp(rhs)
+            }
+            _ => None,
         }
     }
 }
