@@ -6,11 +6,9 @@ Lox tree-walk interpreter as part of the Crafting Interpreters book whose source
 
 <https://github.com/rodaine/rlox> was useful as a reference for translating the Java visitor pattern to Rust
 
-Current chapter: 11.5
-
 the main binary can parse a script or work as a repl
 
-I hit some bug where for loops results in undefined variables in the increment. I figured it'd be best to just move on to the bytecode compiler since that was somewhat close to the end of the section
+On Chapter 11.5 hit some bug where for loops results in undefined variables in the increment. I figured it'd be best to just move on to the bytecode compiler since that was somewhat close to the end of the section
 
 ### Cleanup items
 
@@ -36,3 +34,7 @@ I hit some bug where for loops results in undefined variables in the increment. 
 ## Virtual machine
 
 Fairly direct translation of `clox` to rust
+
+### Things I skipped
+
+- Ch 20, pretty much entirely. I'm using the Rust HashMap isntead of rolling my own as the book does. I'm skipping string interning as well.

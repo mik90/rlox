@@ -4,6 +4,7 @@ use std::{fmt, rc::Rc};
 /// Generic heap-allocated object container
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub enum Obj {
+    // TODO store hash along with string, make string immutable
     String(String),
 }
 
@@ -21,7 +22,7 @@ pub enum Value {
     Bool(bool),
     Nil,
     Number(f64),
-    Obj(Rc<Obj>),
+    Obj(Rc<Obj>), // TODO should this be a Box?
 }
 
 impl From<Obj> for Value {

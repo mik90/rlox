@@ -315,10 +315,16 @@ impl Vm {
                             }
                         };
                     }
-                    OpCode::Return => {
-                        if let Some(v) = state.stack.pop() {
-                            println!("Returning {}", v);
+                    OpCode::Print => {
+                        if let Some(value) = state.stack.pop() {
+                            println!("{}", value)
+                        } else {
+                            return Err(InterpretError::Runtime(herefmt!(
+                                "Could not print value since the stack was empty"
+                            )));
                         }
+                    }
+                    OpCode::Return => {
                         return Ok((false, state));
                     }
                 }
@@ -527,7 +533,7 @@ mod test {
     fn interpret() {
         let vm = Vm::new();
         let state = VmState::new();
-        let res = vm.interpret("1 + 2\0", state);
+        let res = vm.interpret("print 1 + 2;\0", state);
         assert!(res.is_ok());
     }
 }

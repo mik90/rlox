@@ -16,11 +16,12 @@ pub enum OpCode {
     Divide,       //< Binary operation
     Not,          //< Unary boolean negation
     Negate,       //< Unary negation
+    Print,        //<
     Return,       //< Return from current function.
 }
 
 impl TryFrom<u8> for OpCode {
-    type Error = ();
+    type Error = String;
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
@@ -38,8 +39,9 @@ impl TryFrom<u8> for OpCode {
             x if x == OpCode::Divide as u8 => Ok(OpCode::Divide),
             x if x == OpCode::Not as u8 => Ok(OpCode::Not),
             x if x == OpCode::Negate as u8 => Ok(OpCode::Negate),
+            x if x == OpCode::Print as u8 => Ok(OpCode::Print),
             x if x == OpCode::Return as u8 => Ok(OpCode::Return),
-            _ => Err(()),
+            x => Err(format!("Could not convert '{}' into an OpCode", x)),
         }
     }
 }
@@ -186,12 +188,10 @@ pub mod debug {
                 OpCode::Divide => simple_instruction("OP_DIVIDE", offset),
                 OpCode::Not => simple_instruction("OP_NOT", offset),
                 OpCode::Negate => simple_instruction("OP_NEGATE", offset),
+                OpCode::Print => simple_instruction("OP_PRINT", offset),
                 OpCode::Return => simple_instruction("OP_RETURN", offset),
             },
-            Err(()) => (
-                format!("Could not create opcode from '{}'", instruction),
-                offset + 1,
-            ),
+            Err(err) => (err, offset + 1),
         };
         (
             format!("{}{}", instruction_meta, instruction_string),

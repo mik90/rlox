@@ -396,6 +396,19 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         Ok(())
     }
 
+    fn check(&self, expected_kind: TokenKind) -> bool {
+        self.parser.current.kind == expected_kind
+    }
+
+    /// Consumes token if it matches the expected kind
+    fn token_matches(&mut self, expected_kind: TokenKind) -> Result<bool, CompilerError> {
+        if !self.check(expected_kind) {
+            return Ok(false);
+        }
+        self.advance()?;
+        Ok(true)
+    }
+
     /// The book stores the current chunk as a static variable, ill just pass it in
     /// This may not be sufficient for later
     fn emit_byte(&self, byte: u8, mut current_chunk: Chunk) -> Chunk {
@@ -430,7 +443,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
     /// Temporary measure as per the book to print hte value of our single expression
     fn end_compiler(&mut self, mut current_chunk: Chunk) -> Chunk {
         current_chunk.write_opcode(OpCode::Return, self.parser.previous.line);
-        if self.parser.errors.is_empty() {
+        if !self.parser.errors.is_empty() {
             debugln!("{}", dissassemble_chunk(&current_chunk, "code"));
         }
 
@@ -492,6 +505,26 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
     fn expression(&mut self, chunk: Chunk) -> Result<Chunk, CompilerError> {
         // Parse lowest precedence level
         self.parse_precedence(Precedence::Assignment, chunk)
+    }
+
+    // parses and generates bytecode for a declaration statement
+    fn declaration(&mut self, chunk: Chunk) -> Result<Chunk, CompilerError> {
+        self.statement(chunk)
+    }
+
+    // parses and generates bytecode for a statement
+    fn statement(&mut self, chunk: Chunk) -> Result<Chunk, CompilerError> {
+        if self.token_matches(TokenKind::Print)? {
+            return self.print_statement(chunk);
+        }
+        Ok(chunk)
+    }
+
+    // parses and generates bytecode for a print statement
+    fn print_statement(&mut self, chunk: Chunk) -> Result<Chunk, CompilerError> {
+        let chunk = self.expression(chunk)?;
+        self.consume(TokenKind::SemiColon, "Expect ';' after value")?;
+        Ok(self.emit_opcode(OpCode::Print, chunk))
     }
 
     fn number(&self, mut current_chunk: Chunk) -> Result<Chunk, CompilerError> {
@@ -594,12 +627,14 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         let mut chunk = Chunk::new();
         self.advance()?;
 
-        chunk = self.expression(chunk)?;
+        while !self.token_matches(TokenKind::Eof)? {
+            chunk = self.declaration(chunk)?;
+        }
 
         self.consume(TokenKind::Eof, "Expect end of expression")?;
 
         if self.parser.errors.is_empty() {
-            Ok(chunk)
+            Ok(self.end_compiler(chunk))
         } else {
             let errors: Vec<String> = self.parser.errors.drain(0..).collect();
             Err(CompilerError::Parse(errors))
@@ -641,13 +676,13 @@ mod test {
     fn compile_literal() {
         let mut compiler = Compiler::new();
 
-        let source = "true\0";
+        let source = "print true;\0";
         let chunk = compiler.compile(source);
         assert!(chunk.is_ok());
         let chunk = chunk.unwrap();
 
         let mut code = chunk.code_iter();
-        assert_eq!(code.clone().count(), 1);
+        assert!(code.clone().count() >= 1);
         let byte = code.next().unwrap();
 
         let maybe_op = OpCode::try_from(*byte);
@@ -657,7 +692,7 @@ mod test {
     #[test]
     fn compile_comparisons() {
         let mut compiler = Compiler::new();
-        let res = compiler.compile("!(5 - 4 > 3 * 2 == !nil)\0");
+        let res = compiler.compile("print !(5 - 4 > 3 * 2 == !nil);\0");
         assert!(res.is_ok());
         let chunk = res.unwrap();
         let instructions: Vec<u8> = chunk.code_iter().copied().collect();
@@ -686,7 +721,7 @@ mod test {
     fn compile_string_concat() {
         let mut compiler = Compiler::new();
 
-        let source = r#""st" + "ri" + "ng" "#;
+        let source = r#"print "st" + "ri" + "ng"; "#;
         let chunk = compiler.compile(source);
         assert!(chunk.is_ok());
         let chunk = chunk.unwrap();
