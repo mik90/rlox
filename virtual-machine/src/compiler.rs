@@ -1,5 +1,5 @@
 use crate::{
-    chunk::{debug::dissassemble_chunk, Chunk, OpCode},
+    chunk::{self, debug::dissassemble_chunk, Chunk, OpCode},
     debugln, herefmt,
     scanner::{Scanner, ScannerError, Token, TokenKind},
     value::{Obj, Value},
@@ -427,23 +427,24 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         current_chunk
     }
 
+    /// Same as makeConstant
     fn emit_constant(
         &self,
         value: Value,
         mut current_chunk: Chunk,
-    ) -> Result<Chunk, CompilerError> {
-        current_chunk
+    ) -> Result<(u8, Chunk), CompilerError> {
+        let idx = current_chunk
             .write_constant(value, self.parser.previous.line)
             .map_err(|e| {
                 CompilerError::Bytecode(format!("On line {}, {}", self.parser.previous.line, e))
             })?;
-        Ok(current_chunk)
+        Ok((idx, current_chunk))
     }
 
     /// Temporary measure as per the book to print hte value of our single expression
     fn end_compiler(&mut self, mut current_chunk: Chunk) -> Chunk {
         current_chunk.write_opcode(OpCode::Return, self.parser.previous.line);
-        if !self.parser.errors.is_empty() {
+        if self.parser.errors.is_empty() {
             debugln!("{}", dissassemble_chunk(&current_chunk, "code"));
         }
 
@@ -507,6 +508,22 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         self.parse_precedence(Precedence::Assignment, chunk)
     }
 
+    fn var_declaration(&mut self, chunk: Chunk) -> Result<Chunk, CompilerError> {
+        let (global_idx, mut chunk) = self.parse_variable(chunk, "Expect variable name")?;
+
+        chunk = if self.token_matches(TokenKind::Equal)? {
+            self.expression(chunk)?
+        } else {
+            self.emit_opcode(OpCode::Nil, chunk)
+        };
+        self.consume(
+            TokenKind::SemiColon,
+            "Expect ';' after variable declaration",
+        )?;
+
+        Ok(self.define_variable(global_idx, chunk))
+    }
+
     // parses and generates bytecode for an expression statement
     // This is an expression followed by a semicolon, and side effects are expected to occur in most cases
     // The result is discarded
@@ -517,16 +534,26 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
     }
 
     // parses and generates bytecode for a declaration statement
-    fn declaration(&mut self, chunk: Chunk) -> Result<Chunk, CompilerError> {
-        self.statement(chunk)
+    fn declaration(&mut self, mut chunk: Chunk) -> Result<Chunk, CompilerError> {
+        let chunk = if self.token_matches(TokenKind::Var)? {
+            self.var_declaration(chunk)
+        } else {
+            self.statement(chunk)
+        };
+
+        if self.parser.panic_mode {
+            self.synchronize()?;
+        }
+        chunk
     }
 
     // parses and generates bytecode for a statement
     fn statement(&mut self, chunk: Chunk) -> Result<Chunk, CompilerError> {
         if self.token_matches(TokenKind::Print)? {
-            return self.print_statement(chunk);
+            self.print_statement(chunk)
+        } else {
+            self.expression_statement(chunk)
         }
-        Ok(chunk)
     }
 
     // parses and generates bytecode for a print statement
@@ -534,6 +561,32 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         let chunk = self.expression(chunk)?;
         self.consume(TokenKind::SemiColon, "Expect ';' after value")?;
         Ok(self.emit_opcode(OpCode::Print, chunk))
+    }
+
+    fn synchronize(&mut self) -> Result<(), CompilerError> {
+        self.parser.panic_mode = false;
+
+        // Skip tokens until we hit something that's most likely a statement boundary
+
+        while self.parser.current.kind != TokenKind::Eof {
+            if self.parser.previous.kind == TokenKind::SemiColon {
+                return Ok(());
+            }
+            match self.parser.current.kind {
+                TokenKind::Class
+                | TokenKind::Fun
+                | TokenKind::Var
+                | TokenKind::For
+                | TokenKind::If
+                | TokenKind::While
+                | TokenKind::Print
+                | TokenKind::Return => {
+                    return Ok(());
+                }
+                _ => (), // Continue searching for a statement boundary
+            }
+        }
+        self.advance()
     }
 
     fn number(&self, mut current_chunk: Chunk) -> Result<Chunk, CompilerError> {
@@ -548,7 +601,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
                     self.parser.previous, e
                 )])
             })?;
-        current_chunk = self.emit_constant(Value::Number(value), current_chunk)?;
+        let (_, current_chunk) = self.emit_constant(Value::Number(value), current_chunk)?;
         Ok(current_chunk)
     }
 
@@ -564,7 +617,8 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
             .map(|(_, c)| c)
             .collect();
 
-        self.emit_constant(Value::from(Obj::String(copy)), current_chunk)
+        let (_, chunk) = self.emit_constant(Value::from(Obj::String(copy)), current_chunk)?;
+        Ok(chunk)
     }
 
     fn unary(&mut self, mut chunk: Chunk) -> Result<Chunk, CompilerError> {
@@ -623,6 +677,27 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         }
 
         Ok(chunk)
+    }
+
+    fn parse_variable(
+        &mut self,
+        chunk: Chunk,
+        error_msg: &'static str,
+    ) -> Result<(u8, Chunk), CompilerError> {
+        self.consume(TokenKind::Identifier, error_msg)?;
+        self.identifier_constant(self.parser.previous.to_string(), chunk)
+    }
+
+    fn define_variable(&self, global: u8, chunk: Chunk) -> Chunk {
+        self.emit_opcode_and_byte(OpCode::DefineGlobal, global, chunk)
+    }
+
+    fn identifier_constant(
+        &mut self,
+        token_name: String,
+        chunk: Chunk,
+    ) -> Result<(u8, Chunk), CompilerError> {
+        self.emit_constant(Value::from(Obj::String(token_name)), chunk)
     }
 
     fn grouping(&mut self, chunk: Chunk) -> Result<Chunk, CompilerError> {

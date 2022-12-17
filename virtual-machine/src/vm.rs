@@ -4,7 +4,10 @@ use crate::{
     debug, debugln, herefmt,
     value::{Obj, Value},
 };
-use std::fmt;
+use std::{
+    collections::{HashMap, HashSet},
+    fmt,
+};
 
 pub struct Vm {}
 
@@ -15,6 +18,8 @@ pub struct VmState {
     stack: Vec<Value>,
     // Normally, the linked list of Objects would be stored here but I have all thle objects in stored as Arc<Mutex<T>>
     // Maybe I should use unsafe so I could write a garbage collector?
+    globals: HashMap<String, Value>, //< Global hash map of values, no string interning :(
+    strings: HashSet<String>,        //< no string interning :(
 }
 
 pub type ErrorMessage = String;
@@ -57,6 +62,8 @@ impl VmState {
             chunk_index: 0,
             instruction_index: 0,
             stack: vec![],
+            globals: HashMap::new(),
+            strings: HashSet::new(),
         }
     }
 
@@ -222,6 +229,31 @@ impl Vm {
                     OpCode::Pop => {
                         state.stack.pop();
                     }
+                    OpCode::DefineGlobal => match state.read_constant()? {
+                        Value::Obj(rc_obj) => {
+                            let obj: &Obj = &rc_obj;
+                            match obj {
+                                Obj::String(name) => {
+                                    // Note, the book stores pointers here while i store copies
+                                    let value = state.peek_on_stack(0)?;
+                                    state.globals.insert(name.clone(), value.clone());
+                                    state.stack.pop();
+                                }
+                                _ => {
+                                    return Err(state.runtime_error(herefmt!(
+                                "Expected to get an Obj::String from read_constant but got {:?}",
+                                obj
+                            )));
+                                }
+                            }
+                        }
+                        other => {
+                            return Err(state.runtime_error(herefmt!(
+                                "Expected to get an Obj from read_constant but got {:?}",
+                                other
+                            )));
+                        }
+                    },
                     OpCode::Greater => {
                         let (lhs, rhs) = state.pop_pair_from_stack()?;
                         state.stack.push(Value::Bool(lhs > rhs));

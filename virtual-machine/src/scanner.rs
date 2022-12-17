@@ -102,6 +102,7 @@ impl<'a> Token<'_> {
 }
 
 impl ToString for Token<'_> {
+    /// Turns the lexeme into a string
     fn to_string(&self) -> String {
         self.start
             .clone()

@@ -9,6 +9,7 @@ pub enum OpCode {
     False,        //< literal
     Equal,        //< Comparison
     Pop,          //< Discards value off stack
+    DefineGlobal, //< Declares global and its name's index
     Greater,      //< Comparison
     Less,         //< Comparison
     Add,          //< Binary operation
@@ -26,13 +27,14 @@ impl TryFrom<u8> for OpCode {
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
-            // TODO ew, this isn't guaranteed to be exhaustive. I could do a greater than Return as u8 comparison
+            // TODO ew, this isn't guaranteed to be exhaustive. There has to be a built-in way to do this
             x if x == OpCode::Constant as u8 => Ok(OpCode::Constant),
             x if x == OpCode::Nil as u8 => Ok(OpCode::Nil),
             x if x == OpCode::True as u8 => Ok(OpCode::True),
             x if x == OpCode::False as u8 => Ok(OpCode::False),
             x if x == OpCode::Equal as u8 => Ok(OpCode::Equal),
             x if x == OpCode::Pop as u8 => Ok(OpCode::Pop),
+            x if x == OpCode::DefineGlobal as u8 => Ok(OpCode::DefineGlobal),
             x if x == OpCode::Greater as u8 => Ok(OpCode::Greater),
             x if x == OpCode::Less as u8 => Ok(OpCode::Less),
             x if x == OpCode::Add as u8 => Ok(OpCode::Add),
@@ -94,7 +96,7 @@ impl Chunk {
         self.lines.push(source_line);
     }
 
-    pub fn write_constant(&mut self, value: Value, source_line: usize) -> Result<(), ChunkError> {
+    pub fn write_constant(&mut self, value: Value, source_line: usize) -> Result<u8, ChunkError> {
         let constant_index = self.add_constant(value);
         if constant_index > std::u8::MAX.into() {
             // We can only store one bytes worth of indexes into a constant array
@@ -102,7 +104,7 @@ impl Chunk {
         }
         self.write_opcode(OpCode::Constant, source_line);
         self.write_byte(constant_index as u8, source_line);
-        Ok(())
+        Ok(constant_index as u8)
     }
 
     pub fn write_byte(&mut self, byte: u8, source_line: usize) {
@@ -182,6 +184,7 @@ pub mod debug {
                 OpCode::True => simple_instruction("OP_TRUE", offset),
                 OpCode::False => simple_instruction("OP_FALSE", offset),
                 OpCode::Pop => simple_instruction("OP_POP", offset),
+                OpCode::DefineGlobal => constant_instruction("OP_DEFINE_GLOBAL", chunk, offset),
                 OpCode::Equal => simple_instruction("OP_EQUAL", offset),
                 OpCode::Greater => simple_instruction("OP_GREATER", offset),
                 OpCode::Less => simple_instruction("OP_LESS", offset),
