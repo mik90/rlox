@@ -8,6 +8,7 @@ pub enum OpCode {
     True,         //< literal
     False,        //< literal
     Equal,        //< Comparison
+    Pop,          //< Discards value off stack
     Greater,      //< Comparison
     Less,         //< Comparison
     Add,          //< Binary operation
@@ -31,6 +32,7 @@ impl TryFrom<u8> for OpCode {
             x if x == OpCode::True as u8 => Ok(OpCode::True),
             x if x == OpCode::False as u8 => Ok(OpCode::False),
             x if x == OpCode::Equal as u8 => Ok(OpCode::Equal),
+            x if x == OpCode::Pop as u8 => Ok(OpCode::Pop),
             x if x == OpCode::Greater as u8 => Ok(OpCode::Greater),
             x if x == OpCode::Less as u8 => Ok(OpCode::Less),
             x if x == OpCode::Add as u8 => Ok(OpCode::Add),
@@ -179,6 +181,7 @@ pub mod debug {
                 OpCode::Nil => simple_instruction("OP_NIL", offset),
                 OpCode::True => simple_instruction("OP_TRUE", offset),
                 OpCode::False => simple_instruction("OP_FALSE", offset),
+                OpCode::Pop => simple_instruction("OP_POP", offset),
                 OpCode::Equal => simple_instruction("OP_EQUAL", offset),
                 OpCode::Greater => simple_instruction("OP_GREATER", offset),
                 OpCode::Less => simple_instruction("OP_LESS", offset),

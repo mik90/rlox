@@ -507,6 +507,15 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         self.parse_precedence(Precedence::Assignment, chunk)
     }
 
+    // parses and generates bytecode for an expression statement
+    // This is an expression followed by a semicolon, and side effects are expected to occur in most cases
+    // The result is discarded
+    fn expression_statement(&mut self, chunk: Chunk) -> Result<Chunk, CompilerError> {
+        let chunk = self.expression(chunk)?;
+        self.consume(TokenKind::SemiColon, "Expect ';' after expression")?;
+        Ok(self.emit_opcode(OpCode::Pop, chunk))
+    }
+
     // parses and generates bytecode for a declaration statement
     fn declaration(&mut self, chunk: Chunk) -> Result<Chunk, CompilerError> {
         self.statement(chunk)

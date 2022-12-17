@@ -219,6 +219,9 @@ impl Vm {
                         let (lhs, rhs) = state.pop_pair_from_stack()?;
                         state.stack.push(Value::Bool(lhs == rhs));
                     }
+                    OpCode::Pop => {
+                        state.stack.pop();
+                    }
                     OpCode::Greater => {
                         let (lhs, rhs) = state.pop_pair_from_stack()?;
                         state.stack.push(Value::Bool(lhs > rhs));
