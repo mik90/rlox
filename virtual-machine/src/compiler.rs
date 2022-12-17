@@ -159,6 +159,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         let string = Rc::new(|compiler: &mut Compiler, chunk: Chunk| compiler.string(chunk));
         let binary = Rc::new(|compiler: &mut Compiler, chunk: Chunk| compiler.binary(chunk));
         let unary = Rc::new(|compiler: &mut Compiler, chunk: Chunk| compiler.unary(chunk));
+        let variable = Rc::new(|compiler: &mut Compiler, chunk: Chunk| compiler.variable(chunk));
 
         HashMap::from([
             (
@@ -239,7 +240,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
             ),
             (
                 std::mem::discriminant(&TokenKind::Identifier),
-                ParserRule::new(None, None, Precedence::None),
+                ParserRule::new(Some(variable), None, Precedence::None),
             ),
             (
                 std::mem::discriminant(&TokenKind::String),
@@ -621,6 +622,15 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         Ok(chunk)
     }
 
+    fn named_variable(&mut self, name: String, chunk: Chunk) -> Result<Chunk, CompilerError> {
+        let (arg, chunk) = self.identifier_constant(name, chunk)?;
+        Ok(self.emit_opcode_and_byte(OpCode::GetGlobal, arg, chunk))
+    }
+
+    fn variable(&mut self, mut chunk: Chunk) -> Result<Chunk, CompilerError> {
+        self.named_variable(self.parser.previous.to_string(), chunk)
+    }
+
     fn unary(&mut self, mut chunk: Chunk) -> Result<Chunk, CompilerError> {
         let operator_kind = self.parser.previous.kind.clone();
 
@@ -694,10 +704,10 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
 
     fn identifier_constant(
         &mut self,
-        token_name: String,
+        identifier: String,
         chunk: Chunk,
     ) -> Result<(u8, Chunk), CompilerError> {
-        self.emit_constant(Value::from(Obj::String(token_name)), chunk)
+        self.emit_constant(Value::from(Obj::String(identifier)), chunk)
     }
 
     fn grouping(&mut self, chunk: Chunk) -> Result<Chunk, CompilerError> {

@@ -103,6 +103,31 @@ impl VmState {
         }
     }
 
+    // TODO Technically this could be a borrow but im unsure how i'd handle that
+    // Maybe the string type should just be an Rc<String>?
+    fn read_string_constant(&mut self) -> Result<String, InterpretError> {
+        match self.read_constant()? {
+            Value::Obj(rc_obj) => {
+                let obj: &Obj = &rc_obj;
+                match obj {
+                    Obj::String(name) => return Ok(name.clone()),
+                    _ => {
+                        return Err(self.runtime_error(herefmt!(
+                            "Expected to get an Obj::String from read_constant but got {:?}",
+                            obj
+                        )));
+                    }
+                }
+            }
+            other => {
+                return Err(self.runtime_error(herefmt!(
+                    "Expected to get an Obj from read_constant but got {:?}",
+                    other
+                )));
+            }
+        }
+    }
+
     fn peek_latest_chunk(&self) -> Result<&Chunk, InterpretError> {
         self.chunks.get(self.chunk_index).ok_or_else(|| {
             InterpretError::Runtime(herefmt!(
@@ -229,31 +254,28 @@ impl Vm {
                     OpCode::Pop => {
                         state.stack.pop();
                     }
-                    OpCode::DefineGlobal => match state.read_constant()? {
-                        Value::Obj(rc_obj) => {
-                            let obj: &Obj = &rc_obj;
-                            match obj {
-                                Obj::String(name) => {
-                                    // Note, the book stores pointers here while i store copies
-                                    let value = state.peek_on_stack(0)?;
-                                    state.globals.insert(name.clone(), value.clone());
-                                    state.stack.pop();
-                                }
-                                _ => {
-                                    return Err(state.runtime_error(herefmt!(
-                                "Expected to get an Obj::String from read_constant but got {:?}",
-                                obj
-                            )));
-                                }
+                    OpCode::GetGlobal => {
+                        let identifier = state.read_string_constant()?;
+                        match state.globals.get(&identifier) {
+                            Some(value) => {
+                                // Copies off of the global table onto the stack
+                                state.stack.push(value.clone());
+                            }
+                            None => {
+                                return Err(state.runtime_error(herefmt!(
+                                    "Undefined variable '{}'",
+                                    identifier,
+                                )));
                             }
                         }
-                        other => {
-                            return Err(state.runtime_error(herefmt!(
-                                "Expected to get an Obj from read_constant but got {:?}",
-                                other
-                            )));
-                        }
-                    },
+                    }
+                    OpCode::DefineGlobal => {
+                        let identifier = state.read_string_constant()?;
+                        let value = state.peek_on_stack(0)?;
+                        // Note, the book stores value pointers here while i store copies
+                        state.globals.insert(identifier, value.clone());
+                        state.stack.pop();
+                    }
                     OpCode::Greater => {
                         let (lhs, rhs) = state.pop_pair_from_stack()?;
                         state.stack.push(Value::Bool(lhs > rhs));
