@@ -98,7 +98,7 @@ impl From<u8> for Precedence {
     }
 }
 
-type ParseFn = dyn Fn(&mut Compiler, Chunk) -> Result<Chunk, CompilerError>;
+type ParseFn = dyn Fn(&mut Compiler, Chunk, bool) -> Result<Chunk, CompilerError>;
 
 // The functions are stored in an Rc so that they can be cloned from the map and called
 // We cannot call the function if we're borrowing it since it uses the mutable Compiler
@@ -153,13 +153,20 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
 
     fn make_rules() -> ParseRuleMap {
         // Closures that can be used for any of these parser rules
-        let grouping = Rc::new(|compiler: &mut Compiler, chunk: Chunk| compiler.grouping(chunk));
-        let literal = Rc::new(|compiler: &mut Compiler, chunk: Chunk| compiler.literal(chunk));
-        let number = Rc::new(|compiler: &mut Compiler, chunk: Chunk| compiler.number(chunk));
-        let string = Rc::new(|compiler: &mut Compiler, chunk: Chunk| compiler.string(chunk));
-        let binary = Rc::new(|compiler: &mut Compiler, chunk: Chunk| compiler.binary(chunk));
-        let unary = Rc::new(|compiler: &mut Compiler, chunk: Chunk| compiler.unary(chunk));
-        let variable = Rc::new(|compiler: &mut Compiler, chunk: Chunk| compiler.variable(chunk));
+        let grouping =
+            Rc::new(|compiler: &mut Compiler, chunk: Chunk, _: bool| compiler.grouping(chunk));
+        let literal =
+            Rc::new(|compiler: &mut Compiler, chunk: Chunk, _: bool| compiler.literal(chunk));
+        let number =
+            Rc::new(|compiler: &mut Compiler, chunk: Chunk, _: bool| compiler.number(chunk));
+        let string =
+            Rc::new(|compiler: &mut Compiler, chunk: Chunk, _: bool| compiler.string(chunk));
+        let binary =
+            Rc::new(|compiler: &mut Compiler, chunk: Chunk, _: bool| compiler.binary(chunk));
+        let unary = Rc::new(|compiler: &mut Compiler, chunk: Chunk, _: bool| compiler.unary(chunk));
+        let variable = Rc::new(|compiler: &mut Compiler, chunk: Chunk, can_assign: bool| {
+            compiler.variable(chunk, can_assign)
+        });
 
         HashMap::from([
             (
@@ -445,7 +452,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
     /// Temporary measure as per the book to print hte value of our single expression
     fn end_compiler(&mut self, mut current_chunk: Chunk) -> Chunk {
         current_chunk.write_opcode(OpCode::Return, self.parser.previous.line);
-        if self.parser.errors.is_empty() {
+        if !self.parser.errors.is_empty() {
             debugln!("{}", dissassemble_chunk(&current_chunk, "code"));
         }
 
@@ -622,13 +629,24 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         Ok(chunk)
     }
 
-    fn named_variable(&mut self, name: String, chunk: Chunk) -> Result<Chunk, CompilerError> {
+    fn named_variable(
+        &mut self,
+        name: String,
+        chunk: Chunk,
+        can_assign: bool,
+    ) -> Result<Chunk, CompilerError> {
         let (arg, chunk) = self.identifier_constant(name, chunk)?;
-        Ok(self.emit_opcode_and_byte(OpCode::GetGlobal, arg, chunk))
+        if can_assign && self.token_matches(TokenKind::Equal)? {
+            // Handle assignment expression
+            let chunk = self.expression(chunk)?;
+            Ok(self.emit_opcode_and_byte(OpCode::SetGlobal, arg, chunk))
+        } else {
+            Ok(self.emit_opcode_and_byte(OpCode::GetGlobal, arg, chunk))
+        }
     }
 
-    fn variable(&mut self, mut chunk: Chunk) -> Result<Chunk, CompilerError> {
-        self.named_variable(self.parser.previous.to_string(), chunk)
+    fn variable(&mut self, chunk: Chunk, can_assign: bool) -> Result<Chunk, CompilerError> {
+        self.named_variable(self.parser.previous.to_string(), chunk, can_assign)
     }
 
     fn unary(&mut self, mut chunk: Chunk) -> Result<Chunk, CompilerError> {
@@ -657,8 +675,10 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         let prev_kind = self.parser.previous.kind.clone();
         let rule = self.get_rule(&prev_kind);
 
+        let can_assign = precedence <= Precedence::Assignment;
+
         if let Some(prefix_fn) = rule.prefix {
-            chunk = prefix_fn(self, chunk)?;
+            chunk = prefix_fn(self, chunk, can_assign)?;
         } else {
             self.error_at(ErrorAtKind::Previous, Some("Expect expression"));
             // Non-fatal error, evidently?
@@ -676,7 +696,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
             let prev_kind = self.parser.previous.kind.clone();
             let rule = self.get_rule(&prev_kind);
             match rule.infix {
-                Some(r) => chunk = r(self, chunk)?,
+                Some(r) => chunk = r(self, chunk, can_assign)?,
                 None => {
                     return Err(CompilerError::Unreachable(format!(
                         "No infix parser rule provided for {:?} on line {}",
@@ -684,6 +704,10 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
                     )))
                 }
             }
+        }
+
+        if can_assign && self.token_matches(TokenKind::Equal)? {
+            self.error_at(ErrorAtKind::Previous, Some("Invalid assignment target"));
         }
 
         Ok(chunk)

@@ -11,7 +11,7 @@ use std::{
 
 pub struct Vm {}
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct VmState {
     chunks: Vec<Chunk>,
     chunk_index: usize,       //< idx into chunks
@@ -224,8 +224,8 @@ impl Vm {
 
     /// Disassembles a single instructions and returns whether or not it should continue running
     fn run_once(&self, mut state: VmState) -> Result<(bool, VmState), InterpretError> {
-        debugln!("---------------------------------");
-        //debugln!("stack data  : {}", self.dump_stack());
+        //debugln!("---------------------------------");
+        //debugln!("stack data  : {}", state.dump_stack());
         debug!("{}", state.disassemble_latest_instruction());
         if state.end_of_instructions()? {
             return Ok((false, state));
@@ -263,6 +263,20 @@ impl Vm {
                                 state.stack.push(value.clone());
                             }
                             None => {
+                                return Err(state.runtime_error(herefmt!(
+                                    "Undefined variable '{}'",
+                                    identifier,
+                                )));
+                            }
+                        }
+                    }
+                    OpCode::SetGlobal => {
+                        let identifier = state.read_string_constant()?;
+                        let value = state.peek_on_stack(0)?;
+                        match state.globals.insert(identifier.clone(), value.clone()) {
+                            Some(_) => (), // Happy case, we expect to set a value that existed
+                            None => {
+                                // We tried to set a value that didn't exist
                                 return Err(state.runtime_error(herefmt!(
                                     "Undefined variable '{}'",
                                     identifier,
@@ -639,6 +653,47 @@ mod test {
         assert_eq!(
             *var.unwrap(),
             Value::from(Obj::String("hello world".to_owned()))
+        );
+    }
+    #[test]
+    fn set_global() {
+        let vm = Vm::new();
+        let mut state = VmState::new();
+
+        // First statement
+        let res = vm.interpret("var breakfast = \"beignets\";\0", state);
+        assert!(res.is_ok(), "{}", res.unwrap_err());
+        state = res.unwrap();
+
+        let var = state.globals.get("breakfast");
+        assert!(var.is_some());
+        assert_eq!(
+            *var.unwrap(),
+            Value::from(Obj::String("beignets".to_owned()))
+        );
+
+        // Second statement
+        let res = vm.interpret("var beverage = \"cafe au lait\";\0", state);
+        assert!(res.is_ok(), "{}", res.unwrap_err());
+        state = res.unwrap();
+
+        let var = state.globals.get("beverage");
+        assert!(var.is_some());
+        assert_eq!(
+            *var.unwrap(),
+            Value::from(Obj::String("cafe au lait".to_owned()))
+        );
+
+        // Third statement
+        let res = vm.interpret("breakfast = \"beignets with \" + beverage;\0", state);
+        assert!(res.is_ok(), "{}", res.unwrap_err());
+        state = res.unwrap();
+
+        let var = state.globals.get("breakfast");
+        assert!(var.is_some());
+        assert_eq!(
+            *var.unwrap(),
+            Value::from(Obj::String("beignets with cafe au lait".to_owned()))
         );
     }
 }
