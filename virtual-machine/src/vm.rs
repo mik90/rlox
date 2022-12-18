@@ -111,7 +111,9 @@ impl VmState {
             Value::Obj(rc_obj) => {
                 let obj: &Obj = &rc_obj;
                 match obj {
-                    Obj::String(name) => return Ok(name.clone()),
+                    Obj::String(name) => {
+                        return Ok(name.clone());
+                    }
                     _ => {
                         return Err(self.runtime_error(herefmt!(
                             "Expected to get an Obj::String from read_constant but got {:?}",
@@ -224,8 +226,8 @@ impl Vm {
 
     /// Disassembles a single instructions and returns whether or not it should continue running
     fn run_once(&self, mut state: VmState) -> Result<(bool, VmState), InterpretError> {
-        //debugln!("---------------------------------");
-        //debugln!("stack data  : {}", state.dump_stack());
+        debugln!("\n--------------------------------------------------------");
+        debugln!("stack data  : {}", state.dump_stack());
         debug!("{}", state.disassemble_latest_instruction());
         if state.end_of_instructions()? {
             return Ok((false, state));
@@ -257,9 +259,19 @@ impl Vm {
                     }
                     OpCode::GetGlobal => {
                         let identifier = state.read_string_constant()?;
+
+                        state.stack.pop(); // TODO Why do i need this here??
+                                           // It would get both the identifier and the value on the stack and it'd try to act on the identifier
+                                           // if i had an expression that combined the last two values
+
                         match state.globals.get(&identifier) {
                             Some(value) => {
                                 // Copies off of the global table onto the stack
+                                debugln!(
+                                    "Getting global '{}' as '{}'. pushing onto stack",
+                                    identifier,
+                                    value
+                                );
                                 state.stack.push(value.clone());
                             }
                             None => {
@@ -272,9 +284,13 @@ impl Vm {
                     }
                     OpCode::SetGlobal => {
                         let identifier = state.read_string_constant()?;
-                        let value = state.peek_on_stack(0)?;
-                        match state.globals.insert(identifier.clone(), value.clone()) {
-                            Some(_) => (), // Happy case, we expect to set a value that existed
+                        let value = state.peek_on_stack(0)?.clone();
+                        debugln!("Setting global '{}' to '{}'", identifier, value);
+
+                        match state.globals.get_mut(&identifier) {
+                            Some(old_value) => {
+                                *old_value = value;
+                            }
                             None => {
                                 // We tried to set a value that didn't exist
                                 return Err(state.runtime_error(herefmt!(
@@ -288,6 +304,7 @@ impl Vm {
                         let identifier = state.read_string_constant()?;
                         let value = state.peek_on_stack(0)?;
                         // Note, the book stores value pointers here while i store copies
+                        debugln!("Defining global '{}' as '{}'", identifier, value);
                         state.globals.insert(identifier, value.clone());
                         state.stack.pop();
                     }
@@ -307,6 +324,12 @@ impl Vm {
                                 (Obj::String(lhs), Obj::String(rhs)) => {
                                     let mut combined_string = lhs.clone();
                                     combined_string.push_str(rhs);
+                                    debugln!(
+                                        "Combining lhs '{}' and rhs '{}' to form '{}'",
+                                        lhs,
+                                        rhs,
+                                        combined_string
+                                    );
                                     let value = Value::from(Obj::String(combined_string));
                                     state.stack.push(value);
                                 }
