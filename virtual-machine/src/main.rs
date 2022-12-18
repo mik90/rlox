@@ -54,13 +54,13 @@ fn repl() -> ExitCode {
             }
             Ok(_) => {
                 buffer.push('\0'); // Add terminator
-                match vm.interpret(&buffer, state) {
+                                   // Copy state in case of error
+                match vm.interpret(&buffer, state.clone()) {
                     Ok(new_state) => {
                         state = new_state;
                     }
                     Err(e) => {
                         eprintln!("{}", e);
-                        return ExitCode::FAILURE;
                     }
                 }
             }

@@ -11,6 +11,7 @@ use std::{
 
 pub struct Vm {}
 
+#[derive(Clone)]
 pub struct VmState {
     chunks: Vec<Chunk>,
     chunk_index: usize,       //< idx into chunks
@@ -592,5 +593,52 @@ mod test {
         let state = VmState::new();
         let res = vm.interpret("print 1 + 2;\0", state);
         assert!(res.is_ok());
+    }
+
+    #[test]
+    fn declare_variable_nil() {
+        let vm = Vm::new();
+        let mut state = VmState::new();
+        let res = vm.interpret("var i;\0", state);
+        assert!(res.is_ok());
+        state = res.unwrap();
+
+        let var = state.globals.get("i");
+        assert!(var.is_some());
+        assert_eq!(*var.unwrap(), Value::Nil);
+    }
+
+    #[test]
+    fn declare_variable() {
+        let vm = Vm::new();
+        let mut state = VmState::new();
+        let res = vm.interpret("var i = \"hello\";\0", state);
+        assert!(res.is_ok());
+        state = res.unwrap();
+
+        let var = state.globals.get("i");
+        assert!(var.is_some());
+        assert_eq!(*var.unwrap(), Value::from(Obj::String("hello".to_owned())));
+    }
+
+    #[test]
+    fn read_variable() {
+        let vm = Vm::new();
+        let mut state = VmState::new();
+
+        let res = vm.interpret("var i = \"hello\";\0", state);
+        assert!(res.is_ok());
+        state = res.unwrap();
+
+        let res = vm.interpret("var f = i + \" world\";\0", state);
+        assert!(res.is_ok());
+        state = res.unwrap();
+
+        let var = state.globals.get("f");
+        assert!(var.is_some());
+        assert_eq!(
+            *var.unwrap(),
+            Value::from(Obj::String("hello world".to_owned()))
+        );
     }
 }

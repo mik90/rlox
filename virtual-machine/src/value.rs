@@ -48,6 +48,7 @@ impl PartialEq for Value {
         match (self, other) {
             (Self::Bool(l0), Self::Bool(r0)) => l0 == r0,
             (Self::Number(l0), Self::Number(r0)) => l0 == r0,
+            (Self::Nil, Self::Nil) => true,
             (Self::Obj(l0), Self::Obj(r0)) => {
                 let lhs: &Obj = &l0;
                 let rhs: &Obj = &r0;
