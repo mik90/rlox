@@ -479,6 +479,14 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         current_chunk
     }
 
+    fn begin_scope(&mut self) {
+        self.scope_depth += 1;
+    }
+
+    fn end_scope(&mut self) {
+        self.scope_depth -= 1;
+    }
+
     fn binary(&mut self, mut chunk: Chunk) -> Result<Chunk, CompilerError> {
         let operator_kind = self.parser.previous.kind.clone();
         // Technically either infix/prefix works since the precedence doesnt care
@@ -536,6 +544,15 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         self.parse_precedence(Precedence::Assignment, chunk)
     }
 
+    fn block(&mut self, mut chunk: Chunk) -> Result<Chunk, CompilerError> {
+        while !self.check(TokenKind::RightBrace) && !self.check(TokenKind::Eof) {
+            chunk = self.declaration(chunk)?;
+        }
+
+        self.consume(TokenKind::RightBrace, "Expect '}' after block")?;
+        Ok(chunk)
+    }
+
     fn var_declaration(&mut self, chunk: Chunk) -> Result<Chunk, CompilerError> {
         let (global_idx, mut chunk) = self.parse_variable(chunk, "Expect variable name")?;
 
@@ -579,6 +596,11 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
     fn statement(&mut self, chunk: Chunk) -> Result<Chunk, CompilerError> {
         if self.token_matches(TokenKind::Print)? {
             self.print_statement(chunk)
+        } else if self.token_matches(TokenKind::LeftBrace)? {
+            self.begin_scope();
+            let chunk = self.block(chunk)?;
+            self.end_scope();
+            Ok(chunk)
         } else {
             self.expression_statement(chunk)
         }
