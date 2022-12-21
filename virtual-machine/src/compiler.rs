@@ -132,7 +132,7 @@ type ParseRuleMap = HashMap<
 struct Local<'source_lifetime> {
     // It's possible that I only need the lexeme and not the whole name
     name: Token<'source_lifetime>,
-    depth: u8,
+    depth: i32, //< I'd like this to be unsigned but the book makes use of a -1 here
 }
 
 pub struct Compiler<'source_lifetime> {
@@ -143,13 +143,19 @@ pub struct Compiler<'source_lifetime> {
     rules: ParseRuleMap,
 
     locals: Vec<Local<'source_lifetime>>,
-    scope_depth: u8, //< number of blocks surrounding current part of code being compiled
-                     //< 0 is global scope
+    scope_depth: i32, //< number of blocks surrounding current part of code being compiled
+                      //< 0 is global scope
 }
 
 enum ErrorAtKind {
     Previous,
     Current,
+}
+
+impl<'source_lifetime> Local<'source_lifetime> {
+    pub fn new(name: Token<'source_lifetime>, depth: i32) -> Self {
+        Local { name, depth }
+    }
 }
 
 impl<'source_lifetime> Compiler<'source_lifetime> {
@@ -483,8 +489,17 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         self.scope_depth += 1;
     }
 
-    fn end_scope(&mut self) {
+    fn end_scope(&mut self, mut chunk: Chunk) -> Chunk {
         self.scope_depth -= 1;
+
+        // Pop off all locals beyond our current depth
+        while let Some(last) = self.locals.last() {
+            if last.depth > self.scope_depth {
+                chunk = self.emit_opcode(OpCode::Pop, chunk);
+                self.locals.pop();
+            }
+        }
+        chunk
     }
 
     fn binary(&mut self, mut chunk: Chunk) -> Result<Chunk, CompilerError> {
@@ -599,8 +614,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         } else if self.token_matches(TokenKind::LeftBrace)? {
             self.begin_scope();
             let chunk = self.block(chunk)?;
-            self.end_scope();
-            Ok(chunk)
+            Ok(self.end_scope(chunk))
         } else {
             self.expression_statement(chunk)
         }
@@ -761,10 +775,22 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         error_msg: &'static str,
     ) -> Result<(u8, Chunk), CompilerError> {
         self.consume(TokenKind::Identifier, error_msg)?;
+
+        self.declare_variable()?;
+        // Exit function if we're in local scope
+        if self.scope_depth > 0 {
+            // Return a dummy index so we don't look up the variable name in the global hash table
+            return Ok((0, chunk));
+        }
+
         self.identifier_constant(self.parser.previous.to_string(), chunk)
     }
 
     fn define_variable(&self, global: u8, chunk: Chunk) -> Chunk {
+        if self.scope_depth > 0 {
+            // early exit for local scopes
+            return chunk;
+        }
         self.emit_opcode_and_byte(OpCode::DefineGlobal, global, chunk)
     }
 
@@ -774,6 +800,45 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         chunk: Chunk,
     ) -> Result<(u8, Chunk), CompilerError> {
         self.emit_constant(Value::from(Obj::String(identifier)), chunk)
+    }
+
+    fn add_local(&mut self, name: Token<'source_lifetime>) {
+        if self.local_count() == Compiler::MAX_LOCAL_COUNT {
+            self.error_at(
+                ErrorAtKind::Previous,
+                Some("Too many local variables in function"),
+            );
+            return;
+        }
+        let local = Local::new(name, self.scope_depth);
+        self.locals.push(local);
+    }
+
+    fn declare_variable(&mut self) -> Result<(), CompilerError> {
+        if self.scope_depth == 0 {
+            // Bail out for globals which are late-bound
+            return Ok(());
+        }
+
+        // Sadly a copy, but avoids aliasing
+        let token = self.parser.previous.clone();
+        let token_name = token.to_string();
+
+        // Detect duplicate locals in current scope
+        for local in self.locals.iter().rev() {
+            if local.depth != -1 && local.depth < self.scope_depth {
+                break;
+            }
+            if local.name.to_string() == token_name {
+                return Err(CompilerError::Parse(vec![herefmt!(
+                    "Already a variable named '{}' in this scope on line {}",
+                    token_name,
+                    token.line
+                )]));
+            }
+        }
+        self.add_local(token);
+        Ok(())
     }
 
     fn grouping(&mut self, chunk: Chunk) -> Result<Chunk, CompilerError> {
