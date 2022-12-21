@@ -708,7 +708,7 @@ mod test {
         );
 
         // Third statement
-        let res = vm.interpret("breakfast = \"beignets with \" + beverage;\0", state);
+        let res = vm.interpret("var breakfast = \"beignets\";var beverage = \"cafe au lait\";breakfast = \"beignets with \" + beverage;\0", state);
         assert!(res.is_ok(), "{}", res.unwrap_err());
         state = res.unwrap();
 

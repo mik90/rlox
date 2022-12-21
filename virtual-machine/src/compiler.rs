@@ -129,12 +129,22 @@ type ParseRuleMap = HashMap<
     ParserRule,
 >;
 
+struct Local<'source_lifetime> {
+    // It's possible that I only need the lexeme and not the whole name
+    name: Token<'source_lifetime>,
+    depth: u8,
+}
+
 pub struct Compiler<'source_lifetime> {
     // TODO, these may not need to be members since their init logic is so odd
     parser: Parser<'source_lifetime>,
     scanner: Scanner<'source_lifetime>,
 
     rules: ParseRuleMap,
+
+    locals: Vec<Local<'source_lifetime>>,
+    scope_depth: u8, //< number of blocks surrounding current part of code being compiled
+                     //< 0 is global scope
 }
 
 enum ErrorAtKind {
@@ -143,12 +153,22 @@ enum ErrorAtKind {
 }
 
 impl<'source_lifetime> Compiler<'source_lifetime> {
+    /// max length of a single byte, which is all of the locals we can track
+    const MAX_LOCAL_COUNT: usize = std::u8::MAX as usize;
+
     pub fn new() -> Compiler<'source_lifetime> {
         Compiler {
             parser: Parser::new(),
             scanner: Scanner::new(""),
             rules: Compiler::make_rules(),
+            locals: vec![],
+            scope_depth: 0,
         }
+    }
+
+    /// Number of locals in scope
+    fn local_count(&self) -> usize {
+        self.locals.len()
     }
 
     fn make_rules() -> ParseRuleMap {
