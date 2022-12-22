@@ -446,11 +446,8 @@ impl Vm {
                     }
                 }
             }
-            Err(_) => {
-                return Err(InterpretError::Runtime(format!(
-                    "Could not convert upcode from instruction {}",
-                    byte
-                )));
+            Err(e) => {
+                return Err(InterpretError::Runtime(e));
             }
         };
         Ok((true, state))
@@ -741,5 +738,28 @@ mod test {
             *var.unwrap(),
             Value::from(Obj::String("beignets with cafe au lait".to_owned()))
         );
+    }
+
+    #[test]
+    fn local_interpret() {
+        let vm = Vm::new();
+        let mut state = VmState::new();
+
+        // First statement
+        let res = vm.interpret(
+            "var global = -1;
+                    {
+                        var a = 2; 
+                        var b = 4;
+                        global = b - a; 
+                    }\0",
+            state,
+        );
+        assert!(res.is_ok(), "{}", res.unwrap_err());
+        state = res.unwrap();
+
+        let var = state.globals.get("global");
+        assert!(var.is_some());
+        assert_eq!(*var.unwrap(), Value::Number(2.0));
     }
 }

@@ -38,6 +38,7 @@ impl TryFrom<u8> for OpCode {
             x if x == OpCode::False as u8 => Ok(OpCode::False),
             x if x == OpCode::Equal as u8 => Ok(OpCode::Equal),
             x if x == OpCode::Pop as u8 => Ok(OpCode::Pop),
+            x if x == OpCode::GetLocal as u8 => Ok(OpCode::GetLocal),
             x if x == OpCode::SetLocal as u8 => Ok(OpCode::SetLocal),
             x if x == OpCode::GetGlobal as u8 => Ok(OpCode::GetGlobal),
             x if x == OpCode::SetGlobal as u8 => Ok(OpCode::SetGlobal),

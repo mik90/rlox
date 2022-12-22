@@ -1,5 +1,5 @@
 use crate::{
-    chunk::{self, debug::dissassemble_chunk, Chunk, OpCode},
+    chunk::{debug::dissassemble_chunk, Chunk, OpCode},
     debugln, herefmt,
     scanner::{Scanner, ScannerError, Token, TokenKind},
     value::{Obj, Value},
@@ -587,7 +587,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
             "Expect ';' after variable declaration",
         )?;
 
-        Ok(self.define_variable(global_idx, chunk))
+        self.define_variable(global_idx, chunk)
     }
 
     // parses and generates bytecode for an expression statement
@@ -697,7 +697,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         mut chunk: Chunk,
         can_assign: bool,
     ) -> Result<Chunk, CompilerError> {
-        let mut variable_index = self.resolve_local(&name);
+        let mut variable_index = self.resolve_local(&name)?;
         let (get_opcode, set_opcode) = if variable_index != -1 {
             (OpCode::GetLocal, OpCode::SetLocal)
         } else {
@@ -801,12 +801,25 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         self.identifier_constant(self.parser.previous.to_string(), chunk)
     }
 
-    fn define_variable(&self, global: u8, chunk: Chunk) -> Chunk {
+    fn mark_local_initialized(&mut self) -> Result<(), CompilerError> {
+        match self.locals.last_mut() {
+            Some(v) => {
+                v.depth = self.scope_depth;
+                Ok(())
+            }
+            None => Err(CompilerError::Parse(vec![herefmt!(
+                "Cannot mark local as initialized since there are no locals"
+            )])),
+        }
+    }
+
+    fn define_variable(&mut self, global: u8, chunk: Chunk) -> Result<Chunk, CompilerError> {
         if self.scope_depth > 0 {
             // early exit for local scopes
-            return chunk;
+            self.mark_local_initialized()?;
+            return Ok(chunk);
         }
-        self.emit_opcode_and_byte(OpCode::DefineGlobal, global, chunk)
+        Ok(self.emit_opcode_and_byte(OpCode::DefineGlobal, global, chunk))
     }
 
     fn identifier_constant(
@@ -825,17 +838,23 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
             );
             return;
         }
-        let local = Local::new(name, self.scope_depth);
+        let local = Local::new(name, -1);
         self.locals.push(local);
     }
 
-    fn resolve_local(&self, name: &str) -> i32 {
+    fn resolve_local(&self, name: &str) -> Result<i32, CompilerError> {
         for (i, local) in self.locals.iter().rev().enumerate() {
             if local.lexeme == name {
-                return i as i32;
+                if local.depth == -1 {
+                    return Err(CompilerError::Parse(vec![herefmt!(
+                        "Cannot read variable in its own initializer. Line {}",
+                        self.parser.previous.line
+                    )]));
+                }
+                return Ok(i as i32);
             }
         }
-        return -1;
+        return Ok(-1);
     }
 
     fn declare_variable(&mut self) -> Result<(), CompilerError> {
