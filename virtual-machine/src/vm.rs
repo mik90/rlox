@@ -20,7 +20,6 @@ pub struct VmState {
     // Normally, the linked list of Objects would be stored here but I have all thle objects in stored as Arc<Mutex<T>>
     // Maybe I should use unsafe so I could write a garbage collector?
     globals: HashMap<String, Value>, //< Global hash map of values, no string interning :(
-    strings: HashSet<String>,        //< no string interning :(
 }
 
 pub type ErrorMessage = String;
@@ -64,7 +63,6 @@ impl VmState {
             instruction_index: 0,
             stack: vec![],
             globals: HashMap::new(),
-            strings: HashSet::new(),
         }
     }
 
@@ -256,6 +254,30 @@ impl Vm {
                     }
                     OpCode::Pop => {
                         state.stack.pop();
+                    }
+                    OpCode::GetLocal => {
+                        let slot = state.read_byte()?;
+                        // Push value to the top of the stack so it can be used
+                        // I can't tell if the book is doing a copy or using a pointer here, i'll just defer to copy
+                        let value = state.stack[slot as usize].clone();
+                        state.stack.push(value);
+                    }
+                    OpCode::SetLocal => {
+                        let slot = state.read_byte()? as usize;
+                        let value = state.peek_on_stack(0)?;
+                        let stack_height = state.stack.len();
+
+                        if slot == stack_height {
+                            state.stack.push(value.clone());
+                        } else if slot < stack_height {
+                            state.stack[slot] = value.clone();
+                        } else {
+                            return Err(InterpretError::Runtime(herefmt!(
+                                "Could not set local with slot {} in stack of height {}",
+                                slot,
+                                stack_height
+                            )));
+                        }
                     }
                     OpCode::GetGlobal => {
                         let identifier = state.read_string_constant()?;
@@ -678,6 +700,7 @@ mod test {
             Value::from(Obj::String("hello world".to_owned()))
         );
     }
+
     #[test]
     fn set_global() {
         let vm = Vm::new();

@@ -9,6 +9,8 @@ pub enum OpCode {
     False,        //< literal
     Equal,        //< Comparison
     Pop,          //< Discards value off stack
+    GetLocal,     //< Gets value of local
+    SetLocal,     //< Sets value of local
     GetGlobal,    //< Retrieves global via name's index
     SetGlobal,    //< Sets global variable via name's index
     DefineGlobal, //< Declares global and its name's index
@@ -36,6 +38,7 @@ impl TryFrom<u8> for OpCode {
             x if x == OpCode::False as u8 => Ok(OpCode::False),
             x if x == OpCode::Equal as u8 => Ok(OpCode::Equal),
             x if x == OpCode::Pop as u8 => Ok(OpCode::Pop),
+            x if x == OpCode::SetLocal as u8 => Ok(OpCode::SetLocal),
             x if x == OpCode::GetGlobal as u8 => Ok(OpCode::GetGlobal),
             x if x == OpCode::SetGlobal as u8 => Ok(OpCode::SetGlobal),
             x if x == OpCode::DefineGlobal as u8 => Ok(OpCode::DefineGlobal),
@@ -158,6 +161,11 @@ pub mod debug {
         )
     }
 
+    fn byte_instruction(name: &str, chunk: &Chunk, offset: usize) -> (String, usize) {
+        let slot = chunk.byte_at(offset + 1);
+        (format!("{:<14} slot: {:04}\n", name, slot), offset + 2)
+    }
+
     fn simple_instruction(name: &str, offset: usize) -> (String, usize) {
         (format!("{}\n", name), offset + 1)
     }
@@ -188,6 +196,8 @@ pub mod debug {
                 OpCode::True => simple_instruction("OP_TRUE", offset),
                 OpCode::False => simple_instruction("OP_FALSE", offset),
                 OpCode::Pop => simple_instruction("OP_POP", offset),
+                OpCode::GetLocal => byte_instruction("OP_GET_LOCAL", chunk, offset),
+                OpCode::SetLocal => byte_instruction("OP_SET_LOCAL", chunk, offset),
                 OpCode::GetGlobal => constant_instruction("OP_GET_GLOBAL", chunk, offset),
                 OpCode::SetGlobal => constant_instruction("OP_SET_GLOBAL", chunk, offset),
                 OpCode::DefineGlobal => constant_instruction("OP_DEFINE_GLOBAL", chunk, offset),

@@ -132,7 +132,8 @@ type ParseRuleMap = HashMap<
 struct Local<'source_lifetime> {
     // It's possible that I only need the lexeme and not the whole name
     name: Token<'source_lifetime>,
-    depth: i32, //< I'd like this to be unsigned but the book makes use of a -1 here
+    lexeme: String, //< stringified token since i cant figure out how to get a non-allocating str for the token
+    depth: i32,     //< I'd like this to be unsigned but the book makes use of a -1 here
 }
 
 pub struct Compiler<'source_lifetime> {
@@ -154,7 +155,12 @@ enum ErrorAtKind {
 
 impl<'source_lifetime> Local<'source_lifetime> {
     pub fn new(name: Token<'source_lifetime>, depth: i32) -> Self {
-        Local { name, depth }
+        let lexeme = name.to_string();
+        Local {
+            name,
+            lexeme,
+            depth,
+        }
     }
 }
 
@@ -688,16 +694,25 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
     fn named_variable(
         &mut self,
         name: String,
-        chunk: Chunk,
+        mut chunk: Chunk,
         can_assign: bool,
     ) -> Result<Chunk, CompilerError> {
-        let (arg, chunk) = self.identifier_constant(name, chunk)?;
+        let mut variable_index = self.resolve_local(&name);
+        let (get_opcode, set_opcode) = if variable_index != -1 {
+            (OpCode::GetLocal, OpCode::SetLocal)
+        } else {
+            let (global_arg, updated_chunk) = self.identifier_constant(name, chunk)?;
+            variable_index = global_arg as i32; // :(
+            chunk = updated_chunk;
+            (OpCode::GetGlobal, OpCode::SetGlobal)
+        };
+
         if can_assign && self.token_matches(TokenKind::Equal)? {
             // Handle assignment expression
             let chunk = self.expression(chunk)?;
-            Ok(self.emit_opcode_and_byte(OpCode::SetGlobal, arg, chunk))
+            Ok(self.emit_opcode_and_byte(set_opcode, variable_index as u8, chunk))
         } else {
-            Ok(self.emit_opcode_and_byte(OpCode::GetGlobal, arg, chunk))
+            Ok(self.emit_opcode_and_byte(get_opcode, variable_index as u8, chunk))
         }
     }
 
@@ -812,6 +827,15 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         }
         let local = Local::new(name, self.scope_depth);
         self.locals.push(local);
+    }
+
+    fn resolve_local(&self, name: &str) -> i32 {
+        for (i, local) in self.locals.iter().rev().enumerate() {
+            if local.lexeme == name {
+                return i as i32;
+            }
+        }
+        return -1;
     }
 
     fn declare_variable(&mut self) -> Result<(), CompilerError> {
