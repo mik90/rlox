@@ -659,7 +659,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         self.advance()
     }
 
-    fn number(&self, mut current_chunk: Chunk) -> Result<Chunk, CompilerError> {
+    fn number(&self, current_chunk: Chunk) -> Result<Chunk, CompilerError> {
         let value = self
             .parser
             .previous
@@ -803,8 +803,9 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
 
     fn mark_local_initialized(&mut self) -> Result<(), CompilerError> {
         match self.locals.last_mut() {
-            Some(v) => {
-                v.depth = self.scope_depth;
+            Some(local) => {
+                debugln!("Defining local '{}' as initialized", local.lexeme);
+                local.depth = self.scope_depth;
                 Ok(())
             }
             None => Err(CompilerError::Parse(vec![herefmt!(
@@ -912,8 +913,6 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
 
 #[cfg(test)]
 mod test {
-    use crate::chunk;
-
     use super::*;
 
     #[test]
@@ -1017,5 +1016,22 @@ mod test {
         assert_eq!(format!("{}", value.unwrap()), "ng");
 
         assert_eq!(instructions[7], OpCode::Add as u8);
+    }
+
+    #[test]
+    fn compile_local_set() {
+        let mut compiler = Compiler::new();
+
+        // First statement
+        let res = compiler.compile(
+            "var global = -1;
+                    {
+                        var a = 2; 
+                        global = a; 
+                    }\0",
+        );
+        assert!(res.is_ok(), "{}", res.unwrap_err());
+        let chunk = res.unwrap();
+        println!("{}", crate::chunk::debug::dissassemble_chunk(&chunk, ""));
     }
 }

@@ -224,9 +224,6 @@ impl Vm {
 
     /// Disassembles a single instructions and returns whether or not it should continue running
     fn run_once(&self, mut state: VmState) -> Result<(bool, VmState), InterpretError> {
-        debugln!("\n--------------------------------------------------------");
-        debugln!("stack data  : {}", state.dump_stack());
-        debug!("{}", state.disassemble_latest_instruction());
         if state.end_of_instructions()? {
             return Ok((false, state));
         }
@@ -307,7 +304,6 @@ impl Vm {
                     OpCode::SetGlobal => {
                         let identifier = state.read_string_constant()?;
                         let value = state.peek_on_stack(0)?.clone();
-                        debugln!("Setting global '{}' to '{}'", identifier, value);
 
                         match state.globals.get_mut(&identifier) {
                             Some(old_value) => {
@@ -326,7 +322,6 @@ impl Vm {
                         let identifier = state.read_string_constant()?;
                         let value = state.peek_on_stack(0)?;
                         // Note, the book stores value pointers here while i store copies
-                        debugln!("Defining global '{}' as '{}'", identifier, value);
                         state.globals.insert(identifier, value.clone());
                         state.stack.pop();
                     }
@@ -346,12 +341,6 @@ impl Vm {
                                 (Obj::String(lhs), Obj::String(rhs)) => {
                                     let mut combined_string = lhs.clone();
                                     combined_string.push_str(rhs);
-                                    debugln!(
-                                        "Combining lhs '{}' and rhs '{}' to form '{}'",
-                                        lhs,
-                                        rhs,
-                                        combined_string
-                                    );
                                     let value = Value::from(Obj::String(combined_string));
                                     state.stack.push(value);
                                 }
@@ -463,6 +452,10 @@ impl Vm {
         state.instruction_index = 0;
 
         loop {
+            debugln!("--------------------------------------------------------");
+            debugln!("stack data: {}", state.dump_stack());
+            debug!("{}", state.disassemble_latest_instruction());
+            debugln!("calling run_once...");
             let (continue_running, new_state) = self.run_once(state)?;
             state = new_state;
             // Continue running while we're able to
@@ -741,7 +734,30 @@ mod test {
     }
 
     #[test]
-    fn local_interpret() {
+    fn interpret_locals_set_after_init() {
+        let vm = Vm::new();
+        let mut state = VmState::new();
+
+        // First statement
+        let res = vm.interpret(
+            "var global = -1;
+                    {
+                        var a; 
+                        a = 2; 
+                        global = a; 
+                    }\0",
+            state,
+        );
+        assert!(res.is_ok(), "{}", res.unwrap_err());
+        state = res.unwrap();
+
+        let var = state.globals.get("global");
+        assert!(var.is_some());
+        assert_eq!(*var.unwrap(), Value::Number(2.0));
+    }
+
+    #[test]
+    fn interpret_locals_set_in_init() {
         let vm = Vm::new();
         let mut state = VmState::new();
 
@@ -750,8 +766,7 @@ mod test {
             "var global = -1;
                     {
                         var a = 2; 
-                        var b = 4;
-                        global = b - a; 
+                        global = a; 
                     }\0",
             state,
         );
