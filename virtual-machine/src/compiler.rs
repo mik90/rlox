@@ -698,6 +698,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         can_assign: bool,
     ) -> Result<Chunk, CompilerError> {
         let mut variable_index = self.resolve_local(&name)?;
+
         let (get_opcode, set_opcode) = if variable_index != -1 {
             (OpCode::GetLocal, OpCode::SetLocal)
         } else {
@@ -852,6 +853,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
                         self.parser.previous.line
                     )]));
                 }
+                debugln!("Resolved local '{}' with depth of '{}'", local.lexeme, i);
                 return Ok(i as i32);
             }
         }
@@ -873,7 +875,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
             if local.depth != -1 && local.depth < self.scope_depth {
                 break;
             }
-            if local.name.to_string() == token_name {
+            if local.lexeme == token_name {
                 return Err(CompilerError::Parse(vec![herefmt!(
                     "Already a variable named '{}' in this scope on line {}",
                     token_name,

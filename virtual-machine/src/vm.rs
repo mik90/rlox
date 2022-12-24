@@ -257,6 +257,7 @@ impl Vm {
                         // Push value to the top of the stack so it can be used
                         // I can't tell if the book is doing a copy or using a pointer here, i'll just defer to copy
                         let value = state.stack[slot as usize].clone();
+                        debugln!("Got local with value '{}'", value);
                         state.stack.push(value);
                     }
                     OpCode::SetLocal => {
@@ -469,6 +470,8 @@ impl Vm {
 
 #[cfg(test)]
 mod test {
+    use crate::chunk;
+
     use super::*;
 
     fn build_state(chunks: Vec<Chunk>) -> VmState {
@@ -731,6 +734,78 @@ mod test {
             *var.unwrap(),
             Value::from(Obj::String("beignets with cafe au lait".to_owned()))
         );
+    }
+
+    #[test]
+    fn interpret_global_assignment() {
+        let vm = Vm::new();
+        let mut state = VmState::new();
+
+        // First statement
+        let res = vm.interpret(
+            "var global = -1;
+                    var a = 2; 
+                    global = a;
+                    \0",
+            state,
+        );
+        assert!(res.is_ok(), "{}", res.unwrap_err());
+        state = res.unwrap();
+
+        let var = state.globals.get("global");
+        assert!(var.is_some());
+        assert_eq!(*var.unwrap(), Value::Number(2.0));
+    }
+
+    #[test]
+    fn interpret_local_assignment() {
+        let vm = Vm::new();
+        let state = VmState::new();
+
+        // First statement
+        let res = vm.interpret(
+            "{
+                        var local = -1;
+                        var a = 2; 
+                        local = a;
+                        print local;
+                    }\0",
+            state,
+        );
+        assert!(res.is_ok(), "{}", res.unwrap_err());
+    }
+
+    #[test]
+    fn step_through_local_assignment() {
+        let mut compiler = Compiler::new();
+        let chunk = compiler.compile(
+            "{
+                        var local = -1;
+                        var a = 2; 
+                        local = a;
+                    }\0",
+        );
+        assert!(chunk.is_ok(), "{}", chunk.unwrap_err());
+
+        let mut state = VmState::new();
+        state.chunks.push(chunk.unwrap());
+
+        let vm = Vm::new();
+
+        loop {
+            let current_instruction_byte =
+                state.chunks[state.chunk_index].byte_at(state.instruction_index);
+            let current_opcode = OpCode::try_from(current_instruction_byte).unwrap();
+            if let OpCode::Pop = current_opcode {
+                println!("Stopping test at pop");
+                break;
+            }
+
+            let res = vm.run_once(state);
+            assert!(res.is_ok(), "{}", res.unwrap_err());
+            let (_, new_state) = res.unwrap();
+            state = new_state;
+        }
     }
 
     #[test]

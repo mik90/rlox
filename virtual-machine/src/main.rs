@@ -77,7 +77,7 @@ fn main() -> ExitCode {
     match args.len() {
         1 => repl(),
         2 => {
-            let path = PathBuf::from(args.nth(1).expect("Cannot acces args[1]"));
+            let path = PathBuf::from(args.nth(1).expect("Cannot access args[1]"));
             run_file(&path);
             ExitCode::SUCCESS
         }
