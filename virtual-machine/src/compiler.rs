@@ -503,6 +503,8 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
             if last.depth > self.scope_depth {
                 chunk = self.emit_opcode(OpCode::Pop, chunk);
                 self.locals.pop();
+            } else {
+                break;
             }
         }
         chunk
@@ -700,8 +702,10 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         let mut variable_index = self.resolve_local(&name)?;
 
         let (get_opcode, set_opcode) = if variable_index != -1 {
+            // Local depth is known, so use local getter/setter
             (OpCode::GetLocal, OpCode::SetLocal)
         } else {
+            // Local depth is not known, so resolve value as a global
             let (global_arg, updated_chunk) = self.identifier_constant(name, chunk)?;
             variable_index = global_arg as i32; // :(
             chunk = updated_chunk;
@@ -850,9 +854,11 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
 
     fn resolve_local(&self, name: &str) -> Result<i32, CompilerError> {
         debugln!("resolve_local() name={}", name);
+
         for (i, local) in self.locals.iter().enumerate().rev() {
             debugln!(
-                "({i}, local.name={}, local.depth={}",
+                "({i} out locals.len()={}, local.name={}, local.depth={}",
+                self.locals.len(),
                 local.lexeme,
                 local.depth
             );
@@ -867,6 +873,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
                 return Ok(i as i32);
             }
         }
+        // If we can't find it, it must be a global
         return Ok(-1);
     }
 

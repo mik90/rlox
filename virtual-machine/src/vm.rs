@@ -257,26 +257,26 @@ impl Vm {
                         // Push value to the top of the stack so it can be used
                         // I can't tell if the book is doing a copy or using a pointer here, i'll just defer to copy
                         let value = state.stack[slot as usize].clone();
-                        debugln!("Got local with value '{}'", value);
+                        debugln!("Got local with slot '{}' and value '{}'", slot, value);
                         state.stack.push(value);
                     }
                     OpCode::SetLocal => {
                         let slot = state.read_byte()? as usize;
                         let value = state.peek_on_stack(0)?;
-                        let stack_height = state.stack.len();
+                        let top_of_stack_index = state.stack.len() - 1;
                         debugln!(
-                            "SetLocal wiht slot={slot}, value={value}, stack_height={stack_height}\nstack: {}", state.dump_stack()
+                            "SetLocal wiht slot={slot}, value={value}, stack_height={top_of_stack_index}\nstack: {}", state.dump_stack()
                         );
 
-                        if slot == stack_height {
+                        if slot == top_of_stack_index + 1 {
                             state.stack.push(value.clone());
-                        } else if slot < stack_height {
+                        } else if slot <= top_of_stack_index {
                             state.stack[slot] = value.clone();
                         } else {
                             return Err(InterpretError::Runtime(herefmt!(
                                 "Could not set local with slot {} in stack of height {}",
                                 slot,
-                                stack_height
+                                top_of_stack_index
                             )));
                         }
                     }
@@ -473,8 +473,6 @@ impl Vm {
 
 #[cfg(test)]
 mod test {
-    use crate::chunk;
-
     use super::*;
 
     fn build_state(chunks: Vec<Chunk>) -> VmState {
@@ -788,6 +786,7 @@ mod test {
                         var local = -1;
                         var a = 2; 
                         local = a;
+                        print local;
                     }\0",
         );
         assert!(chunk.is_ok(), "{}", chunk.unwrap_err());
@@ -811,8 +810,11 @@ mod test {
             state = new_state;
             println!("stack after: {}", state.dump_stack());
 
-            if let OpCode::SetLocal = current_opcode {
-                println!("Stopping after setting local");
+            if let OpCode::GetLocal = current_opcode {
+                println!("Stopping after get local");
+                let top_of_stack = state.stack.last();
+                assert!(top_of_stack.is_some());
+                assert_eq!(*top_of_stack.unwrap(), Value::Number(2.0));
                 break;
             }
         }
