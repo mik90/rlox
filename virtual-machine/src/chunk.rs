@@ -92,12 +92,17 @@ impl Chunk {
         self.constants.iter()
     }
 
+    /// Similar to count()
     pub fn code_len(&self) -> usize {
         self.code.len()
     }
 
     pub fn byte_at(&self, offset: usize) -> u8 {
         self.code[offset]
+    }
+
+    pub fn byte_at_ref(&self, offset: usize) -> &u8 {
+        &self.code[offset]
     }
 
     /// Source code line for a given instruction byte

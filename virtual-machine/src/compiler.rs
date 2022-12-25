@@ -166,7 +166,7 @@ impl<'source_lifetime> Local<'source_lifetime> {
 
 impl<'source_lifetime> Compiler<'source_lifetime> {
     /// max length of a single byte, which is all of the locals we can track
-    const MAX_LOCAL_COUNT: usize = std::u8::MAX as usize;
+    const MAX_LOCAL_COUNT: usize = u8::MAX as usize;
 
     pub fn new() -> Compiler<'source_lifetime> {
         Compiler {
@@ -475,7 +475,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
     ) -> Result<(u8, Chunk), CompilerError> {
         let (constant_index, chunk) = self.make_constant(value, current_chunk)?;
         current_chunk = chunk;
-        if constant_index > std::u8::MAX.into() {
+        if constant_index > u8::MAX.into() {
             // We can only store one bytes worth of indexes into a constant array
             return Err(CompilerError::Bytecode(herefmt!(
                 "Too many constants in one chunk"
@@ -486,6 +486,29 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         Ok((constant_index, current_chunk))
     }
 
+    fn patch_jump(&self, offset: u8, mut chunk: Chunk) -> Result<(u8, Chunk), CompilerError> {
+        let jump = chunk.code_len() - (offset as usize) - 2;
+
+        if jump > u16::MAX as usize {
+            return Err(CompilerError::Bytecode(herefmt!(
+                "{} is too much code to jump over",
+                jump
+            )));
+        }
+        *chunk.byte_at_ref(offset as usize) = ((jump >> 8) & 0xff) as u8;
+        *chunk.byte_at_ref((offset + 1).into()) = (jump & 0xff) as u8;
+        todo!()
+    }
+
+    fn emit_jump(&self, instruction: u8, mut chunk: Chunk) -> (u8, Chunk) {
+        chunk = self.emit_byte(instruction, chunk);
+        chunk = self.emit_byte(u8::MAX, chunk);
+        chunk = self.emit_byte(u8::MAX, chunk);
+
+        let instruction_offset = (chunk.code_len() - 2) as u8;
+        (instruction_offset, chunk)
+    }
+
     /// Adds constant to constant table although it doesn't emit bytecode
     fn make_constant(
         &self,
@@ -493,7 +516,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         mut current_chunk: Chunk,
     ) -> Result<(u8, Chunk), CompilerError> {
         let idx = current_chunk.add_constant(value);
-        if idx > std::u8::MAX.into() {
+        if idx > u8::MAX.into() {
             // We can only store one bytes worth of indexes into a constant array
             return Err(CompilerError::Bytecode(herefmt!(
                 "Too many constants in one chunk"
@@ -626,6 +649,17 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         Ok(self.emit_opcode(OpCode::Pop, chunk))
     }
 
+    fn if_statement(&mut self, mut chunk: Chunk) -> Result<Chunk, CompilerError> {
+        self.consume(TokenKind::LeftParen, "Expect '(' after 'if'.")?;
+        chunk = self.expression(chunk)?;
+        self.consume(TokenKind::RightParen, "Expect ')' after condition.")?;
+
+        let (then_jump, mut chunk) = self.emit_jump(OpCode::JumpIfFalse, chunk)?;
+        chunk = self.statement(chunk)?;
+
+        self.patch_jump(then_jump, chunk)
+    }
+
     // parses and generates bytecode for a declaration statement
     fn declaration(&mut self, chunk: Chunk) -> Result<Chunk, CompilerError> {
         let chunk = if self.token_matches(TokenKind::Var)? {
@@ -644,6 +678,8 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
     fn statement(&mut self, chunk: Chunk) -> Result<Chunk, CompilerError> {
         if self.token_matches(TokenKind::Print)? {
             self.print_statement(chunk)
+        } else if self.token_matches(TokenKind::If)? {
+            self.if_statement(chunk);
         } else if self.token_matches(TokenKind::LeftBrace)? {
             self.begin_scope();
             let chunk = self.block(chunk)?;
