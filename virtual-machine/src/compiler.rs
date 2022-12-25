@@ -473,15 +473,17 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         value: Value,
         mut current_chunk: Chunk,
     ) -> Result<(u8, Chunk), CompilerError> {
-        let (idx, chunk) = self.make_constant(value, current_chunk)?;
+        let (constant_index, chunk) = self.make_constant(value, current_chunk)?;
         current_chunk = chunk;
-        // TODO constant is already added to the table, just emit bytecode to refer to that index
-        let idx = current_chunk
-            .write_constant(value, self.parser.previous.line)
-            .map_err(|e| {
-                CompilerError::Bytecode(format!("On line {}, {}", self.parser.previous.line, e))
-            })?;
-        Ok((idx, current_chunk))
+        if constant_index > std::u8::MAX.into() {
+            // We can only store one bytes worth of indexes into a constant array
+            return Err(CompilerError::Bytecode(herefmt!(
+                "Too many constants in one chunk"
+            )));
+        }
+        current_chunk.write_opcode(OpCode::Constant, self.parser.previous.line);
+        current_chunk.write_byte(constant_index as u8, self.parser.previous.line);
+        Ok((constant_index, current_chunk))
     }
 
     /// Adds constant to constant table although it doesn't emit bytecode
