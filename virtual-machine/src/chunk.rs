@@ -26,6 +26,12 @@ pub enum OpCode {
     Return,       //< Return from current function.
 }
 
+impl std::fmt::Display for OpCode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "OpCode::{:?}", self)
+    }
+}
+
 impl TryFrom<u8> for OpCode {
     type Error = String;
 

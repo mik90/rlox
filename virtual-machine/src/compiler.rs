@@ -805,8 +805,12 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
     fn mark_local_initialized(&mut self) -> Result<(), CompilerError> {
         match self.locals.last_mut() {
             Some(local) => {
-                debugln!("Defining local '{}' as initialized", local.lexeme);
                 local.depth = self.scope_depth;
+                debugln!(
+                    "Defining local '{}' as initialized with depth {}",
+                    local.lexeme,
+                    local.depth
+                );
                 Ok(())
             }
             None => Err(CompilerError::Parse(vec![herefmt!(
@@ -845,7 +849,13 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
     }
 
     fn resolve_local(&self, name: &str) -> Result<i32, CompilerError> {
-        for (i, local) in self.locals.iter().rev().enumerate() {
+        debugln!("resolve_local() name={}", name);
+        for (i, local) in self.locals.iter().enumerate().rev() {
+            debugln!(
+                "({i}, local.name={}, local.depth={}",
+                local.lexeme,
+                local.depth
+            );
             if local.lexeme == name {
                 if local.depth == -1 {
                     return Err(CompilerError::Parse(vec![herefmt!(

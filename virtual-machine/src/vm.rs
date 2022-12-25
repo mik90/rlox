@@ -264,6 +264,9 @@ impl Vm {
                         let slot = state.read_byte()? as usize;
                         let value = state.peek_on_stack(0)?;
                         let stack_height = state.stack.len();
+                        debugln!(
+                            "SetLocal wiht slot={slot}, value={value}, stack_height={stack_height}\nstack: {}", state.dump_stack()
+                        );
 
                         if slot == stack_height {
                             state.stack.push(value.clone());
@@ -778,6 +781,8 @@ mod test {
     #[test]
     fn step_through_local_assignment() {
         let mut compiler = Compiler::new();
+
+        // This should assign 'local' to 2
         let chunk = compiler.compile(
             "{
                         var local = -1;
@@ -796,15 +801,20 @@ mod test {
             let current_instruction_byte =
                 state.chunks[state.chunk_index].byte_at(state.instruction_index);
             let current_opcode = OpCode::try_from(current_instruction_byte).unwrap();
-            if let OpCode::Pop = current_opcode {
-                println!("Stopping test at pop");
-                break;
-            }
+            println!("-----------------");
+            println!("{}", current_opcode);
 
+            println!("stack before: {}", state.dump_stack());
             let res = vm.run_once(state);
             assert!(res.is_ok(), "{}", res.unwrap_err());
             let (_, new_state) = res.unwrap();
             state = new_state;
+            println!("stack after: {}", state.dump_stack());
+
+            if let OpCode::SetLocal = current_opcode {
+                println!("Stopping after setting local");
+                break;
+            }
         }
     }
 
