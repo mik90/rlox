@@ -7,6 +7,7 @@ mod vm;
 
 use vm::Vm;
 
+use std::io::Write;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -38,13 +39,15 @@ fn run_file(path: &Path) -> ExitCode {
 }
 
 fn repl() -> ExitCode {
-    print!("> ");
     let mut input = BufReader::new(std::io::stdin());
 
     let vm = Vm::new();
     let mut state = VmState::new();
 
     loop {
+        print!("> ");
+        // ensure that output is flushed
+        std::io::stdout().flush().unwrap();
         let mut buffer = String::new();
         match input.read_line(&mut buffer) {
             Ok(0) => {

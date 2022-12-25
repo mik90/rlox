@@ -1,4 +1,4 @@
-use crate::value::Value;
+use crate::{debugln, value::Value};
 
 #[repr(u8)]
 #[derive(Debug, PartialEq)]
@@ -111,6 +111,7 @@ impl Chunk {
     }
 
     pub fn write_constant(&mut self, value: Value, source_line: usize) -> Result<u8, ChunkError> {
+        println!("Adding constant '{value}'");
         let constant_index = self.add_constant(value);
         if constant_index > std::u8::MAX.into() {
             // We can only store one bytes worth of indexes into a constant array

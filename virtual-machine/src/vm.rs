@@ -257,16 +257,16 @@ impl Vm {
                         // Push value to the top of the stack so it can be used
                         // I can't tell if the book is doing a copy or using a pointer here, i'll just defer to copy
                         let value = state.stack[slot as usize].clone();
-                        debugln!("Got local with slot '{}' and value '{}'", slot, value);
+                        //debugln!("Got local with slot '{}' and value '{}'", slot, value);
                         state.stack.push(value);
                     }
                     OpCode::SetLocal => {
                         let slot = state.read_byte()? as usize;
                         let value = state.peek_on_stack(0)?;
                         let top_of_stack_index = state.stack.len() - 1;
-                        debugln!(
-                            "SetLocal wiht slot={slot}, value={value}, stack_height={top_of_stack_index}\nstack: {}", state.dump_stack()
-                        );
+                        //debugln!(
+                        //    "SetLocal wiht slot={slot}, value={value}, stack_height={top_of_stack_index}\nstack: {}", state.dump_stack()
+                        //);
 
                         if slot == top_of_stack_index + 1 {
                             state.stack.push(value.clone());
@@ -283,18 +283,9 @@ impl Vm {
                     OpCode::GetGlobal => {
                         let identifier = state.read_string_constant()?;
 
-                        state.stack.pop(); // TODO Why do i need this here??
-                                           // It would get both the identifier and the value on the stack and it'd try to act on the identifier
-                                           // if i had an expression that combined the last two values
-
                         match state.globals.get(&identifier) {
                             Some(value) => {
-                                // Copies off of the global table onto the stack
-                                debugln!(
-                                    "Getting global '{}' as '{}'. pushing onto stack",
-                                    identifier,
-                                    value
-                                );
+                                // Copies from the global table onto the stack
                                 state.stack.push(value.clone());
                             }
                             None => {
@@ -308,6 +299,7 @@ impl Vm {
                     OpCode::SetGlobal => {
                         let identifier = state.read_string_constant()?;
                         let value = state.peek_on_stack(0)?.clone();
+                        //debugln!("SetGlobal '{}' to {}", identifier, value);
 
                         match state.globals.get_mut(&identifier) {
                             Some(old_value) => {
@@ -456,10 +448,10 @@ impl Vm {
         state.instruction_index = 0;
 
         loop {
-            debugln!("--------------------------------------------------------");
-            debugln!("stack data: {}", state.dump_stack());
-            debug!("{}", state.disassemble_latest_instruction());
-            debugln!("calling run_once...");
+            //debugln!("--------------------------------------------------------");
+            //debugln!("stack data: {}", state.dump_stack());
+            //debug!("{}", state.disassemble_latest_instruction());
+            //debugln!("calling run_once...");
             let (continue_running, new_state) = self.run_once(state)?;
             state = new_state;
             // Continue running while we're able to
@@ -479,6 +471,24 @@ mod test {
         let mut state = VmState::new();
         state.chunks = chunks;
         state
+    }
+
+    fn build_state_from_source(source: &str) -> VmState {
+        let mut state = VmState::new();
+        let mut compiler = Compiler::new();
+        let chunk = compiler.compile(source);
+        assert!(chunk.is_ok());
+        state.chunks = vec![chunk.unwrap()];
+        state
+    }
+
+    fn get_current_opcode_from_state(state: &VmState) -> OpCode {
+        let current_instruction_byte =
+            state.chunks[state.chunk_index].byte_at(state.instruction_index);
+        let current_opcode = OpCode::try_from(current_instruction_byte);
+
+        assert!(current_opcode.is_ok());
+        return current_opcode.unwrap();
     }
 
     #[test]
@@ -697,44 +707,37 @@ mod test {
 
     #[test]
     fn set_global() {
+        let mut state = build_state_from_source(
+            "var breakfast = \"beignets\";
+             var beverage = \"cafe au lait\";
+             breakfast = \"beignets with \" + beverage;
+        \0",
+        );
         let vm = Vm::new();
-        let mut state = VmState::new();
 
-        // First statement
-        let res = vm.interpret("var breakfast = \"beignets\";\0", state);
-        assert!(res.is_ok(), "{}", res.unwrap_err());
-        state = res.unwrap();
+        loop {
+            let current_opcode = get_current_opcode_from_state(&state);
+            if let OpCode::Return = current_opcode {
+                println!("Stopping before return get local");
+                let var = state.globals.get("breakfast");
+                assert!(var.is_some());
+                assert_eq!(
+                    *var.unwrap(),
+                    Value::from(Obj::String("beignets with cafe au lait".to_owned()))
+                );
+                break;
+            }
 
-        let var = state.globals.get("breakfast");
-        assert!(var.is_some());
-        assert_eq!(
-            *var.unwrap(),
-            Value::from(Obj::String("beignets".to_owned()))
-        );
+            println!("-----------------");
+            println!("{}", current_opcode);
 
-        // Second statement
-        let res = vm.interpret("var beverage = \"cafe au lait\";\0", state);
-        assert!(res.is_ok(), "{}", res.unwrap_err());
-        state = res.unwrap();
-
-        let var = state.globals.get("beverage");
-        assert!(var.is_some());
-        assert_eq!(
-            *var.unwrap(),
-            Value::from(Obj::String("cafe au lait".to_owned()))
-        );
-
-        // Third statement
-        let res = vm.interpret("var breakfast = \"beignets\";var beverage = \"cafe au lait\";breakfast = \"beignets with \" + beverage;\0", state);
-        assert!(res.is_ok(), "{}", res.unwrap_err());
-        state = res.unwrap();
-
-        let var = state.globals.get("breakfast");
-        assert!(var.is_some());
-        assert_eq!(
-            *var.unwrap(),
-            Value::from(Obj::String("beignets with cafe au lait".to_owned()))
-        );
+            println!("stack before: {}", state.dump_stack());
+            let res = vm.run_once(state);
+            assert!(res.is_ok(), "{}", res.unwrap_err());
+            let (_, new_state) = res.unwrap();
+            state = new_state;
+            println!("stack after: {}", state.dump_stack());
+        }
     }
 
     #[test]

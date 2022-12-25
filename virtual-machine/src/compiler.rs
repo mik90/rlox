@@ -1,6 +1,6 @@
 use crate::{
     chunk::{debug::dissassemble_chunk, Chunk, OpCode},
-    debugln, herefmt,
+    debug, debugln, herefmt,
     scanner::{Scanner, ScannerError, Token, TokenKind},
     value::{Obj, Value},
 };
@@ -467,18 +467,37 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         current_chunk
     }
 
-    /// Same as makeConstant
+    /// Emits new constant to chunk
     fn emit_constant(
         &self,
         value: Value,
         mut current_chunk: Chunk,
     ) -> Result<(u8, Chunk), CompilerError> {
+        let (idx, chunk) = self.make_constant(value, current_chunk)?;
+        current_chunk = chunk;
+        // TODO constant is already added to the table, just emit bytecode to refer to that index
         let idx = current_chunk
             .write_constant(value, self.parser.previous.line)
             .map_err(|e| {
                 CompilerError::Bytecode(format!("On line {}, {}", self.parser.previous.line, e))
             })?;
         Ok((idx, current_chunk))
+    }
+
+    /// Adds constant to constant table although it doesn't emit bytecode
+    fn make_constant(
+        &self,
+        value: Value,
+        mut current_chunk: Chunk,
+    ) -> Result<(u8, Chunk), CompilerError> {
+        let idx = current_chunk.add_constant(value);
+        if idx > std::u8::MAX.into() {
+            // We can only store one bytes worth of indexes into a constant array
+            return Err(CompilerError::Bytecode(herefmt!(
+                "Too many constants in one chunk"
+            )));
+        }
+        Ok((idx as u8, current_chunk))
     }
 
     /// Temporary measure as per the book to print hte value of our single expression
@@ -488,6 +507,10 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
             debugln!("{}", dissassemble_chunk(&current_chunk, "code"));
         }
 
+        println!(
+            "{}",
+            crate::chunk::debug::dissassemble_chunk(&current_chunk, "code")
+        );
         current_chunk
     }
 
@@ -602,7 +625,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
     }
 
     // parses and generates bytecode for a declaration statement
-    fn declaration(&mut self, mut chunk: Chunk) -> Result<Chunk, CompilerError> {
+    fn declaration(&mut self, chunk: Chunk) -> Result<Chunk, CompilerError> {
         let chunk = if self.token_matches(TokenKind::Var)? {
             self.var_declaration(chunk)
         } else {
@@ -689,6 +712,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
             .map(|(_, c)| c)
             .collect();
 
+        debugln!("Emitting string constant '{}'", copy);
         let (_, chunk) = self.emit_constant(Value::from(Obj::String(copy)), current_chunk)?;
         Ok(chunk)
     }
@@ -838,8 +862,8 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         identifier: String,
         chunk: Chunk,
     ) -> Result<(u8, Chunk), CompilerError> {
-        debugln!("Emitting constant '{identifier}'");
-        self.emit_constant(Value::from(Obj::String(identifier)), chunk)
+        debugln!("Emitting identifier_constant '{identifier}'");
+        self.make_constant(Value::from(Obj::String(identifier)), chunk)
     }
 
     fn add_local(&mut self, name: Token<'source_lifetime>) {
@@ -876,6 +900,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
             }
         }
         // If we can't find it, it must be a global
+        debugln!("{name} is a global");
         return Ok(-1);
     }
 
@@ -913,6 +938,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
     }
 
     pub fn compile(&mut self, source: &'source_lifetime str) -> Result<Chunk, CompilerError> {
+        debugln!("compile()");
         self.scanner = Scanner::new(source);
         let mut chunk = Chunk::new();
         self.advance()?;
