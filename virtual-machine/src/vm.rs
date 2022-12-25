@@ -864,4 +864,45 @@ mod test {
         assert!(var.is_some());
         assert_eq!(*var.unwrap(), Value::Number(2.0));
     }
+
+    #[test]
+    fn multi_scope() {
+        let mut compiler = Compiler::new();
+
+        // This should assign 'outer' to 2
+        let chunk = compiler.compile(
+            "{
+                        var outer = -1;
+                        {
+                            var inner = 2; 
+                            outer = inner;
+                        }
+                        print outer;
+                    }\0",
+        );
+        assert!(chunk.is_ok(), "{}", chunk.unwrap_err());
+
+        let mut state = VmState::new();
+        state.chunks.push(chunk.unwrap());
+
+        let vm = Vm::new();
+
+        loop {
+            let current_instruction_byte =
+                state.chunks[state.chunk_index].byte_at(state.instruction_index);
+            let current_opcode = OpCode::try_from(current_instruction_byte).unwrap();
+            if let OpCode::Print = current_opcode {
+                println!("Stopping before print get local");
+                let top_of_stack = state.stack.last();
+                assert!(top_of_stack.is_some());
+                assert_eq!(*top_of_stack.unwrap(), Value::Number(2.0));
+                break;
+            }
+
+            let res = vm.run_once(state);
+            assert!(res.is_ok(), "{}", res.unwrap_err());
+            let (_, new_state) = res.unwrap();
+            state = new_state;
+        }
+    }
 }

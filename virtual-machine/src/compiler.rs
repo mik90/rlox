@@ -797,9 +797,10 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         self.consume(TokenKind::Identifier, error_msg)?;
 
         self.declare_variable()?;
-        // Exit function if we're in local scope
+
+        // Exit function early if we're in local scope
         if self.scope_depth > 0 {
-            // Return a dummy index so we don't look up the variable name in the global hash table
+            // Return a dummy index so we don't look up the variable name in the hash table of globals
             return Ok((0, chunk));
         }
 
@@ -837,6 +838,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         identifier: String,
         chunk: Chunk,
     ) -> Result<(u8, Chunk), CompilerError> {
+        debugln!("Emitting constant '{identifier}'");
         self.emit_constant(Value::from(Obj::String(identifier)), chunk)
     }
 
