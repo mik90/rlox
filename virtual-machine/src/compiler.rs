@@ -486,7 +486,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         Ok((constant_index, current_chunk))
     }
 
-    fn patch_jump(&self, offset: u8, mut chunk: Chunk) -> Result<(u8, Chunk), CompilerError> {
+    fn patch_jump(&self, offset: u8, mut chunk: Chunk) -> Result<Chunk, CompilerError> {
         let jump = chunk.code_len() - (offset as usize) - 2;
 
         if jump > u16::MAX as usize {
@@ -495,13 +495,13 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
                 jump
             )));
         }
-        *chunk.byte_at_ref(offset as usize) = ((jump >> 8) & 0xff) as u8;
-        *chunk.byte_at_ref((offset + 1).into()) = (jump & 0xff) as u8;
-        todo!()
+        *chunk.byte_at_mut(offset as usize) = ((jump >> 8) & 0xff) as u8;
+        *chunk.byte_at_mut((offset + 1).into()) = (jump & 0xff) as u8;
+        Ok(chunk)
     }
 
-    fn emit_jump(&self, instruction: u8, mut chunk: Chunk) -> (u8, Chunk) {
-        chunk = self.emit_byte(instruction, chunk);
+    fn emit_jump(&self, instruction: OpCode, mut chunk: Chunk) -> (u8, Chunk) {
+        chunk = self.emit_opcode(instruction, chunk);
         chunk = self.emit_byte(u8::MAX, chunk);
         chunk = self.emit_byte(u8::MAX, chunk);
 
@@ -654,7 +654,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         chunk = self.expression(chunk)?;
         self.consume(TokenKind::RightParen, "Expect ')' after condition.")?;
 
-        let (then_jump, mut chunk) = self.emit_jump(OpCode::JumpIfFalse, chunk)?;
+        let (then_jump, mut chunk) = self.emit_jump(OpCode::JumpIfFalse, chunk);
         chunk = self.statement(chunk)?;
 
         self.patch_jump(then_jump, chunk)
@@ -679,7 +679,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         if self.token_matches(TokenKind::Print)? {
             self.print_statement(chunk)
         } else if self.token_matches(TokenKind::If)? {
-            self.if_statement(chunk);
+            self.if_statement(chunk)
         } else if self.token_matches(TokenKind::LeftBrace)? {
             self.begin_scope();
             let chunk = self.block(chunk)?;

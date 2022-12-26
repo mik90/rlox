@@ -22,7 +22,8 @@ pub enum OpCode {
     Divide,       //< Binary operation
     Not,          //< Unary boolean negation
     Negate,       //< Unary negation
-    Print,        //<
+    Print,        //< Prints to stdout
+    JumpIfFalse,  //< Jumps to the given 16-bit address if the top of the stack is falsey
     Return,       //< Return from current function.
 }
 
@@ -58,6 +59,7 @@ impl TryFrom<u8> for OpCode {
             x if x == OpCode::Not as u8 => Ok(OpCode::Not),
             x if x == OpCode::Negate as u8 => Ok(OpCode::Negate),
             x if x == OpCode::Print as u8 => Ok(OpCode::Print),
+            x if x == OpCode::JumpIfFalse as u8 => Ok(OpCode::JumpIfFalse),
             x if x == OpCode::Return as u8 => Ok(OpCode::Return),
             x => Err(format!("Could not convert '{}' into an OpCode", x)),
         }
@@ -101,8 +103,8 @@ impl Chunk {
         self.code[offset]
     }
 
-    pub fn byte_at_ref(&self, offset: usize) -> &u8 {
-        &self.code[offset]
+    pub fn byte_at_mut(&mut self, offset: usize) -> &mut u8 {
+        &mut self.code[offset]
     }
 
     /// Source code line for a given instruction byte
@@ -224,6 +226,7 @@ pub mod debug {
                 OpCode::Not => simple_instruction("OP_NOT", offset),
                 OpCode::Negate => simple_instruction("OP_NEGATE", offset),
                 OpCode::Print => simple_instruction("OP_PRINT", offset),
+                OpCode::JumpIfFalse => todo!(),
                 OpCode::Return => simple_instruction("OP_RETURN", offset),
             },
             Err(err) => (err, offset + 1),

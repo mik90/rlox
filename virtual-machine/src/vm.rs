@@ -84,6 +84,16 @@ impl VmState {
         Ok(byte)
     }
 
+    fn read_short(&mut self) -> Result<u16, InterpretError> {
+        // Top byte on the stack is the lower, byte below that is the upper
+        let lower = self.read_byte()? as u16;
+        let upper = (self.read_byte()? as u16) << 8;
+        let short = lower | upper;
+
+        self.instruction_index += 2;
+        Ok(short)
+    }
+
     /// Reads another byte from the bytecode input and uses it as an index into the constants table for the current chunk
     fn read_constant(&mut self) -> Result<Value, InterpretError> {
         let constant_index = self.read_byte()?;
@@ -424,6 +434,13 @@ impl Vm {
                             return Err(InterpretError::Runtime(herefmt!(
                                 "Could not print value since the stack was empty"
                             )));
+                        }
+                    }
+                    OpCode::JumpIfFalse => {
+                        let offset = state.read_short()?;
+                        let top_value = state.peek_on_stack(0)?;
+                        if top_value.falsey() {
+                            state.instruction_index += offset as usize;
                         }
                     }
                     OpCode::Return => {
