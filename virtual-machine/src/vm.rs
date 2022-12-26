@@ -436,6 +436,10 @@ impl Vm {
                             )));
                         }
                     }
+                    OpCode::Jump => {
+                        let offset = state.read_short()?;
+                        state.instruction_index += offset as usize;
+                    }
                     OpCode::JumpIfFalse => {
                         let offset = state.read_short()?;
                         let top_value = state.peek_on_stack(0)?;

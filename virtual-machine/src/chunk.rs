@@ -23,6 +23,7 @@ pub enum OpCode {
     Not,          //< Unary boolean negation
     Negate,       //< Unary negation
     Print,        //< Prints to stdout
+    Jump,         //< Unconditionally jumps
     JumpIfFalse,  //< Jumps to the given 16-bit address if the top of the stack is falsey
     Return,       //< Return from current function.
 }
@@ -59,6 +60,7 @@ impl TryFrom<u8> for OpCode {
             x if x == OpCode::Not as u8 => Ok(OpCode::Not),
             x if x == OpCode::Negate as u8 => Ok(OpCode::Negate),
             x if x == OpCode::Print as u8 => Ok(OpCode::Print),
+            x if x == OpCode::Jump as u8 => Ok(OpCode::Jump),
             x if x == OpCode::JumpIfFalse as u8 => Ok(OpCode::JumpIfFalse),
             x if x == OpCode::Return as u8 => Ok(OpCode::Return),
             x => Err(format!("Could not convert '{}' into an OpCode", x)),
@@ -162,6 +164,21 @@ pub mod debug {
         debug_string
     }
 
+    /// Unsur what sign is, it just affects the debug output
+    fn jump_instruction(name: &str, sign: i32, chunk: &Chunk, offset: usize) -> (String, usize) {
+        let mut jump = (chunk.byte_at(offset + 1) as u16) << 8;
+        jump |= chunk.byte_at(offset + 2) as u16;
+        (
+            format!(
+                "{:<16} offset: {:04} jumping to {:04}\n",
+                name,
+                offset,
+                (offset as i32) + 3 + sign + (jump as i32)
+            ),
+            offset + 3,
+        )
+    }
+
     fn constant_instruction(name: &str, chunk: &Chunk, offset: usize) -> (String, usize) {
         let constant_idx = chunk.byte_at(offset + 1);
         let constant_value = chunk
@@ -226,7 +243,8 @@ pub mod debug {
                 OpCode::Not => simple_instruction("OP_NOT", offset),
                 OpCode::Negate => simple_instruction("OP_NEGATE", offset),
                 OpCode::Print => simple_instruction("OP_PRINT", offset),
-                OpCode::JumpIfFalse => todo!(),
+                OpCode::Jump => jump_instruction("OP_JUMP", 1, chunk, offset),
+                OpCode::JumpIfFalse => jump_instruction("OP_JUMP_IF_FALSE", 1, chunk, offset),
                 OpCode::Return => simple_instruction("OP_RETURN", offset),
             },
             Err(err) => (err, offset + 1),

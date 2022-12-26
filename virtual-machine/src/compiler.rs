@@ -655,9 +655,24 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         self.consume(TokenKind::RightParen, "Expect ')' after condition.")?;
 
         let (then_jump, mut chunk) = self.emit_jump(OpCode::JumpIfFalse, chunk);
+
+        // Pop off value if the condition is truthy
+        chunk = self.emit_opcode(OpCode::Pop, chunk);
+
         chunk = self.statement(chunk)?;
 
-        self.patch_jump(then_jump, chunk)
+        let (else_jump, mut chunk) = self.emit_jump(OpCode::Jump, chunk);
+
+        chunk = self.patch_jump(then_jump, chunk)?;
+
+        // Pop off value if the condition is falsey
+        chunk = self.emit_opcode(OpCode::Pop, chunk);
+
+        if self.token_matches(TokenKind::Else)? {
+            chunk = self.statement(chunk)?;
+        }
+        chunk = self.patch_jump(else_jump, chunk)?;
+        Ok(chunk)
     }
 
     // parses and generates bytecode for a declaration statement
@@ -1118,5 +1133,21 @@ mod test {
         assert!(res.is_ok(), "{}", res.unwrap_err());
         let chunk = res.unwrap();
         println!("{}", crate::chunk::debug::dissassemble_chunk(&chunk, ""));
+    }
+
+    #[test]
+    fn compile_if_else() {
+        let mut compiler = Compiler::new();
+
+        // First statement
+        let res = compiler.compile(
+            "if (1) {
+                      // Nothing
+                    } else {
+                      // Nothing
+                    }
+                    \0",
+        );
+        assert!(res.is_ok(), "{}", res.unwrap_err());
     }
 }
