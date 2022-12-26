@@ -4,10 +4,7 @@ use crate::{
     debug, debugln, herefmt,
     value::{Obj, Value},
 };
-use std::{
-    collections::{HashMap, HashSet},
-    fmt,
-};
+use std::{collections::HashMap, fmt};
 
 pub struct Vm {}
 
@@ -458,6 +455,10 @@ impl Vm {
                             "JumpIfFalse end: Instruction index is {}",
                             state.instruction_index
                         );
+                    }
+                    OpCode::Loop => {
+                        let offset = state.read_short()?;
+                        state.instruction_index -= offset as usize;
                     }
                     OpCode::Return => {
                         return Ok((false, state));
@@ -1033,6 +1034,58 @@ mod test {
             if let OpCode::Print = get_current_opcode_from_state(&state) {
                 let value = state.globals.get("value").unwrap();
                 assert_eq!(*value, Value::Number(2.0));
+                break;
+            }
+
+            let res = vm.run_once(state);
+            assert!(res.is_ok(), "{}", res.unwrap_err());
+            let (_, new_state) = res.unwrap();
+            state = new_state;
+        }
+    }
+    #[test]
+    fn global_increment() {
+        let mut state = build_state_from_source(
+            "var value = 0;
+            value = value + 1;
+            value = value + 1;
+            print value;
+            \0",
+        );
+
+        let vm = Vm::new();
+
+        loop {
+            if let OpCode::Print = get_current_opcode_from_state(&state) {
+                let value = state.globals.get("value").unwrap();
+                assert_eq!(*value, Value::Number(2.0));
+                break;
+            }
+
+            let res = vm.run_once(state);
+            assert!(res.is_ok(), "{}", res.unwrap_err());
+            let (_, new_state) = res.unwrap();
+            state = new_state;
+        }
+    }
+
+    #[test]
+    fn interpret_while() {
+        let mut state = build_state_from_source(
+            "var value = 0;
+            while (value != 3) {
+                value = value + 1;
+            }
+            print value;
+            \0",
+        );
+
+        let vm = Vm::new();
+
+        loop {
+            if let OpCode::Print = get_current_opcode_from_state(&state) {
+                let value = state.globals.get("value").unwrap();
+                assert_eq!(*value, Value::Number(3.0));
                 break;
             }
 

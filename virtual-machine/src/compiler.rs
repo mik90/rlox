@@ -453,9 +453,9 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
 
     /// The book stores the current chunk as a static variable, ill just pass it in
     /// This may not be sufficient for later
-    fn emit_byte(&self, byte: u8, mut current_chunk: Chunk) -> Chunk {
-        current_chunk.write_byte(byte, self.parser.previous.line);
-        current_chunk
+    fn emit_byte(&self, byte: u8, mut chunk: Chunk) -> Chunk {
+        chunk.write_byte(byte, self.parser.previous.line);
+        chunk
     }
 
     fn emit_opcode(&self, opcode: OpCode, mut chunk: Chunk) -> Chunk {
@@ -463,29 +463,41 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         chunk
     }
 
-    fn emit_opcode_and_byte(&self, opcode: OpCode, byte: u8, mut current_chunk: Chunk) -> Chunk {
-        current_chunk.write_opcode(opcode, self.parser.previous.line);
-        current_chunk.write_byte(byte, self.parser.previous.line);
-        current_chunk
+    fn emit_opcode_and_byte(&self, opcode: OpCode, byte: u8, mut chunk: Chunk) -> Chunk {
+        chunk.write_opcode(opcode, self.parser.previous.line);
+        chunk.write_byte(byte, self.parser.previous.line);
+        chunk
+    }
+
+    fn emit_loop(&self, loop_start: u8, mut chunk: Chunk) -> Result<Chunk, CompilerError> {
+        chunk.write_opcode(OpCode::Loop, self.parser.previous.line);
+
+        // + 2 takes into account the size of the two byte operands to Loop
+        let offset = chunk.code_len() - (loop_start as usize) - 2;
+        if offset > i16::MAX as usize {
+            return Err(CompilerError::Bytecode(herefmt!("Loop body is too large")));
+        }
+        let offset = offset as u16;
+        let lower = (offset >> 8) as u8;
+        let upper = offset as u8;
+        // TODO do i really need the bitmasking here?
+        chunk = self.emit_byte(lower & u8::MAX, chunk);
+        chunk = self.emit_byte(upper & u8::MAX, chunk);
+        Ok(chunk)
     }
 
     /// Emits new constant to chunk
-    fn emit_constant(
-        &self,
-        value: Value,
-        mut current_chunk: Chunk,
-    ) -> Result<(u8, Chunk), CompilerError> {
-        let (constant_index, chunk) = self.make_constant(value, current_chunk)?;
-        current_chunk = chunk;
+    fn emit_constant(&self, value: Value, chunk: Chunk) -> Result<(u8, Chunk), CompilerError> {
+        let (constant_index, mut chunk) = self.make_constant(value, chunk)?;
         if constant_index > u8::MAX.into() {
             // We can only store one bytes worth of indexes into a constant array
             return Err(CompilerError::Bytecode(herefmt!(
                 "Too many constants in one chunk"
             )));
         }
-        current_chunk.write_opcode(OpCode::Constant, self.parser.previous.line);
-        current_chunk.write_byte(constant_index as u8, self.parser.previous.line);
-        Ok((constant_index, current_chunk))
+        chunk.write_opcode(OpCode::Constant, self.parser.previous.line);
+        chunk.write_byte(constant_index as u8, self.parser.previous.line);
+        Ok((constant_index, chunk))
     }
 
     fn patch_jump(&self, offset: u8, mut chunk: Chunk) -> Result<Chunk, CompilerError> {
@@ -513,33 +525,29 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
     }
 
     /// Adds constant to constant table although it doesn't emit bytecode
-    fn make_constant(
-        &self,
-        value: Value,
-        mut current_chunk: Chunk,
-    ) -> Result<(u8, Chunk), CompilerError> {
-        let idx = current_chunk.add_constant(value);
+    fn make_constant(&self, value: Value, mut chunk: Chunk) -> Result<(u8, Chunk), CompilerError> {
+        let idx = chunk.add_constant(value);
         if idx > u8::MAX.into() {
             // We can only store one bytes worth of indexes into a constant array
             return Err(CompilerError::Bytecode(herefmt!(
                 "Too many constants in one chunk"
             )));
         }
-        Ok((idx as u8, current_chunk))
+        Ok((idx as u8, chunk))
     }
 
     /// Temporary measure as per the book to print hte value of our single expression
-    fn end_compiler(&mut self, mut current_chunk: Chunk) -> Chunk {
-        current_chunk.write_opcode(OpCode::Return, self.parser.previous.line);
+    fn end_compiler(&mut self, mut chunk: Chunk) -> Chunk {
+        chunk.write_opcode(OpCode::Return, self.parser.previous.line);
         if !self.parser.errors.is_empty() {
-            debugln!("{}", dissassemble_chunk(&current_chunk, "code"));
+            debugln!("{}", dissassemble_chunk(&chunk, "code"));
         }
 
         println!(
             "{}",
-            crate::chunk::debug::dissassemble_chunk(&current_chunk, "code")
+            crate::chunk::debug::dissassemble_chunk(&chunk, "code")
         );
-        current_chunk
+        chunk
     }
 
     fn begin_scope(&mut self) {
@@ -698,6 +706,8 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
             self.print_statement(chunk)
         } else if self.token_matches(TokenKind::If)? {
             self.if_statement(chunk)
+        } else if self.token_matches(TokenKind::While)? {
+            self.while_statement(chunk)
         } else if self.token_matches(TokenKind::LeftBrace)? {
             self.begin_scope();
             let chunk = self.block(chunk)?;
@@ -712,6 +722,21 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         let chunk = self.expression(chunk)?;
         self.consume(TokenKind::SemiColon, "Expect ';' after value")?;
         Ok(self.emit_opcode(OpCode::Print, chunk))
+    }
+
+    fn while_statement(&mut self, chunk: Chunk) -> Result<Chunk, CompilerError> {
+        let loop_start = chunk.code_len();
+        self.consume(TokenKind::LeftParen, "Expect '(' after 'while'")?;
+        let chunk = self.expression(chunk)?;
+        self.consume(TokenKind::RightParen, "Expect ')' after condition")?;
+
+        let (exit_jump, mut chunk) = self.emit_jump(OpCode::JumpIfFalse, chunk);
+        chunk = self.emit_opcode(OpCode::Pop, chunk);
+        chunk = self.statement(chunk)?;
+        chunk = self.emit_loop(loop_start as u8, chunk)?;
+
+        chunk = self.patch_jump(exit_jump, chunk)?;
+        Ok(self.emit_opcode(OpCode::Pop, chunk))
     }
 
     fn synchronize(&mut self) -> Result<(), CompilerError> {
@@ -740,7 +765,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         self.advance()
     }
 
-    fn number(&self, current_chunk: Chunk) -> Result<Chunk, CompilerError> {
+    fn number(&self, chunk: Chunk) -> Result<Chunk, CompilerError> {
         let value = self
             .parser
             .previous
@@ -752,8 +777,8 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
                     self.parser.previous, e
                 )])
             })?;
-        let (_, current_chunk) = self.emit_constant(Value::Number(value), current_chunk)?;
-        Ok(current_chunk)
+        let (_, chunk) = self.emit_constant(Value::Number(value), chunk)?;
+        Ok(chunk)
     }
 
     fn or(&mut self, chunk: Chunk) -> Result<Chunk, CompilerError> {
@@ -770,7 +795,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         self.patch_jump(end_jump, chunk)
     }
 
-    fn string(&self, current_chunk: Chunk) -> Result<Chunk, CompilerError> {
+    fn string(&self, chunk: Chunk) -> Result<Chunk, CompilerError> {
         let length = self.parser.previous.length - 2;
         let copy: String = self
             .parser
@@ -783,7 +808,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
             .collect();
 
         debugln!("Emitting string constant '{}'", copy);
-        let (_, chunk) = self.emit_constant(Value::from(Obj::String(copy)), current_chunk)?;
+        let (_, chunk) = self.emit_constant(Value::from(Obj::String(copy)), chunk)?;
         Ok(chunk)
     }
 

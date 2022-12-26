@@ -25,6 +25,7 @@ pub enum OpCode {
     Print,        //< Prints to stdout
     Jump,         //< Unconditionally jumps
     JumpIfFalse,  //< Jumps to the given 16-bit address if the top of the stack is falsey
+    Loop,         //< Unconditionally jumps back to an instruction given a 2-byte offset
     Return,       //< Return from current function.
 }
 
@@ -62,6 +63,7 @@ impl TryFrom<u8> for OpCode {
             x if x == OpCode::Print as u8 => Ok(OpCode::Print),
             x if x == OpCode::Jump as u8 => Ok(OpCode::Jump),
             x if x == OpCode::JumpIfFalse as u8 => Ok(OpCode::JumpIfFalse),
+            x if x == OpCode::Loop as u8 => Ok(OpCode::Loop),
             x if x == OpCode::Return as u8 => Ok(OpCode::Return),
             x => Err(format!("Could not convert '{}' into an OpCode", x)),
         }
@@ -243,6 +245,7 @@ pub mod debug {
                 OpCode::Not => simple_instruction("OP_NOT", offset),
                 OpCode::Negate => simple_instruction("OP_NEGATE", offset),
                 OpCode::Print => simple_instruction("OP_PRINT", offset),
+                OpCode::Loop => jump_instruction("OP_LOOP", -1, chunk, offset),
                 OpCode::Jump => jump_instruction("OP_JUMP", 1, chunk, offset),
                 OpCode::JumpIfFalse => jump_instruction("OP_JUMP_IF_FALSE", 1, chunk, offset),
                 OpCode::Return => simple_instruction("OP_RETURN", offset),
