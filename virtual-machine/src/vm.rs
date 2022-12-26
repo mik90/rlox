@@ -899,10 +899,8 @@ mod test {
 
     #[test]
     fn multi_scope() {
-        let mut compiler = Compiler::new();
-
         // This should assign 'outer' to 2
-        let chunk = compiler.compile(
+        let mut state = build_state_from_source(
             "{
                         var outer = -1;
                         {
@@ -912,10 +910,6 @@ mod test {
                         print outer;
                     }\0",
         );
-        assert!(chunk.is_ok(), "{}", chunk.unwrap_err());
-
-        let mut state = VmState::new();
-        state.chunks.push(chunk.unwrap());
 
         let vm = Vm::new();
 
@@ -937,22 +931,17 @@ mod test {
     }
 
     #[test]
-    fn interpret_if() {
-        let mut compiler = Compiler::new();
-
-        // This should assign 'outer' to 2
-        let chunk = compiler.compile(
+    fn interpret_else() {
+        let mut state = build_state_from_source(
             "var value = 0;
-                    if (true) {
+                    if (false) {
+                        value = -1;
+                    } else {
                         value = 1;
                     }
                     print value;
             \0",
         );
-        assert!(chunk.is_ok(), "{}", chunk.unwrap_err());
-
-        let mut state = VmState::new();
-        state.chunks.push(chunk.unwrap());
 
         let vm = Vm::new();
 
