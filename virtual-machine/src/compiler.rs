@@ -1,5 +1,5 @@
 use crate::{
-    chunk::{debug::dissassemble_chunk, Chunk, OpCode},
+    chunk::{self, debug::dissassemble_chunk, Chunk, OpCode},
     debug, debugln, herefmt,
     scanner::{Scanner, ScannerError, Token, TokenKind},
     value::{Obj, Value},
@@ -199,6 +199,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         let variable = Rc::new(|compiler: &mut Compiler, chunk: Chunk, can_assign: bool| {
             compiler.variable(chunk, can_assign)
         });
+        let and = Rc::new(|compiler: &mut Compiler, chunk: Chunk, _: bool| compiler.and(chunk));
 
         HashMap::from([
             (
@@ -291,7 +292,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
             ),
             (
                 std::mem::discriminant(&TokenKind::And),
-                ParserRule::new(None, None, Precedence::None),
+                ParserRule::new(None, Some(and), Precedence::And),
             ),
             (
                 std::mem::discriminant(&TokenKind::Class),
@@ -456,9 +457,9 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         current_chunk
     }
 
-    fn emit_opcode(&self, opcode: OpCode, mut current_chunk: Chunk) -> Chunk {
-        current_chunk.write_opcode(opcode, self.parser.previous.line);
-        current_chunk
+    fn emit_opcode(&self, opcode: OpCode, mut chunk: Chunk) -> Chunk {
+        chunk.write_opcode(opcode, self.parser.previous.line);
+        chunk
     }
 
     fn emit_opcode_and_byte(&self, opcode: OpCode, byte: u8, mut current_chunk: Chunk) -> Chunk {
@@ -495,6 +496,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
                 jump
             )));
         }
+        debugln!("patching jump with value of {}", jump);
         *chunk.byte_at_mut(offset as usize) = ((jump >> 8) & 0xff) as u8;
         *chunk.byte_at_mut((offset + 1).into()) = (jump & 0xff) as u8;
         Ok(chunk)
@@ -908,6 +910,15 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
             return Ok(chunk);
         }
         Ok(self.emit_opcode_and_byte(OpCode::DefineGlobal, global, chunk))
+    }
+
+    fn and(&mut self, chunk: Chunk) -> Result<Chunk, CompilerError> {
+        let (end_jump, mut chunk) = self.emit_jump(OpCode::JumpIfFalse, chunk);
+
+        chunk = self.emit_opcode(OpCode::Pop, chunk);
+        chunk = self.parse_precedence(Precedence::And, chunk)?;
+
+        self.patch_jump(end_jump, chunk)
     }
 
     fn identifier_constant(

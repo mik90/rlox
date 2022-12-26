@@ -85,12 +85,11 @@ impl VmState {
     }
 
     fn read_short(&mut self) -> Result<u16, InterpretError> {
-        // Top byte on the stack is the lower, byte below that is the upper
-        let lower = self.read_byte()? as u16;
+        // First byte is the upper, second is the lower
         let upper = (self.read_byte()? as u16) << 8;
+        let lower = self.read_byte()? as u16;
         let short = lower | upper;
 
-        self.instruction_index += 2;
         Ok(short)
     }
 
@@ -234,6 +233,10 @@ impl Vm {
 
     /// Disassembles a single instructions and returns whether or not it should continue running
     fn run_once(&self, mut state: VmState) -> Result<(bool, VmState), InterpretError> {
+        debugln!("--------------------------------------------------------");
+        debugln!("run_once()");
+        debugln!("stack data: {}", state.dump_stack());
+        debug!("{}", state.disassemble_latest_instruction());
         if state.end_of_instructions()? {
             return Ok((false, state));
         }
@@ -441,11 +444,20 @@ impl Vm {
                         state.instruction_index += offset as usize;
                     }
                     OpCode::JumpIfFalse => {
+                        debugln!(
+                            "JumpIfFalse start: instruction index is {}",
+                            state.instruction_index
+                        );
                         let offset = state.read_short()?;
                         let top_value = state.peek_on_stack(0)?;
                         if top_value.falsey() {
+                            debugln!("Incrementing instruction index by {}", offset);
                             state.instruction_index += offset as usize;
                         }
+                        debugln!(
+                            "JumpIfFalse end: Instruction index is {}",
+                            state.instruction_index
+                        );
                     }
                     OpCode::Return => {
                         return Ok((false, state));
@@ -469,10 +481,6 @@ impl Vm {
         state.instruction_index = 0;
 
         loop {
-            //debugln!("--------------------------------------------------------");
-            //debugln!("stack data: {}", state.dump_stack());
-            //debug!("{}", state.disassemble_latest_instruction());
-            //debugln!("calling run_once...");
             let (continue_running, new_state) = self.run_once(state)?;
             state = new_state;
             // Continue running while we're able to
@@ -912,14 +920,46 @@ mod test {
         let vm = Vm::new();
 
         loop {
-            let current_instruction_byte =
-                state.chunks[state.chunk_index].byte_at(state.instruction_index);
-            let current_opcode = OpCode::try_from(current_instruction_byte).unwrap();
+            let current_opcode = get_current_opcode_from_state(&state);
             if let OpCode::Print = current_opcode {
                 println!("Stopping before print get local");
                 let top_of_stack = state.stack.last();
                 assert!(top_of_stack.is_some());
                 assert_eq!(*top_of_stack.unwrap(), Value::Number(2.0));
+                break;
+            }
+
+            let res = vm.run_once(state);
+            assert!(res.is_ok(), "{}", res.unwrap_err());
+            let (_, new_state) = res.unwrap();
+            state = new_state;
+        }
+    }
+
+    #[test]
+    fn interpret_if() {
+        let mut compiler = Compiler::new();
+
+        // This should assign 'outer' to 2
+        let chunk = compiler.compile(
+            "var value = 0;
+                    if (true) {
+                        value = 1;
+                    }
+                    print value;
+            \0",
+        );
+        assert!(chunk.is_ok(), "{}", chunk.unwrap_err());
+
+        let mut state = VmState::new();
+        state.chunks.push(chunk.unwrap());
+
+        let vm = Vm::new();
+
+        loop {
+            if let OpCode::Print = get_current_opcode_from_state(&state) {
+                let value = state.globals.get("value").unwrap();
+                assert_eq!(*value, Value::Number(1.0));
                 break;
             }
 
