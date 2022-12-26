@@ -1012,4 +1012,34 @@ mod test {
             state = new_state;
         }
     }
+
+    #[test]
+    fn interpret_or_short_circuit() {
+        let mut state = build_state_from_source(
+            "var value = 0;
+                    if (true or false) {
+                        value = value + 1;
+                    }
+                    if (false or true) {
+                        value = value + 1;
+                    }
+                    print value;
+            \0",
+        );
+
+        let vm = Vm::new();
+
+        loop {
+            if let OpCode::Print = get_current_opcode_from_state(&state) {
+                let value = state.globals.get("value").unwrap();
+                assert_eq!(*value, Value::Number(2.0));
+                break;
+            }
+
+            let res = vm.run_once(state);
+            assert!(res.is_ok(), "{}", res.unwrap_err());
+            let (_, new_state) = res.unwrap();
+            state = new_state;
+        }
+    }
 }

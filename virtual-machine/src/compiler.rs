@@ -200,6 +200,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
             compiler.variable(chunk, can_assign)
         });
         let and = Rc::new(|compiler: &mut Compiler, chunk: Chunk, _: bool| compiler.and(chunk));
+        let or = Rc::new(|compiler: &mut Compiler, chunk: Chunk, _: bool| compiler.or(chunk));
 
         HashMap::from([
             (
@@ -324,7 +325,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
             ),
             (
                 std::mem::discriminant(&TokenKind::Or),
-                ParserRule::new(None, None, Precedence::None),
+                ParserRule::new(None, Some(or), Precedence::Or),
             ),
             (
                 std::mem::discriminant(&TokenKind::Print),
@@ -753,6 +754,20 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
             })?;
         let (_, current_chunk) = self.emit_constant(Value::Number(value), current_chunk)?;
         Ok(current_chunk)
+    }
+
+    fn or(&mut self, chunk: Chunk) -> Result<Chunk, CompilerError> {
+        // If the lhs condition is false, jump to the rhs
+        let (else_jump, chunk) = self.emit_jump(OpCode::JumpIfFalse, chunk);
+        let (end_jump, mut chunk) = self.emit_jump(OpCode::Jump, chunk);
+
+        chunk = self.patch_jump(else_jump, chunk)?;
+        // Pop on falsett
+        chunk = self.emit_opcode(OpCode::Pop, chunk);
+
+        chunk = self.parse_precedence(Precedence::Or, chunk)?;
+
+        self.patch_jump(end_jump, chunk)
     }
 
     fn string(&self, current_chunk: Chunk) -> Result<Chunk, CompilerError> {
