@@ -725,7 +725,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
     }
 
     fn while_statement(&mut self, chunk: Chunk) -> Result<Chunk, CompilerError> {
-        let loop_start = todo!("Cannot get current instruction index here :(");
+        let loop_start = todo!("Cannot get current instruction index here :(") as u8;
         self.consume(TokenKind::LeftParen, "Expect '(' after 'while'")?;
         let chunk = self.expression(chunk)?;
         self.consume(TokenKind::RightParen, "Expect ')' after condition")?;
