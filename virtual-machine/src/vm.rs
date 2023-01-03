@@ -1100,7 +1100,7 @@ mod test {
     fn interpret_for() {
         let mut state = build_state_from_source(
             "var value = 0;
-            for (var i = 0; i < 3; i++;) {
+            for (var i = 0; i < 3; i = i + 1) {
                 value = i;
             }
             print value;

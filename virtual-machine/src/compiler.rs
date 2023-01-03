@@ -1,5 +1,5 @@
 use crate::{
-    chunk::{self, debug::dissassemble_chunk, Chunk, OpCode},
+    chunk::{debug::dissassemble_chunk, Chunk, OpCode},
     debug, debugln, herefmt,
     scanner::{Scanner, ScannerError, Token, TokenKind},
     value::{Obj, Value},
@@ -673,8 +673,6 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
             chunk = self.expression_statement(chunk)?;
         }
 
-        self.consume(TokenKind::SemiColon, "Expect ';'.")?;
-
         let mut loop_start = chunk.code_len();
         let mut exit_jump: i32 = -1;
 
@@ -689,8 +687,6 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
             chunk = new_chunk;
             chunk = self.emit_opcode(OpCode::Pop, chunk);
         }
-
-        self.consume(TokenKind::RightParen, "Expect ')' after for clauses.")?;
 
         // non-empty increment clause
         if !self.token_matches(TokenKind::RightParen)? {
