@@ -660,6 +660,67 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         Ok(self.emit_opcode(OpCode::Pop, chunk))
     }
 
+    fn for_statement(&mut self, mut chunk: Chunk) -> Result<Chunk, CompilerError> {
+        self.begin_scope();
+
+        self.consume(TokenKind::LeftParen, "Expect '(' after 'for'.")?;
+
+        if self.token_matches(TokenKind::SemiColon)? {
+            // No initializer, this is okay
+        } else if self.token_matches(TokenKind::Var)? {
+            chunk = self.var_declaration(chunk)?;
+        } else {
+            chunk = self.expression_statement(chunk)?;
+        }
+
+        self.consume(TokenKind::SemiColon, "Expect ';'.")?;
+
+        let mut loop_start = chunk.code_len();
+        let mut exit_jump: i32 = -1;
+
+        // Non-empty conditional clause
+        if !self.token_matches(TokenKind::SemiColon)? {
+            chunk = self.expression(chunk)?;
+            self.consume(TokenKind::SemiColon, "Expect ';' after loop condition.")?;
+
+            // emit jump if/when condition is false
+            let (idx, new_chunk) = self.emit_jump(OpCode::JumpIfFalse, chunk);
+            exit_jump = idx as i32;
+            chunk = new_chunk;
+            chunk = self.emit_opcode(OpCode::Pop, chunk);
+        }
+
+        self.consume(TokenKind::RightParen, "Expect ')' after for clauses.")?;
+
+        // non-empty increment clause
+        if !self.token_matches(TokenKind::RightParen)? {
+            // instruction index post-increment
+            let (body_jump, new_chunk) = self.emit_jump(OpCode::Jump, chunk);
+            chunk = new_chunk;
+            let increment_start = chunk.code_len();
+            chunk = self.expression(chunk)?;
+            // Discard value of increment expression
+            chunk = self.emit_opcode(OpCode::Pop, chunk);
+            self.consume(TokenKind::RightParen, "Expect ')' after for clauses.")?;
+
+            chunk = self.emit_loop(loop_start as u8, chunk)?;
+            // The loop should start by running the increment expression whenever it jumps back up
+            loop_start = increment_start;
+            chunk = self.patch_jump(body_jump, chunk)?;
+        }
+
+        chunk = self.statement(chunk)?;
+
+        chunk = self.emit_loop(loop_start as u8, chunk)?;
+
+        if exit_jump != -1 {
+            chunk = self.patch_jump(exit_jump as u8, chunk)?;
+            chunk = self.emit_opcode(OpCode::Pop, chunk);
+        }
+
+        Ok(self.end_scope(chunk))
+    }
+
     fn if_statement(&mut self, mut chunk: Chunk) -> Result<Chunk, CompilerError> {
         self.consume(TokenKind::LeftParen, "Expect '(' after 'if'.")?;
         chunk = self.expression(chunk)?;
@@ -704,6 +765,8 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
     fn statement(&mut self, chunk: Chunk) -> Result<Chunk, CompilerError> {
         if self.token_matches(TokenKind::Print)? {
             self.print_statement(chunk)
+        } else if self.token_matches(TokenKind::For)? {
+            self.for_statement(chunk)
         } else if self.token_matches(TokenKind::If)? {
             self.if_statement(chunk)
         } else if self.token_matches(TokenKind::While)? {
