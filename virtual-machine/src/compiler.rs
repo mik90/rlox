@@ -473,7 +473,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         chunk.write_opcode(OpCode::Loop, self.parser.previous.line);
 
         // + 2 takes into account the size of the two byte operands to Loop
-        let offset = chunk.code_len() - (loop_start as usize) - 2;
+        let offset = chunk.code_len() - (loop_start as usize) + 2;
         if offset > i16::MAX as usize {
             return Err(CompilerError::Bytecode(herefmt!("Loop body is too large")));
         }
@@ -545,7 +545,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
 
         println!(
             "{}",
-            crate::chunk::debug::dissassemble_chunk(&chunk, "code")
+            chunk = crate::chunk::debug::dissassemble_chunk(&chunk, "code")
         );
         chunk
     }
@@ -725,7 +725,8 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
     }
 
     fn while_statement(&mut self, chunk: Chunk) -> Result<Chunk, CompilerError> {
-        let loop_start = todo!("Cannot get current instruction index here :(") as u8;
+        let loop_start = chunk.code_len();
+        debugln!("loop_start={}", loop_start);
         self.consume(TokenKind::LeftParen, "Expect '(' after 'while'")?;
         let chunk = self.expression(chunk)?;
         self.consume(TokenKind::RightParen, "Expect ')' after condition")?;
@@ -809,7 +810,6 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
             .map(|(_, c)| c)
             .collect();
 
-        debugln!("Emitting string constant '{}'", copy);
         let (_, chunk) = self.emit_constant(Value::from(Obj::String(copy)), chunk)?;
         Ok(chunk)
     }
@@ -968,7 +968,6 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         identifier: String,
         chunk: Chunk,
     ) -> Result<(u8, Chunk), CompilerError> {
-        debugln!("Emitting identifier_constant '{identifier}'");
         self.make_constant(Value::from(Obj::String(identifier)), chunk)
     }
 
@@ -985,15 +984,13 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
     }
 
     fn resolve_local(&self, name: &str) -> Result<i32, CompilerError> {
-        debugln!("resolve_local() name={}", name);
-
         for (i, local) in self.locals.iter().enumerate().rev() {
-            debugln!(
+            /*debugln!(
                 "({i} out locals.len()={}, local.name={}, local.depth={}",
                 self.locals.len(),
                 local.lexeme,
                 local.depth
-            );
+            );*/
             if local.lexeme == name {
                 if local.depth == -1 {
                     return Err(CompilerError::Parse(vec![herefmt!(
@@ -1001,12 +998,11 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
                         self.parser.previous.line
                     )]));
                 }
-                debugln!("Resolved local '{}' with depth of '{}'", local.lexeme, i);
+                //debugln!("Resolved local '{}' with depth of '{}'", local.lexeme, i);
                 return Ok(i as i32);
             }
         }
         // If we can't find it, it must be a global
-        debugln!("{name} is a global");
         return Ok(-1);
     }
 
