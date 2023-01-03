@@ -1,6 +1,6 @@
 use crate::{
     chunk::{debug::dissassemble_chunk, Chunk, OpCode},
-    debug, debugln, herefmt,
+    debugln, herefmt,
     scanner::{Scanner, ScannerError, Token, TokenKind},
     value::{Obj, Value},
 };
