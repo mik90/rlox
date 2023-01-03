@@ -725,14 +725,16 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
     }
 
     fn while_statement(&mut self, chunk: Chunk) -> Result<Chunk, CompilerError> {
-        let loop_start = chunk.code_len();
+        let loop_start = todo!("Cannot get current instruction index here :(");
         self.consume(TokenKind::LeftParen, "Expect '(' after 'while'")?;
         let chunk = self.expression(chunk)?;
         self.consume(TokenKind::RightParen, "Expect ')' after condition")?;
 
         let (exit_jump, mut chunk) = self.emit_jump(OpCode::JumpIfFalse, chunk);
         chunk = self.emit_opcode(OpCode::Pop, chunk);
+
         chunk = self.statement(chunk)?;
+
         chunk = self.emit_loop(loop_start as u8, chunk)?;
 
         chunk = self.patch_jump(exit_jump, chunk)?;

@@ -166,13 +166,13 @@ pub mod debug {
         debug_string
     }
 
-    /// Unsur what sign is, it just affects the debug output
+    /// Sign just affects the debug output, shows whether or not instr is jumping forward or backward
     fn jump_instruction(name: &str, sign: i32, chunk: &Chunk, offset: usize) -> (String, usize) {
         let mut jump = (chunk.byte_at(offset + 1) as u16) << 8;
         jump |= chunk.byte_at(offset + 2) as u16;
         (
             format!(
-                "{:<16} offset: {:04} jumping to {:04}\n",
+                "{:<16} offset: {:04} conditionally jumping to {:04}\n",
                 name,
                 offset,
                 (offset as i32) + 3 + sign + (jump as i32)
