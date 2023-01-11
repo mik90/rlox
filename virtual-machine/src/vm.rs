@@ -350,6 +350,9 @@ impl Vm {
                                     let value = Value::from(Obj::String(combined_string));
                                     state.stack.push(value);
                                 }
+                                (Obj::String(_), Obj::Function(_)) => todo!(),
+                                (Obj::Function(_), Obj::String(_)) => todo!(),
+                                (Obj::Function(_), Obj::Function(_)) => todo!(),
                             }
                         }
                         (Value::Number(lhs), Value::Number(rhs)) => {
@@ -475,8 +478,8 @@ impl Vm {
     pub fn interpret(&self, source: &str, mut state: VmState) -> Result<VmState, InterpretError> {
         // TODO use same stateful compiler over iteration
         let mut compiler = Compiler::new();
-        let chunk = compiler.compile(source).map_err(InterpretError::Compile)?;
-        state.chunks.push(chunk);
+        let function = compiler.compile(source).map_err(InterpretError::Compile)?;
+        state.chunks.push(function.chunk);
         // Update indexes of state to match the new generated chunk
         state.chunk_index = state.chunks.len() - 1;
         state.instruction_index = 0;
@@ -506,9 +509,8 @@ mod test {
     fn build_state_from_source(source: &str) -> VmState {
         let mut state = VmState::new();
         let mut compiler = Compiler::new();
-        let chunk = compiler.compile(source);
-        assert!(chunk.is_ok(), "{}", chunk.unwrap_err());
-        state.chunks = vec![chunk.unwrap()];
+        let function = compiler.compile(source).unwrap();
+        state.chunks = vec![function.chunk];
         state
     }
 
@@ -814,7 +816,7 @@ mod test {
         let mut compiler = Compiler::new();
 
         // This should assign 'local' to 2
-        let chunk = compiler.compile(
+        let function = compiler.compile(
             "{
                         var local = -1;
                         var a = 2; 
@@ -822,10 +824,10 @@ mod test {
                         print local;
                     }\0",
         );
-        assert!(chunk.is_ok(), "{}", chunk.unwrap_err());
+        assert!(function.is_ok(), "{}", function.unwrap_err());
 
         let mut state = VmState::new();
-        state.chunks.push(chunk.unwrap());
+        state.chunks.push(function.unwrap().chunk);
 
         let vm = Vm::new();
 

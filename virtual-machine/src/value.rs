@@ -1,17 +1,43 @@
-use crate::herefmt;
 use std::{fmt, rc::Rc};
+
+use crate::chunk::Chunk;
 
 /// Generic heap-allocated object container
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub enum Obj {
     // TODO store hash along with string, make string immutable
     String(String),
+    Function(ObjFunction),
 }
 
 impl fmt::Display for Obj {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self {
             Obj::String(s) => write!(f, "{}", s),
+            Obj::Function(s) => write!(f, "{}", s),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
+pub struct ObjFunction {
+    pub arity: usize,
+    pub chunk: Chunk,
+    pub name: String, // TODO use interned string
+}
+
+impl fmt::Display for ObjFunction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "fn <{}>", self.name)
+    }
+}
+
+impl ObjFunction {
+    pub fn new(name: String) -> ObjFunction {
+        ObjFunction {
+            arity: 0,
+            chunk: Chunk::new(),
+            name,
         }
     }
 }

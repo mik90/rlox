@@ -2,7 +2,7 @@ use crate::{
     chunk::{debug::dissassemble_chunk, Chunk, OpCode},
     debugln, herefmt,
     scanner::{Scanner, ScannerError, Token, TokenKind},
-    value::{Obj, Value},
+    value::{Obj, ObjFunction, Value},
 };
 use std::{collections::HashMap, fmt, rc::Rc};
 
@@ -136,6 +136,11 @@ struct Local<'source_lifetime> {
     depth: i32,     //< I'd like this to be unsigned but the book makes use of a -1 here
 }
 
+enum FunctionKind {
+    Function,
+    Script,
+}
+
 pub struct Compiler<'source_lifetime> {
     // TODO, these may not need to be members since their init logic is so odd
     parser: Parser<'source_lifetime>,
@@ -144,8 +149,10 @@ pub struct Compiler<'source_lifetime> {
     rules: ParseRuleMap,
 
     locals: Vec<Local<'source_lifetime>>,
-    scope_depth: i32, //< number of blocks surrounding current part of code being compiled
-                      //< 0 is global scope
+    scope_depth: i32, //< number of blocks surrounding current part of code being compiled. 0 is global scope
+    current_function: ObjFunction, //< The compiler always has a function in mind
+    // I could use a sum type here but this is closer to the book
+    current_function_kind: FunctionKind,
 }
 
 enum ErrorAtKind {
@@ -169,12 +176,17 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
     const MAX_LOCAL_COUNT: usize = u8::MAX as usize;
 
     pub fn new() -> Compiler<'source_lifetime> {
+        // Used for internal VM purposes
+        let internal_local = Local::new(Token::new_uninit(), 0);
+
         Compiler {
             parser: Parser::new(),
             scanner: Scanner::new(""),
             rules: Compiler::make_rules(),
-            locals: vec![],
+            locals: vec![internal_local],
             scope_depth: 0,
+            current_function: ObjFunction::new("<script>".to_owned()),
+            current_function_kind: FunctionKind::Script,
         }
     }
 
@@ -534,20 +546,6 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
             )));
         }
         Ok((idx as u8, chunk))
-    }
-
-    /// Temporary measure as per the book to print hte value of our single expression
-    fn end_compiler(&mut self, mut chunk: Chunk) -> Chunk {
-        chunk.write_opcode(OpCode::Return, self.parser.previous.line);
-        if !self.parser.errors.is_empty() {
-            debugln!("{}", dissassemble_chunk(&chunk, "code"));
-        }
-
-        println!(
-            "{}",
-            chunk = crate::chunk::debug::dissassemble_chunk(&chunk, "code")
-        );
-        chunk
     }
 
     fn begin_scope(&mut self) {
@@ -1098,7 +1096,7 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
         Ok(chunk)
     }
 
-    pub fn compile(&mut self, source: &'source_lifetime str) -> Result<Chunk, CompilerError> {
+    pub fn compile(&mut self, source: &'source_lifetime str) -> Result<ObjFunction, CompilerError> {
         debugln!("compile()");
         self.scanner = Scanner::new(source);
         let mut chunk = Chunk::new();
@@ -1110,9 +1108,19 @@ impl<'source_lifetime> Compiler<'source_lifetime> {
 
         self.consume(TokenKind::Eof, "Expect end of expression")?;
 
+        // This section is the same as end_compiler()/endCompiler(). I found that keeping it was more confusing
+        chunk.write_opcode(OpCode::Return, self.parser.previous.line);
         if self.parser.errors.is_empty() {
-            Ok(self.end_compiler(chunk))
+            // Dissassemble the compiled chunk in debug mode
+            debugln!(
+                "{}",
+                dissassemble_chunk(&chunk, &self.current_function.name)
+            );
+
+            self.current_function.chunk = chunk;
+            Ok(self.current_function.clone()) // TODO, prob shouldn't clone. Maybe swap?
         } else {
+            // Collect all the errors
             let errors: Vec<String> = self.parser.errors.drain(0..).collect();
             Err(CompilerError::Parse(errors))
         }
@@ -1152,11 +1160,11 @@ mod test {
         let mut compiler = Compiler::new();
 
         let source = "print true;\0";
-        let chunk = compiler.compile(source);
-        assert!(chunk.is_ok());
-        let chunk = chunk.unwrap();
+        let function = compiler.compile(source);
+        assert!(function.is_ok());
+        let function = function.unwrap();
 
-        let mut code = chunk.code_iter();
+        let mut code = function.chunk.code_iter();
         assert!(code.clone().count() >= 1);
         let byte = code.next().unwrap();
 
@@ -1167,10 +1175,8 @@ mod test {
     #[test]
     fn compile_comparisons() {
         let mut compiler = Compiler::new();
-        let res = compiler.compile("print !(5 - 4 > 3 * 2 == !nil);\0");
-        assert!(res.is_ok());
-        let chunk = res.unwrap();
-        let instructions: Vec<u8> = chunk.code_iter().copied().collect();
+        let function = compiler.compile("print !(5 - 4 > 3 * 2 == !nil);\0");
+        let instructions: Vec<u8> = function.unwrap().chunk.code_iter().copied().collect();
 
         // Instruction indices are skipped since we don't care about the indexes of the constants
         // This is really just using the offsets found in the debug output and checking that future changes don't break
@@ -1197,9 +1203,8 @@ mod test {
         let mut compiler = Compiler::new();
 
         let source = r#"print "st" + "ri" + "ng"; "#;
-        let chunk = compiler.compile(source);
-        assert!(chunk.is_ok());
-        let chunk = chunk.unwrap();
+        let function = compiler.compile(source).unwrap();
+        let chunk = function.chunk;
 
         let instructions: Vec<u8> = chunk.code_iter().copied().collect();
 
@@ -1239,7 +1244,7 @@ mod test {
                     }\0",
         );
         assert!(res.is_ok(), "{}", res.unwrap_err());
-        let chunk = res.unwrap();
+        let chunk = res.unwrap().chunk;
         println!("{}", crate::chunk::debug::dissassemble_chunk(&chunk, ""));
     }
 
